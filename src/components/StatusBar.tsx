@@ -28,7 +28,7 @@ export function StatusBar({
         : "red";
 
   return (
-    <Box paddingX={1} justifyContent="space-between">
+    <Box paddingX={1} justifyContent="space-between" width="100%" flexShrink={0}>
       <Box>
         {error ? (
           <Text color="red">[Error: {error}]</Text>

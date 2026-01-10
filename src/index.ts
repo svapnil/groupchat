@@ -41,8 +41,10 @@ async function startChat() {
   // Clear the terminal screen
   process.stdout.write('\x1b[2J\x1b[0f');
 
-  // Render the Ink app
-  const { waitUntilExit } = render(React.createElement(App));
+  // Render the Ink app in fullscreen mode
+  const { waitUntilExit } = render(React.createElement(App), {
+    exitOnCtrlC: false, // We handle Ctrl+C manually
+  });
 
   try {
     await waitUntilExit();
@@ -84,3 +86,4 @@ program
 program.action(startChat);
 
 program.parse();
+

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, useApp, useInput } from "ink";
+import { Box, useApp, useInput, useStdout } from "ink";
 import { Header } from "./Header.js";
 import { MessageList } from "./MessageList.js";
 import { UserList } from "./UserList.js";
@@ -18,9 +18,32 @@ import type { AuthState } from "../lib/types.js";
 
 export function App() {
   const { exit } = useApp();
+  const { stdout } = useStdout();
   const [authState, setAuthState] = useState<AuthState>("unauthenticated");
   const [authStatus, setAuthStatus] = useState<string>("");
   const [token, setToken] = useState<string | null>(null);
+  const [terminalSize, setTerminalSize] = useState({
+    rows: stdout?.rows || 24,
+    columns: stdout?.columns || 80,
+  });
+
+  // Listen for terminal resize events
+  useEffect(() => {
+    if (!stdout) return;
+
+    const handleResize = () => {
+      setTerminalSize({
+        rows: stdout.rows || 24,
+        columns: stdout.columns || 80,
+      });
+    };
+
+    stdout.on("resize", handleResize);
+
+    return () => {
+      stdout.off("resize", handleResize);
+    };
+  }, [stdout]);
 
   // Check auth on mount
   useEffect(() => {
@@ -114,8 +137,25 @@ export function App() {
     );
   }
 
+  // Calculate explicit heights for layout
+  // Header: 3 lines (border + content + border)
+  // InputBox: 4 lines (border + 2 content lines + border)
+  // StatusBar: 1 line
+  const headerHeight = 3;
+  const inputBoxHeight = 4;
+  const statusBarHeight = 1;
+  const middleSectionHeight = Math.max(
+    5,
+    terminalSize.rows - headerHeight - inputBoxHeight - statusBarHeight
+  );
+
   return (
-    <Box flexDirection="column" height="100%">
+    <Box
+      flexDirection="column"
+      width={terminalSize.columns}
+      height={terminalSize.rows}
+      overflow="hidden"
+    >
       <Header
         username={username}
         roomName="chat_room:global"
@@ -123,15 +163,16 @@ export function App() {
         onLogout={handleLogout}
       />
 
-      <Box flexGrow={1} flexDirection="row">
-        <Box flexGrow={1} flexDirection="column">
+      <Box flexDirection="row" height={middleSectionHeight} overflow="hidden">
+        <Box flexGrow={1} flexDirection="column" overflow="hidden">
           <MessageList
             messages={messages}
             currentUsername={username}
             typingUsers={typingUsers}
+            height={middleSectionHeight}
           />
         </Box>
-        <UserList users={users} currentUsername={username} />
+        <UserList users={users} currentUsername={username} height={middleSectionHeight} />
       </Box>
 
       <InputBox

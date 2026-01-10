@@ -90,6 +90,8 @@ export function InputBox({
       borderColor={disabled ? "gray" : "blue"}
       paddingX={1}
       flexDirection="column"
+      width="100%"
+      flexShrink={0}
     >
       <Box>
         <Text color="cyan">$ </Text>

@@ -34,6 +34,8 @@ export function Header({
       borderColor="blue"
       paddingX={1}
       justifyContent="space-between"
+      width="100%"
+      flexShrink={0}
     >
       <Box>
         <Text color="cyan" bold>

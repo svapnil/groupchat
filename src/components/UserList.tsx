@@ -5,15 +5,18 @@ import type { User } from "../lib/types.js";
 interface UserListProps {
   users: User[];
   currentUsername: string | null;
+  height: number;
 }
 
-export function UserList({ users, currentUsername }: UserListProps) {
+export function UserList({ users, currentUsername, height }: UserListProps) {
   return (
     <Box
       flexDirection="column"
+      flexShrink={0}
       borderStyle="single"
       borderColor="gray"
       width={24}
+      height={height}
       paddingX={1}
     >
       <Box marginBottom={1}>
