@@ -28,7 +28,14 @@ export function StatusBar({
         : "red";
 
   return (
-    <Box paddingX={1} justifyContent="space-between" width="100%" flexShrink={0}>
+    <Box
+      borderStyle="single"
+      borderColor="gray"
+      paddingX={1}
+      justifyContent="space-between"
+      width="100%"
+      flexShrink={0}
+    >
       <Box>
         {error ? (
           <Text color="red">[Error: {error}]</Text>
@@ -43,7 +50,7 @@ export function StatusBar({
       <Box>
         <Text color="gray">Users: </Text>
         <Text color="cyan">{userCount}</Text>
-        <Text color="gray"> | Ctrl+C to exit</Text>
+        <Text color="gray"> | ↑/↓ scroll | Ctrl+E users | Ctrl+C exit</Text>
       </Box>
     </Box>
   );

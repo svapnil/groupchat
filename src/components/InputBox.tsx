@@ -87,7 +87,7 @@ export function InputBox({
   return (
     <Box
       borderStyle="single"
-      borderColor={disabled ? "gray" : "blue"}
+      borderColor="gray"
       paddingX={1}
       flexDirection="column"
       width="100%"

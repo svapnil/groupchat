@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, useApp, useInput, useStdout } from "ink";
+import { Box, useApp, useInput, useStdout, Text } from "ink";
 import { Header } from "./Header.js";
 import { MessageList } from "./MessageList.js";
 import { UserList } from "./UserList.js";
 import { InputBox } from "./InputBox.js";
 import { StatusBar } from "./StatusBar.js";
 import { LoginScreen } from "./LoginScreen.js";
+import { Menu } from "./Menu.js";
 import { useChat } from "../hooks/use-chat.js";
 import { usePresence } from "../hooks/use-presence.js";
 import {
@@ -26,6 +27,17 @@ export function App() {
     rows: stdout?.rows || 24,
     columns: stdout?.columns || 80,
   });
+
+  // Scroll state for message list
+  const [scrollOffset, setScrollOffset] = useState(0); // 0 = at bottom (tailing)
+  const [isScrollDetached, setIsScrollDetached] = useState(false);
+
+  // User list visibility
+  const [showUserList, setShowUserList] = useState(true);
+
+  // View/Page navigation
+  const [currentView, setCurrentView] = useState<"menu" | "chat">("chat");
+  const [currentChannel, setCurrentChannel] = useState("global");
 
   // Listen for terminal resize events
   useEffect(() => {
@@ -106,6 +118,17 @@ export function App() {
     setAuthState("unauthenticated");
   }, [disconnect]);
 
+  // Calculate max visible messages for scroll bounds
+  const headerHeight = 3;
+  const inputBoxHeight = 4;
+  const statusBarHeight = 1;
+  const middleSectionHeight = Math.max(
+    5,
+    terminalSize.rows - headerHeight - inputBoxHeight - statusBarHeight
+  );
+  const linesPerMessage = 2;
+  const maxVisibleMessages = Math.floor(middleSectionHeight / linesPerMessage);
+
   // Global keyboard shortcuts
   useInput((input, key) => {
     // Ctrl+C to exit
@@ -116,6 +139,43 @@ export function App() {
     // Ctrl+L to logout (when authenticated)
     if (input === "l" && key.ctrl && authState === "authenticated") {
       handleLogout();
+    }
+
+    // Ctrl+E to toggle user list (when authenticated)
+    if (input === "e" && key.ctrl && authState === "authenticated") {
+      setShowUserList((prev) => !prev);
+    }
+
+    // Ctrl+Q to navigate to menu (when authenticated and in chat view)
+    if (input === "q" && key.ctrl && authState === "authenticated" && currentView === "chat") {
+      setCurrentView("menu");
+    }
+
+    // Up/Down arrow keys for scrolling (only when authenticated)
+    if (authState === "authenticated") {
+      const maxOffset = Math.max(0, messages.length - maxVisibleMessages);
+
+      if (key.upArrow) {
+        // Scroll up (increase offset from bottom)
+        setScrollOffset((prev) => {
+          const newOffset = Math.min(prev + 1, maxOffset);
+          if (newOffset > 0) {
+            setIsScrollDetached(true);
+          }
+          return newOffset;
+        });
+      }
+
+      if (key.downArrow) {
+        // Scroll down (decrease offset from bottom)
+        setScrollOffset((prev) => {
+          const newOffset = Math.max(prev - 1, 0);
+          if (newOffset === 0) {
+            setIsScrollDetached(false);
+          }
+          return newOffset;
+        });
+      }
     }
   });
 
@@ -137,18 +197,30 @@ export function App() {
     );
   }
 
-  // Calculate explicit heights for layout
-  // Header: 3 lines (border + content + border)
-  // InputBox: 4 lines (border + 2 content lines + border)
-  // StatusBar: 1 line
-  const headerHeight = 3;
-  const inputBoxHeight = 4;
-  const statusBarHeight = 1;
-  const middleSectionHeight = Math.max(
-    5,
-    terminalSize.rows - headerHeight - inputBoxHeight - statusBarHeight
-  );
+  // Show Menu page
+  if (currentView === "menu") {
+    return (
+      <Box
+        flexDirection="column"
+        width={terminalSize.columns}
+        height={terminalSize.rows}
+        overflow="hidden"
+      >
+        <Menu
+          width={terminalSize.columns}
+          height={terminalSize.rows}
+          currentChannel={currentChannel}
+          onChannelSelect={setCurrentChannel}
+          onBack={() => setCurrentView("chat")}
+          username={username}
+          connectionStatus={connectionStatus}
+          onLogout={handleLogout}
+        />
+      </Box>
+    );
+  }
 
+  // Show Chat view
   return (
     <Box
       flexDirection="column"
@@ -161,6 +233,14 @@ export function App() {
         roomName="chat_room:global"
         connectionStatus={connectionStatus}
         onLogout={handleLogout}
+        title={
+          <>
+            <Text color="gray">← Menu </Text>
+            <Text color="gray" dimColor>[CTRL+Q]</Text>
+            <Text color="gray"> | </Text>
+            <Text color="cyan" bold>#{currentChannel}</Text>
+          </>
+        }
       />
 
       <Box flexDirection="row" height={middleSectionHeight} overflow="hidden">
@@ -170,9 +250,13 @@ export function App() {
             currentUsername={username}
             typingUsers={typingUsers}
             height={middleSectionHeight}
+            scrollOffset={scrollOffset}
+            isDetached={isScrollDetached}
           />
         </Box>
-        <UserList users={users} currentUsername={username} height={middleSectionHeight} />
+        {showUserList && (
+          <UserList users={users} currentUsername={username} height={middleSectionHeight} />
+        )}
       </Box>
 
       <InputBox

@@ -8,6 +8,8 @@ interface MessageListProps {
   currentUsername: string | null;
   typingUsers: string[];
   height: number;
+  scrollOffset: number;
+  isDetached: boolean;
 }
 
 export function MessageList({
@@ -15,6 +17,8 @@ export function MessageList({
   currentUsername,
   typingUsers,
   height,
+  scrollOffset,
+  isDetached,
 }: MessageListProps) {
   // Filter out current user from typing users
   const othersTyping = typingUsers.filter((u) => u !== currentUsername);
@@ -25,9 +29,14 @@ export function MessageList({
     const linesPerMessage = 2;
     const maxMessages = Math.floor(height / linesPerMessage);
 
-    // Show the most recent messages that fit
-    return messages.slice(-maxMessages);
-  }, [messages, height]);
+    // Calculate slice indices based on scroll offset
+    // scrollOffset=0 means we're at the bottom (most recent messages)
+    // scrollOffset>0 means we've scrolled up
+    const endIndex = messages.length - scrollOffset;
+    const startIndex = Math.max(0, endIndex - maxMessages);
+
+    return messages.slice(startIndex, endIndex);
+  }, [messages, height, scrollOffset]);
 
   return (
     <Box
@@ -53,7 +62,15 @@ export function MessageList({
         ))
       )}
 
-      {othersTyping.length > 0 && (
+      {isDetached && (
+        <Box justifyContent="center">
+          <Text color="yellow" bold>
+            -- {scrollOffset} more below (↓ to scroll down) --
+          </Text>
+        </Box>
+      )}
+
+      {othersTyping.length > 0 && !isDetached && (
         <Box paddingTop={1}>
           <Text color="gray" italic>
             {othersTyping.length === 1

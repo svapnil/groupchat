@@ -7,12 +7,14 @@ interface HeaderProps {
   roomName: string;
   connectionStatus: ConnectionStatus;
   onLogout: () => void;
+  title?: React.ReactNode; // Optional custom title for left side
 }
 
 export function Header({
   username,
   roomName,
   connectionStatus,
+  title,
 }: HeaderProps) {
   const statusColor =
     connectionStatus === "connected"
@@ -31,26 +33,25 @@ export function Header({
   return (
     <Box
       borderStyle="single"
-      borderColor="blue"
+      borderColor="gray"
       paddingX={1}
       justifyContent="space-between"
       width="100%"
       flexShrink={0}
     >
       <Box>
-        <Text color="cyan" bold>
-          ${" "}
-        </Text>
-        <Text color="blue" bold>
-          terminal-chat
-        </Text>
-        <Text color="gray"> --session </Text>
-        <Text color="yellow">{username || "..."}</Text>
-      </Box>
-
-      <Box>
-        <Text color="gray">→ Connected to </Text>
-        <Text color="cyan">{roomName}</Text>
+        {title || (
+          <>
+            <Text color="cyan" bold>
+              ${" "}
+            </Text>
+            <Text color="blue" bold>
+              terminal-chat
+            </Text>
+            <Text color="gray"> --session </Text>
+            <Text color="yellow">{username || "..."}</Text>
+          </>
+        )}
       </Box>
 
       <Box>
