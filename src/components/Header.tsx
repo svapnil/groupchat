@@ -8,6 +8,7 @@ interface HeaderProps {
   connectionStatus: ConnectionStatus;
   onLogout: () => void;
   title?: React.ReactNode; // Optional custom title for left side
+  showStatus?: boolean;
 }
 
 export function Header({
@@ -15,6 +16,7 @@ export function Header({
   roomName,
   connectionStatus,
   title,
+  showStatus = true,
 }: HeaderProps) {
   const statusColor =
     connectionStatus === "connected"
@@ -55,8 +57,12 @@ export function Header({
       </Box>
 
       <Box>
-        <Text color={statusColor}>[{statusText}]</Text>
-        <Text color="gray"> </Text>
+        {showStatus && (
+          <>
+            <Text color={statusColor}>[{statusText}]</Text>
+            <Text color="gray"> </Text>
+          </>
+        )}
         <Text color="gray">[Ctrl+L: LOGOUT]</Text>
       </Box>
     </Box>

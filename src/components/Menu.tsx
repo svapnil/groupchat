@@ -1,5 +1,5 @@
-import React from "react";
-import { Box, Text, useInput } from "ink";
+import React, { useEffect } from "react";
+import { Box, Text, useInput, useStdout } from "ink";
 import { Header } from "./Header.js";
 import type { ConnectionStatus } from "../lib/types.js";
 
@@ -12,6 +12,7 @@ interface MenuProps {
   username: string | null;
   connectionStatus: ConnectionStatus;
   onLogout: () => void;
+  topPadding?: number;
 }
 
 export function Menu({
@@ -22,11 +23,19 @@ export function Menu({
   onBack,
   username,
   connectionStatus,
-  onLogout
+  onLogout,
+  topPadding = 0
 }: MenuProps) {
+  const { stdout } = useStdout();
   const channels = [
     { id: "global", name: "#global", description: "General chat" },
   ];
+
+  // Update terminal tab title for menu view
+  useEffect(() => {
+    if (!stdout) return;
+    stdout.write(`\x1b]0;Menu\x07`);
+  }, [stdout]);
 
   // Handle keyboard input in menu
   useInput((input, key) => {
@@ -43,7 +52,7 @@ export function Menu({
 
   // Header is 3 lines tall
   const headerHeight = 3;
-  const contentHeight = height - headerHeight;
+  const contentHeight = height - topPadding - headerHeight;
 
   return (
     <Box
@@ -51,6 +60,7 @@ export function Menu({
       width={width}
       height={height}
       overflow="hidden"
+      paddingTop={topPadding}
     >
       <Header
         username={username}
@@ -58,6 +68,7 @@ export function Menu({
         connectionStatus={connectionStatus}
         onLogout={onLogout}
         title={<Text bold color="cyan">Menu</Text>}
+        showStatus={false}
       />
 
       <Box

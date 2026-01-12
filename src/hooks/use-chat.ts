@@ -27,7 +27,6 @@ export function useChat(token: string | null) {
     const client = new ChatClient(
       {
         wsUrl: config.wsUrl,
-        consoleUrl: config.consoleUrl,
         token,
       },
       {

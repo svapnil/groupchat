@@ -26,7 +26,6 @@ function extractTimestampFromUUIDv7(uuid: string): string {
 
 export interface ChatClientConfig {
   wsUrl: string;
-  consoleUrl: string;
   token: string;
 }
 
@@ -129,7 +128,14 @@ export class ChatClient {
   }
 
   private async fetchMessageHistory(): Promise<void> {
-    const url = `${this.config.consoleUrl}/api/messages/global?limit=50`;
+    // Extract backend HTTP URL from WebSocket URL
+    // e.g., wss://terminal-chat-backend.fly.dev/socket -> https://terminal-chat-backend.fly.dev
+    const backendUrl = this.config.wsUrl
+      .replace(/^wss:/, 'https:')
+      .replace(/^ws:/, 'http:')
+      .replace(/\/socket$/, '');
+
+    const url = `${backendUrl}/api/messages/global?limit=50`;
 
     const response = await fetch(url, {
       headers: {

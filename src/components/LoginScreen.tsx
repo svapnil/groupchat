@@ -1,5 +1,5 @@
-import React from "react";
-import { Box, Text, useInput } from "ink";
+import React, { useEffect } from "react";
+import { Box, Text, useInput, useStdout } from "ink";
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -8,6 +8,14 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin, status, isLoading }: LoginScreenProps) {
+  const { stdout } = useStdout();
+
+  // Update terminal tab title for unauthenticated view
+  useEffect(() => {
+    if (!stdout) return;
+    stdout.write("\x1b]0;Welcome to Terminal Chat\x07");
+  }, [stdout]);
+
   useInput((input, key) => {
     if (key.return && !isLoading) {
       onLogin();

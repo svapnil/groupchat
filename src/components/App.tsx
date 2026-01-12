@@ -1,12 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, useApp, useInput, useStdout, Text } from "ink";
-import { Header } from "./Header.js";
-import { MessageList } from "./MessageList.js";
-import { UserList } from "./UserList.js";
-import { InputBox } from "./InputBox.js";
-import { StatusBar } from "./StatusBar.js";
+import { Box, useApp, useInput, useStdout } from "ink";
 import { LoginScreen } from "./LoginScreen.js";
 import { Menu } from "./Menu.js";
+import { ChatView } from "./ChatView.js";
 import { useChat } from "../hooks/use-chat.js";
 import { usePresence } from "../hooks/use-presence.js";
 import {
@@ -20,6 +16,8 @@ import type { AuthState } from "../lib/types.js";
 export function App() {
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const isWarp = process.env.TERM_PROGRAM === "WarpTerminal";
+  const topPadding = isWarp ? 1 : 0;
   const [authState, setAuthState] = useState<AuthState>("unauthenticated");
   const [authStatus, setAuthStatus] = useState<string>("");
   const [token, setToken] = useState<string | null>(null);
@@ -56,6 +54,14 @@ export function App() {
       stdout.off("resize", handleResize);
     };
   }, [stdout]);
+
+  // Clear screen when switching to unauthenticated view
+  useEffect(() => {
+    if (!stdout) return;
+    if (authState !== "authenticated") {
+      stdout.write("\x1b[2J\x1b[0f");
+    }
+  }, [authState, stdout]);
 
   // Check auth on mount
   useEffect(() => {
@@ -113,9 +119,14 @@ export function App() {
   // Handle logout
   const handleLogout = useCallback(async () => {
     disconnect();
-    await logout();
     setToken(null);
     setAuthState("unauthenticated");
+    setAuthStatus("");
+    try {
+      await logout();
+    } catch {
+      setAuthStatus("Logged out locally; failed to clear credentials.");
+    }
   }, [disconnect]);
 
   // Calculate max visible messages for scroll bounds
@@ -124,7 +135,7 @@ export function App() {
   const statusBarHeight = 1;
   const middleSectionHeight = Math.max(
     5,
-    terminalSize.rows - headerHeight - inputBoxHeight - statusBarHeight
+    terminalSize.rows - topPadding - headerHeight - inputBoxHeight - statusBarHeight
   );
   const linesPerMessage = 2;
   const maxVisibleMessages = Math.floor(middleSectionHeight / linesPerMessage);
@@ -179,21 +190,34 @@ export function App() {
     }
   });
 
-  // Connect when token is available
+  // Connect/disconnect based on view when authenticated
   useEffect(() => {
-    if (token && authState === "authenticated") {
-      connect();
+    if (!token || authState !== "authenticated") {
+      return;
     }
-  }, [token, authState, connect]);
+
+    if (currentView === "chat") {
+      connect();
+    } else {
+      disconnect();
+    }
+  }, [token, authState, currentView, connect, disconnect]);
 
   // Show login screen if not authenticated
   if (authState !== "authenticated") {
     return (
-      <LoginScreen
-        onLogin={handleLogin}
-        status={authStatus}
-        isLoading={authState === "authenticating"}
-      />
+      <Box
+        flexDirection="column"
+        width={terminalSize.columns}
+        height={terminalSize.rows}
+        overflow="hidden"
+      >
+        <LoginScreen
+          onLogin={handleLogin}
+          status={authStatus}
+          isLoading={authState === "authenticating"}
+        />
+      </Box>
     );
   }
 
@@ -215,6 +239,7 @@ export function App() {
           username={username}
           connectionStatus={connectionStatus}
           onLogout={handleLogout}
+          topPadding={topPadding}
         />
       </Box>
     );
@@ -222,55 +247,24 @@ export function App() {
 
   // Show Chat view
   return (
-    <Box
-      flexDirection="column"
-      width={terminalSize.columns}
-      height={terminalSize.rows}
-      overflow="hidden"
-    >
-      <Header
-        username={username}
-        roomName="chat_room:global"
-        connectionStatus={connectionStatus}
-        onLogout={handleLogout}
-        title={
-          <>
-            <Text color="gray">← Menu </Text>
-            <Text color="gray" dimColor>[CTRL+Q]</Text>
-            <Text color="gray"> | </Text>
-            <Text color="cyan" bold>#{currentChannel}</Text>
-          </>
-        }
-      />
-
-      <Box flexDirection="row" height={middleSectionHeight} overflow="hidden">
-        <Box flexGrow={1} flexDirection="column" overflow="hidden">
-          <MessageList
-            messages={messages}
-            currentUsername={username}
-            typingUsers={typingUsers}
-            height={middleSectionHeight}
-            scrollOffset={scrollOffset}
-            isDetached={isScrollDetached}
-          />
-        </Box>
-        {showUserList && (
-          <UserList users={users} currentUsername={username} height={middleSectionHeight} />
-        )}
-      </Box>
-
-      <InputBox
-        onSend={sendMessage}
-        onTypingStart={startTyping}
-        onTypingStop={stopTyping}
-        disabled={connectionStatus !== "connected"}
-      />
-
-      <StatusBar
-        connectionStatus={connectionStatus}
-        error={error}
-        userCount={users.length}
-      />
-    </Box>
+    <ChatView
+      terminalSize={terminalSize}
+      currentChannel={currentChannel}
+      connectionStatus={connectionStatus}
+      username={username}
+      onLogout={handleLogout}
+      messages={messages}
+      typingUsers={typingUsers}
+      middleSectionHeight={middleSectionHeight}
+      scrollOffset={scrollOffset}
+      isDetached={isScrollDetached}
+      showUserList={showUserList}
+      users={users}
+      topPadding={topPadding}
+      onSend={sendMessage}
+      onTypingStart={startTyping}
+      onTypingStop={stopTyping}
+      error={error}
+    />
   );
 }
