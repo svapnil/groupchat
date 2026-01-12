@@ -60,6 +60,7 @@ const SUCCESS_HTML = `
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8" />
   <title>Terminal Chat - Authentication Successful</title>
   <style>
     body {
@@ -79,7 +80,7 @@ const SUCCESS_HTML = `
 </head>
 <body>
   <div class="container">
-    <div class="success">✓ Authentication successful!</div>
+    <div class="success">&#10003; Authentication successful!</div>
     <div class="message">You can close this window and return to the terminal.</div>
   </div>
 </body>
@@ -90,6 +91,7 @@ const ERROR_HTML = (message: string) => `
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8" />
   <title>Terminal Chat - Authentication Failed</title>
   <style>
     body {

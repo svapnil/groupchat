@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Box, useApp, useInput, useStdout } from "ink";
 import { LoginScreen } from "./LoginScreen.js";
 import { Menu } from "./Menu.js";
@@ -36,6 +36,7 @@ export function App() {
   // View/Page navigation
   const [currentView, setCurrentView] = useState<"menu" | "chat">("chat");
   const [currentChannel, setCurrentChannel] = useState("global");
+  const prevAuthStateRef = useRef<AuthState | null>(null);
 
   // Listen for terminal resize events
   useEffect(() => {
@@ -55,12 +56,13 @@ export function App() {
     };
   }, [stdout]);
 
-  // Clear screen when switching to unauthenticated view
+  // Clear screen only when transitioning from authenticated -> unauthenticated
   useEffect(() => {
     if (!stdout) return;
-    if (authState !== "authenticated") {
+    if (prevAuthStateRef.current === "authenticated" && authState !== "authenticated") {
       stdout.write("\x1b[2J\x1b[0f");
     }
+    prevAuthStateRef.current = authState;
   }, [authState, stdout]);
 
   // Check auth on mount
@@ -147,8 +149,8 @@ export function App() {
       disconnect();
       exit();
     }
-    // Ctrl+L to logout (when authenticated)
-    if (input === "l" && key.ctrl && authState === "authenticated") {
+    // Ctrl+O to logout (when authenticated)
+    if (input === "o" && key.ctrl && authState === "authenticated") {
       handleLogout();
     }
 

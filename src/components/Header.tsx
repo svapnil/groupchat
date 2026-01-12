@@ -63,7 +63,7 @@ export function Header({
             <Text color="gray"> </Text>
           </>
         )}
-        <Text color="gray">[Ctrl+L: LOGOUT]</Text>
+        <Text color="gray">[Ctrl+O: LOGOUT]</Text>
       </Box>
     </Box>
   );
