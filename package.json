@@ -10,7 +10,9 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "dev": "tsup src/index.ts --format esm --watch",
-    "start": "bun run dist/index.js",
+    "dev:bun": "bunx tsup src/index.ts --format esm --watch",
+    "start": "node dist/index.js",
+    "start:bun": "bun dist/index.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -22,11 +24,13 @@
     "keytar": "^7.9.0",
     "open": "^10.1.0",
     "phoenix": "^1.8.3",
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
     "@types/react": "^18.3.18",
+    "@types/ws": "^8.18.1",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
   },

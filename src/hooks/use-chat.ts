@@ -7,7 +7,7 @@ import type {
   PresenceState,
 } from "../lib/types.js";
 
-export function useChat(token: string | null) {
+export function useChat(token: string | null, channelSlug: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
@@ -28,6 +28,7 @@ export function useChat(token: string | null) {
       {
         wsUrl: config.wsUrl,
         token,
+        channelSlug,
       },
       {
         onMessage: (message) => {
@@ -85,7 +86,7 @@ export function useChat(token: string | null) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection failed");
     }
-  }, [token]);
+  }, [token, channelSlug]);
 
   // Disconnect from chat
   const disconnect = useCallback(() => {

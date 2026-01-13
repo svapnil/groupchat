@@ -5,6 +5,7 @@ import { Menu } from "./Menu.js";
 import { ChatView } from "./ChatView.js";
 import { useChat } from "../hooks/use-chat.js";
 import { usePresence } from "../hooks/use-presence.js";
+import { useChannels } from "../hooks/use-channels.js";
 import {
   isAuthenticated,
   getCurrentToken,
@@ -35,7 +36,7 @@ export function App() {
 
   // View/Page navigation
   const [currentView, setCurrentView] = useState<"menu" | "chat">("chat");
-  const [currentChannel, setCurrentChannel] = useState("global");
+  const [currentChannel, setCurrentChannel] = useState("chat_room:global");
   const prevAuthStateRef = useRef<AuthState | null>(null);
 
   // Listen for terminal resize events
@@ -80,6 +81,9 @@ export function App() {
     checkAuth();
   }, []);
 
+  // Channels hook - fetch available channels
+  const { publicChannels, privateChannels } = useChannels(token);
+
   // Chat hook - only active when authenticated
   const {
     messages,
@@ -93,10 +97,14 @@ export function App() {
     presenceState,
     connect,
     disconnect,
-  } = useChat(token);
+  } = useChat(token, currentChannel);
 
   // Presence hook
   const { users } = usePresence(presenceState);
+
+  // Find current channel details
+  const allChannels = [...publicChannels, ...privateChannels];
+  const currentChannelDetails = allChannels.find((ch) => ch.slug === currentChannel);
 
   // Handle login
   const handleLogin = useCallback(async () => {
@@ -192,18 +200,20 @@ export function App() {
     }
   });
 
-  // Connect/disconnect based on view when authenticated
+  // Connect/disconnect based on view and channel when authenticated
   useEffect(() => {
     if (!token || authState !== "authenticated") {
       return;
     }
 
     if (currentView === "chat") {
+      // Disconnect first, then connect (handles channel switching)
+      disconnect();
       connect();
     } else {
       disconnect();
     }
-  }, [token, authState, currentView, connect, disconnect]);
+  }, [token, authState, currentView, currentChannel, connect, disconnect]);
 
   // Show login screen if not authenticated
   if (authState !== "authenticated") {
@@ -242,6 +252,8 @@ export function App() {
           connectionStatus={connectionStatus}
           onLogout={handleLogout}
           topPadding={topPadding}
+          publicChannels={publicChannels}
+          privateChannels={privateChannels}
         />
       </Box>
     );
@@ -252,6 +264,8 @@ export function App() {
     <ChatView
       terminalSize={terminalSize}
       currentChannel={currentChannel}
+      channelName={currentChannelDetails?.name}
+      channelDescription={currentChannelDetails?.description || undefined}
       connectionStatus={connectionStatus}
       username={username}
       onLogout={handleLogout}

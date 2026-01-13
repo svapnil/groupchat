@@ -47,3 +47,18 @@ export type ConnectionStatus =
   | "error";
 
 export type AuthState = "unauthenticated" | "authenticating" | "authenticated";
+
+export interface Channel {
+  id: string;
+  slug: string;
+  type: "public" | "private";
+  name: string;
+  description: string | null;
+}
+
+export interface ChannelsResponse {
+  channels: {
+    public: Channel[];
+    private: Channel[];
+  };
+}

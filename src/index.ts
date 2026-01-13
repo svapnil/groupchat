@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 
+import WebSocket from "ws";
 import { program } from "commander";
 import { render } from "ink";
 import React from "react";
-import { App } from "./components/App.js";
 import { login, logout, isAuthenticated } from "./auth/auth-manager.js";
+
+// Ensure WebSocket is available globally for Phoenix in Node.
+if (typeof globalThis.WebSocket === "undefined") {
+  // Assign via any to avoid type mismatches between ws and undici's WebSocket types.
+  (globalThis as Record<string, unknown>).WebSocket = WebSocket;
+}
 
 // Login command
 async function handleLogin() {
@@ -40,6 +46,9 @@ async function startChat() {
 
   // Clear the terminal screen
   process.stdout.write('\x1b[2J\x1b[0f');
+
+  // Lazy-load the app so the WebSocket polyfill runs first.
+  const { App } = await import("./components/App.js");
 
   // Render the Ink app in fullscreen mode
   const { waitUntilExit } = render(React.createElement(App), {
@@ -86,4 +95,3 @@ program
 program.action(startChat);
 
 program.parse();
-

@@ -5,13 +5,14 @@ import type {
   PresenceState,
   PresenceDiff,
   ConnectionStatus,
+  ChannelsResponse,
 } from "./types.js";
 
-// Ensure WebSocket is available globally for Phoenix
-// Bun has native WebSocket support
+// Ensure WebSocket is available globally for Phoenix.
+// The CLI sets a Node polyfill in src/index.ts.
 if (typeof globalThis.WebSocket === "undefined") {
   throw new Error(
-    "WebSocket is not available. Please run with Bun: bun run dist/index.js"
+    "WebSocket is not available. Load the ws polyfill before ChatClient."
   );
 }
 
@@ -27,6 +28,7 @@ function extractTimestampFromUUIDv7(uuid: string): string {
 export interface ChatClientConfig {
   wsUrl: string;
   token: string;
+  channelSlug: string;
 }
 
 export interface ChatClientCallbacks {
@@ -77,7 +79,7 @@ export class ChatClient {
         this.setConnectionStatus("connected");
 
         // Now that socket is open, join the channel
-        this.channel = this.socket!.channel("chat_room:global", {});
+        this.channel = this.socket!.channel(this.config.channelSlug, {});
 
         // Setup channel event handlers
         this.setupChannelHandlers();
@@ -135,7 +137,9 @@ export class ChatClient {
       .replace(/^ws:/, 'http:')
       .replace(/\/socket$/, '');
 
-    const url = `${backendUrl}/api/messages/global?limit=50`;
+    // URL encode the channel slug (e.g., "chat_room:global" -> "chat_room%3Aglobal")
+    const encodedSlug = encodeURIComponent(this.config.channelSlug);
+    const url = `${backendUrl}/api/messages/${encodedSlug}?limit=50`;
 
     const response = await fetch(url, {
       headers: {
@@ -282,4 +286,34 @@ export class ChatClient {
     this.connectionStatus = status;
     this.callbacks.onConnectionChange?.(status);
   }
+}
+
+/**
+ * Fetch channels from the backend API.
+ * This is a standalone function since it doesn't require WebSocket connection.
+ */
+export async function fetchChannels(
+  wsUrl: string,
+  token: string
+): Promise<ChannelsResponse> {
+  // Extract backend HTTP URL from WebSocket URL
+  // e.g., wss://terminal-chat-backend.fly.dev/socket -> https://terminal-chat-backend.fly.dev
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const url = `${backendUrl}/api/channels`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch channels: ${response.status}`);
+  }
+
+  return response.json() as Promise<ChannelsResponse>;
 }

@@ -10,6 +10,8 @@ import type { ConnectionStatus, Message, User } from "../lib/types.js";
 interface ChatViewProps {
   terminalSize: { rows: number; columns: number };
   currentChannel: string;
+  channelName?: string;
+  channelDescription?: string;
   connectionStatus: ConnectionStatus;
   username: string | null;
   onLogout: () => void;
@@ -30,6 +32,8 @@ interface ChatViewProps {
 export function ChatView({
   terminalSize,
   currentChannel,
+  channelName,
+  channelDescription,
   connectionStatus,
   username,
   onLogout,
@@ -48,12 +52,18 @@ export function ChatView({
 }: ChatViewProps) {
   const { stdout } = useStdout();
 
+  // Display name: use channel name if available, otherwise fall back to slug
+  const displayName = channelName || currentChannel;
+  const displayText = channelDescription
+    ? `${displayName} - ${channelDescription}`
+    : displayName;
+
   // Update terminal tab title for chat view
   useEffect(() => {
     if (!stdout) return;
     const prefix = connectionStatus === "connected" ? "• " : "";
-    stdout.write(`\x1b]0;${prefix}#${currentChannel}\x07`);
-  }, [stdout, connectionStatus, currentChannel]);
+    stdout.write(`\x1b]0;${prefix}#${displayName}\x07`);
+  }, [stdout, connectionStatus, displayName]);
 
   return (
     <Box
@@ -65,7 +75,7 @@ export function ChatView({
     >
       <Header
         username={username}
-        roomName="chat_room:global"
+        roomName={currentChannel}
         connectionStatus={connectionStatus}
         onLogout={onLogout}
         title={
@@ -73,7 +83,7 @@ export function ChatView({
             <Text color="gray">← Menu </Text>
             <Text color="gray" dimColor>[CTRL+Q]</Text>
             <Text color="gray"> | </Text>
-            <Text color="cyan" bold>#{currentChannel}</Text>
+            <Text color="cyan" bold>#{displayText}</Text>
           </>
         }
       />
