@@ -3,7 +3,7 @@ import { Box, useApp, useInput, useStdout } from "ink";
 import { LoginScreen } from "./LoginScreen.js";
 import { Menu } from "./Menu.js";
 import { ChatView } from "./ChatView.js";
-import { useChat } from "../hooks/use-chat.js";
+import { useMultiChannelChat } from "../hooks/use-multi-channel-chat.js";
 import { usePresence } from "../hooks/use-presence.js";
 import { useChannels } from "../hooks/use-channels.js";
 import {
@@ -84,7 +84,7 @@ export function App() {
   // Channels hook - fetch available channels
   const { publicChannels, privateChannels } = useChannels(token);
 
-  // Chat hook - only active when authenticated
+  // Multi-channel chat hook - maintains persistent connection
   const {
     messages,
     connectionStatus,
@@ -97,7 +97,7 @@ export function App() {
     presenceState,
     connect,
     disconnect,
-  } = useChat(token, currentChannel);
+  } = useMultiChannelChat(token, currentChannel);
 
   // Presence hook
   const { users } = usePresence(presenceState);
@@ -200,20 +200,8 @@ export function App() {
     }
   });
 
-  // Connect/disconnect based on view and channel when authenticated
-  useEffect(() => {
-    if (!token || authState !== "authenticated") {
-      return;
-    }
-
-    if (currentView === "chat") {
-      // Disconnect first, then connect (handles channel switching)
-      disconnect();
-      connect();
-    } else {
-      disconnect();
-    }
-  }, [token, authState, currentView, currentChannel, connect, disconnect]);
+  // No longer needed! Connection is managed automatically by useMultiChannelChat.
+  // The hook maintains a persistent connection and fetches history when currentChannel changes.
 
   // Show login screen if not authenticated
   if (authState !== "authenticated") {

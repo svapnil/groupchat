@@ -62,3 +62,28 @@ export interface ChannelsResponse {
     private: Channel[];
   };
 }
+
+/**
+ * Internal state for each channel in the ChannelManager.
+ * Stores presence, typing indicators, and buffered real-time messages.
+ */
+export interface ChannelState {
+  slug: string;
+  presence: PresenceState;
+  typingUsers: Set<string>;
+  realtimeMessages: Message[];
+}
+
+/**
+ * Callbacks for the ChannelManager.
+ * Each callback includes the channelSlug to identify which channel the event came from.
+ */
+export interface ChannelManagerCallbacks {
+  onMessage?: (channelSlug: string, message: Message) => void;
+  onPresenceState?: (channelSlug: string, state: PresenceState) => void;
+  onPresenceDiff?: (channelSlug: string, diff: PresenceDiff) => void;
+  onUserTyping?: (channelSlug: string, username: string, typing: boolean) => void;
+  onConnectionChange?: (status: ConnectionStatus) => void;
+  onError?: (error: string) => void;
+  onChannelJoined?: (channelSlug: string, username: string) => void;
+}

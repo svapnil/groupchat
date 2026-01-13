@@ -103,7 +103,7 @@ export function InputBox({
             placeholder={disabled ? "Connecting..." : "Type a message..."}
           />
         </Box>
-        <Text color={disabled || !value.trim() ? "gray" : "blue"}>
+        <Text color={disabled || !value.trim() ? "gray" : "green"}>
           {" "}
           [SEND]
         </Text>
