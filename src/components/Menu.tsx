@@ -211,7 +211,7 @@ function ChannelItem({ channel, isSelected, isPrivate = false, unreadCount = 0 }
         {isPrivate && <Text color="yellow">🔒 </Text>}
         #{channel.name || channel.slug}
         {unreadCount > 0 && (
-          <Text color="red" bold>
+          <Text color="green" bold>
             {" "}({unreadCount})
           </Text>
         )}
