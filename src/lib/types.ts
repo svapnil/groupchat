@@ -54,6 +54,7 @@ export interface Channel {
   type: "public" | "private";
   name: string;
   description: string | null;
+  seqNo?: number;
 }
 
 export interface ChannelsResponse {
@@ -61,6 +62,10 @@ export interface ChannelsResponse {
     public: Channel[];
     private: Channel[];
   };
+}
+
+export interface UnreadCounts {
+  [channelSlug: string]: number;
 }
 
 /**

@@ -35,7 +35,7 @@ export function App() {
   const [showUserList, setShowUserList] = useState(true);
 
   // View/Page navigation
-  const [currentView, setCurrentView] = useState<"menu" | "chat">("chat");
+  const [currentView, setCurrentView] = useState<"menu" | "chat">("menu");
   const [currentChannel, setCurrentChannel] = useState("chat_room:global");
   const prevAuthStateRef = useRef<AuthState | null>(null);
 
@@ -82,7 +82,7 @@ export function App() {
   }, []);
 
   // Channels hook - fetch available channels
-  const { publicChannels, privateChannels } = useChannels(token);
+  const { publicChannels, privateChannels, unreadCounts, refetchUnreadCounts } = useChannels(token);
 
   // Multi-channel chat hook - maintains persistent connection
   const {
@@ -97,6 +97,7 @@ export function App() {
     presenceState,
     connect,
     disconnect,
+    channelManager,
   } = useMultiChannelChat(token, currentChannel);
 
   // Presence hook
@@ -105,6 +106,74 @@ export function App() {
   // Find current channel details
   const allChannels = [...publicChannels, ...privateChannels];
   const currentChannelDetails = allChannels.find((ch) => ch.slug === currentChannel);
+
+  // Track previous channel for mark as read
+  const prevChannelForMarkAsReadRef = useRef<string | null>(null);
+  const markedAsReadOnEntryRef = useRef<Set<string>>(new Set());
+
+  // Mark channel as read when entering/exiting
+  useEffect(() => {
+    const markChannelAsRead = async (channelSlug: string, isEntry: boolean) => {
+      if (!channelSlug.startsWith("private_room:") || !channelManager) {
+        return;
+      }
+
+      try {
+        if (isEntry) {
+          // Check if this is the first time entering this channel
+          if (!markedAsReadOnEntryRef.current.has(channelSlug)) {
+            // First time - mark all as read
+            await channelManager.markAllMessagesAsRead(channelSlug);
+            markedAsReadOnEntryRef.current.add(channelSlug);
+          } else {
+            // Subsequent entry - mark as read up to current seq_no
+            await channelManager.markChannelAsRead(channelSlug);
+          }
+        } else {
+          // Exiting channel - mark as read
+          await channelManager.markChannelAsRead(channelSlug);
+        }
+
+        // Refetch unread counts to update UI
+        await refetchUnreadCounts();
+      } catch (err) {
+        console.error(`Failed to mark ${channelSlug} as read:`, err);
+      }
+    };
+
+    // When currentChannel changes
+    if (currentChannel !== prevChannelForMarkAsReadRef.current) {
+      // Mark previous channel as read (on exit)
+      if (prevChannelForMarkAsReadRef.current) {
+        markChannelAsRead(prevChannelForMarkAsReadRef.current, false);
+      }
+
+      // Mark new channel as read (on entry)
+      if (currentChannel) {
+        markChannelAsRead(currentChannel, true);
+      }
+
+      prevChannelForMarkAsReadRef.current = currentChannel;
+    }
+  }, [currentChannel, channelManager, refetchUnreadCounts]);
+
+  // Also mark as read on app unmount (cleanup)
+  useEffect(() => {
+    return () => {
+      if (currentChannel && channelManager) {
+        const markOnUnmount = async () => {
+          try {
+            if (currentChannel.startsWith("private_room:")) {
+              await channelManager.markChannelAsRead(currentChannel);
+            }
+          } catch (err) {
+            console.error("Failed to mark as read on unmount:", err);
+          }
+        };
+        markOnUnmount();
+      }
+    };
+  }, [currentChannel, channelManager]);
 
   // Handle login
   const handleLogin = useCallback(async () => {
@@ -128,6 +197,14 @@ export function App() {
 
   // Handle logout
   const handleLogout = useCallback(async () => {
+    // Mark current channel as read before disconnecting
+    if (currentChannel && channelManager && currentChannel.startsWith("private_room:")) {
+      try {
+        await channelManager.markChannelAsRead(currentChannel);
+      } catch (err) {
+        console.error("Failed to mark as read on logout:", err);
+      }
+    }
     disconnect();
     setToken(null);
     setAuthState("unauthenticated");
@@ -137,7 +214,7 @@ export function App() {
     } catch {
       setAuthStatus("Logged out locally; failed to clear credentials.");
     }
-  }, [disconnect]);
+  }, [disconnect, currentChannel, channelManager]);
 
   // Calculate max visible messages for scroll bounds
   const headerHeight = 3;
@@ -154,8 +231,19 @@ export function App() {
   useInput((input, key) => {
     // Ctrl+C to exit
     if (input === "c" && key.ctrl) {
-      disconnect();
-      exit();
+      // Mark current channel as read before disconnecting
+      const handleExit = async () => {
+        if (currentChannel && channelManager && currentChannel.startsWith("private_room:")) {
+          try {
+            await channelManager.markChannelAsRead(currentChannel);
+          } catch (err) {
+            console.error("Failed to mark as read on exit:", err);
+          }
+        }
+        disconnect();
+        exit();
+      };
+      handleExit();
     }
     // Ctrl+O to logout (when authenticated)
     if (input === "o" && key.ctrl && authState === "authenticated") {
@@ -242,6 +330,7 @@ export function App() {
           topPadding={topPadding}
           publicChannels={publicChannels}
           privateChannels={privateChannels}
+          unreadCounts={unreadCounts}
         />
       </Box>
     );

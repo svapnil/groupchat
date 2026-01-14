@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
 import { Header } from "./Header.js";
-import type { ConnectionStatus, Channel } from "../lib/types.js";
+import type { ConnectionStatus, Channel, UnreadCounts } from "../lib/types.js";
 
 interface MenuProps {
   width: number;
@@ -15,6 +15,7 @@ interface MenuProps {
   topPadding?: number;
   publicChannels: Channel[];
   privateChannels: Channel[];
+  unreadCounts: UnreadCounts;
 }
 
 export function Menu({
@@ -29,6 +30,7 @@ export function Menu({
   topPadding = 0,
   publicChannels,
   privateChannels,
+  unreadCounts,
 }: MenuProps) {
   const { stdout } = useStdout();
 
@@ -120,11 +122,13 @@ export function Menu({
 
             {publicChannels.map((channel, idx) => {
               const isSelected = selectedIndex === idx;
+              const unreadCount = unreadCounts[channel.slug] || 0;
               return (
                 <ChannelItem
                   key={channel.id}
                   channel={channel}
                   isSelected={isSelected}
+                  unreadCount={unreadCount}
                 />
               );
             })}
@@ -143,12 +147,14 @@ export function Menu({
             {privateChannels.map((channel, idx) => {
               const absoluteIndex = privateStartIndex + idx;
               const isSelected = selectedIndex === absoluteIndex;
+              const unreadCount = unreadCounts[channel.slug] || 0;
               return (
                 <ChannelItem
                   key={channel.id}
                   channel={channel}
                   isSelected={isSelected}
                   isPrivate
+                  unreadCount={unreadCount}
                 />
               );
             })}
@@ -194,15 +200,21 @@ interface ChannelItemProps {
   channel: Channel;
   isSelected: boolean;
   isPrivate?: boolean;
+  unreadCount?: number;
 }
 
-function ChannelItem({ channel, isSelected, isPrivate = false }: ChannelItemProps) {
+function ChannelItem({ channel, isSelected, isPrivate = false, unreadCount = 0 }: ChannelItemProps) {
   return (
     <Box marginLeft={2}>
       <Text color={isSelected ? "green" : "white"} bold={isSelected}>
         {isSelected ? "> " : "  "}
         {isPrivate && <Text color="yellow">🔒 </Text>}
         #{channel.name || channel.slug}
+        {unreadCount > 0 && (
+          <Text color="red" bold>
+            {" "}({unreadCount})
+          </Text>
+        )}
       </Text>
       {isSelected && channel.description && (
         <Text color="gray" dimColor>

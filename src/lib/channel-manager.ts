@@ -450,6 +450,63 @@ export class ChannelManager {
   }
 
   /**
+   * Mark current channel as read via WebSocket.
+   * Sends "mark_as_read" event to update last_seen to current seq_no.
+   * Gracefully handles disconnected channels (returns silently during shutdown).
+   */
+  async markChannelAsRead(channelSlug: string): Promise<void> {
+    const channelState = this.channelStates.get(channelSlug);
+    if (!channelState || !channelState.channel) {
+      // Channel already disconnected or not subscribed (expected during shutdown)
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      channelState.channel.push("mark_as_read", {})
+        .receive("ok", (response: unknown) => {
+          console.log(`Marked ${channelSlug} as read`, response);
+          resolve();
+        })
+        .receive("error", (err: unknown) => {
+          console.error(`Failed to mark ${channelSlug} as read:`, err);
+          reject(err);
+        })
+        .receive("timeout", () => {
+          console.error(`Timeout marking ${channelSlug} as read`);
+          reject(new Error("timeout"));
+        });
+    });
+  }
+
+  /**
+   * Mark all messages in channel as read (used when first joining).
+   * Gracefully handles disconnected channels (returns silently during shutdown).
+   */
+  async markAllMessagesAsRead(channelSlug: string): Promise<void> {
+    const channelState = this.channelStates.get(channelSlug);
+    if (!channelState || !channelState.channel) {
+      // Channel already disconnected or not subscribed (expected during shutdown)
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      channelState.channel.push("mark_all_read", {})
+        .receive("ok", (response: unknown) => {
+          console.log(`Marked all in ${channelSlug} as read`, response);
+          resolve();
+        })
+        .receive("error", (err: unknown) => {
+          console.error(`Failed to mark all as read in ${channelSlug}:`, err);
+          reject(err);
+        })
+        .receive("timeout", () => {
+          console.error(`Timeout marking all as read in ${channelSlug}`);
+          reject(new Error("timeout"));
+        });
+    });
+  }
+
+  /**
    * Disconnect from all channels and close the socket.
    */
   disconnect(): void {

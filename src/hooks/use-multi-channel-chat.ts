@@ -255,5 +255,6 @@ export function useMultiChannelChat(token: string | null, currentChannel: string
     presenceState,
     connect, // No-op for backward compatibility
     disconnect, // No-op for backward compatibility
+    channelManager: managerRef.current,
   };
 }

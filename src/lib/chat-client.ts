@@ -6,6 +6,7 @@ import type {
   PresenceDiff,
   ConnectionStatus,
   ChannelsResponse,
+  UnreadCounts,
 } from "./types.js";
 
 // Ensure WebSocket is available globally for Phoenix.
@@ -316,4 +317,64 @@ export async function fetchChannels(
   }
 
   return response.json() as Promise<ChannelsResponse>;
+}
+
+/**
+ * Fetch unread counts for all channels from the backend API.
+ */
+export async function fetchUnreadCounts(
+  wsUrl: string,
+  token: string
+): Promise<UnreadCounts> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const url = `${backendUrl}/api/unread-counts`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch unread counts: ${response.status}`);
+  }
+
+  const data = await response.json() as { unread_counts: UnreadCounts };
+  return data.unread_counts || {};
+}
+
+/**
+ * Update last_seen for a channel via HTTP.
+ * (Fallback if WebSocket not available)
+ */
+export async function updateLastSeen(
+  wsUrl: string,
+  token: string,
+  channelSlug: string,
+  seqNo: number
+): Promise<void> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const encodedSlug = encodeURIComponent(channelSlug);
+  const url = `${backendUrl}/api/last-seen/${encodedSlug}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ seq_no: seqNo }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update last_seen: ${response.status}`);
+  }
 }
