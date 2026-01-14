@@ -1,5 +1,5 @@
 {
-  "name": "terminal-chat",
+  "name": "groupchat",
   "version": "0.1.0",
   "description": "CLI chat client for Terminal Chat",
   "type": "module",

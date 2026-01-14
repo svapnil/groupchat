@@ -103,20 +103,6 @@ export class ChatClient {
               // Don't fail connection if history fetch fails
               console.warn("Failed to fetch message history:", err);
             }
-
-            // Mark channel as read after joining (updates last_seen)
-            this.channel
-              ?.push("mark_all_read", {})
-              .receive("ok", (markResp: unknown) => {
-                const markResponse = markResp as { seq_no: number };
-                // Successfully marked as read at seq_no
-                console.debug(`Marked channel as read: seq_no=${markResponse.seq_no}`);
-              })
-              .receive("error", (err: unknown) => {
-                // Don't fail join if mark_as_read fails
-                console.warn("Failed to mark channel as read:", err);
-              });
-
             resolve();
           })
           .receive("error", (error: unknown) => {

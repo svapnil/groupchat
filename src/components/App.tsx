@@ -116,7 +116,7 @@ export function App() {
   // Mark channel as read when entering/exiting
   useEffect(() => {
     const markChannelAsRead = async (channelSlug: string, isEntry: boolean) => {
-      if (!channelSlug.startsWith("private_room:") || !channelManager) {
+      if (!channelManager) {
         return;
       }
 
@@ -165,9 +165,7 @@ export function App() {
       if (currentChannel && channelManager) {
         const markOnUnmount = async () => {
           try {
-            if (currentChannel.startsWith("private_room:")) {
-              await channelManager.markChannelAsRead(currentChannel);
-            }
+            await channelManager.markChannelAsRead(currentChannel);
           } catch (err) {
             console.error("Failed to mark as read on unmount:", err);
           }
@@ -176,6 +174,13 @@ export function App() {
       }
     };
   }, [currentChannel, channelManager]);
+
+  // Refetch unread counts when navigating to menu
+  useEffect(() => {
+    if (currentView === "menu") {
+      refetchUnreadCounts();
+    }
+  }, [currentView, refetchUnreadCounts]);
 
   // Handle login
   const handleLogin = useCallback(async () => {
@@ -200,7 +205,7 @@ export function App() {
   // Handle logout
   const handleLogout = useCallback(async () => {
     // Mark current channel as read before disconnecting
-    if (currentChannel && channelManager && currentChannel.startsWith("private_room:")) {
+    if (currentChannel && channelManager) {
       try {
         await channelManager.markChannelAsRead(currentChannel);
       } catch (err) {
@@ -235,7 +240,7 @@ export function App() {
     if (input === "c" && key.ctrl) {
       // Mark current channel as read before disconnecting
       const handleExit = async () => {
-        if (currentChannel && channelManager && currentChannel.startsWith("private_room:")) {
+        if (currentChannel && channelManager) {
           try {
             await channelManager.markChannelAsRead(currentChannel);
           } catch (err) {
