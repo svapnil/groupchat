@@ -95,17 +95,19 @@ export function App() {
     stopTyping,
     typingUsers,
     presenceState,
+    subscribers,
     connect,
     disconnect,
     channelManager,
   } = useMultiChannelChat(token, currentChannel);
 
   // Presence hook
-  const { users } = usePresence(presenceState);
+  const { users } = usePresence(presenceState, subscribers, currentChannel);
 
   // Find current channel details
   const allChannels = [...publicChannels, ...privateChannels];
   const currentChannelDetails = allChannels.find((ch) => ch.slug === currentChannel);
+  const isPrivateChannel = currentChannel.startsWith("private_room:");
 
   // Track previous channel for mark as read
   const prevChannelForMarkAsReadRef = useRef<string | null>(null);
@@ -353,6 +355,7 @@ export function App() {
       isDetached={isScrollDetached}
       showUserList={showUserList}
       users={users}
+      isPrivateChannel={isPrivateChannel}
       topPadding={topPadding}
       onSend={sendMessage}
       onTypingStart={startTyping}

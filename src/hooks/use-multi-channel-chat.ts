@@ -6,6 +6,7 @@ import type {
   Message,
   ConnectionStatus,
   PresenceState,
+  Subscriber,
 } from "../lib/types.js";
 
 /**
@@ -27,6 +28,7 @@ export function useMultiChannelChat(token: string | null, currentChannel: string
   const [error, setError] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [presenceState, setPresenceState] = useState<PresenceState>({});
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
 
   const managerRef = useRef<ChannelManager | null>(null);
   const prevChannelRef = useRef<string | null>(null);
@@ -172,6 +174,15 @@ export function useMultiChannelChat(token: string | null, currentChannel: string
         // Fetch history from API
         const history = await manager.fetchHistory(currentChannel);
 
+        // Fetch subscribers if private channel
+        if (currentChannel.startsWith("private_room:")) {
+          const subs = await manager.fetchSubscribers(currentChannel);
+          setSubscribers(subs);
+        } else {
+          // Public channel - no subscriber list
+          setSubscribers([]);
+        }
+
         // Get buffered real-time messages
         const realtimeMessages = manager.getRealtimeMessages(currentChannel);
 
@@ -253,6 +264,7 @@ export function useMultiChannelChat(token: string | null, currentChannel: string
     stopTyping,
     typingUsers,
     presenceState,
+    subscribers,
     connect, // No-op for backward compatibility
     disconnect, // No-op for backward compatibility
     channelManager: managerRef.current,

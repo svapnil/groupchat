@@ -6,6 +6,7 @@ import { UserList } from "./UserList.js";
 import { InputBox } from "./InputBox.js";
 import { StatusBar } from "./StatusBar.js";
 import type { ConnectionStatus, Message, User } from "../lib/types.js";
+import type { UserWithStatus } from "../hooks/use-presence.js";
 
 interface ChatViewProps {
   terminalSize: { rows: number; columns: number };
@@ -21,7 +22,8 @@ interface ChatViewProps {
   scrollOffset: number;
   isDetached: boolean;
   showUserList: boolean;
-  users: User[];
+  users: UserWithStatus[];
+  isPrivateChannel?: boolean;
   topPadding?: number;
   onSend: (message: string) => Promise<void>;
   onTypingStart: () => void;
@@ -44,6 +46,7 @@ export function ChatView({
   isDetached,
   showUserList,
   users,
+  isPrivateChannel = false,
   topPadding = 0,
   onSend,
   onTypingStart,
@@ -100,7 +103,12 @@ export function ChatView({
           />
         </Box>
         {showUserList && (
-          <UserList users={users} currentUsername={username} height={middleSectionHeight} />
+          <UserList
+            users={users}
+            currentUsername={username}
+            height={middleSectionHeight}
+            isPrivateChannel={isPrivateChannel}
+          />
         )}
       </Box>
 

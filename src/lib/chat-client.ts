@@ -7,6 +7,7 @@ import type {
   ConnectionStatus,
   ChannelsResponse,
   UnreadCounts,
+  SubscribersResponse,
 } from "./types.js";
 
 // Ensure WebSocket is available globally for Phoenix.
@@ -377,4 +378,34 @@ export async function updateLastSeen(
   if (!response.ok) {
     throw new Error(`Failed to update last_seen: ${response.status}`);
   }
+}
+
+/**
+ * Fetch subscribers for a private channel from the backend API.
+ * Returns all users who have an active subscription to the channel.
+ */
+export async function fetchSubscribers(
+  wsUrl: string,
+  token: string,
+  channelSlug: string
+): Promise<SubscribersResponse> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const encodedSlug = encodeURIComponent(channelSlug);
+  const url = `${backendUrl}/api/channels/${encodedSlug}/subscribers`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch subscribers: ${response.status}`);
+  }
+
+  return response.json() as Promise<SubscribersResponse>;
 }

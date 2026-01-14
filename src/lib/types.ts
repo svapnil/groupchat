@@ -24,6 +24,16 @@ export interface User {
   online_at: string;
 }
 
+export interface Subscriber {
+  user_id: number;
+  username: string;
+}
+
+export interface SubscribersResponse {
+  subscribers: Subscriber[];
+  count: number;
+}
+
 export interface PresenceState {
   [username: string]: {
     metas: Array<{

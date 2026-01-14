@@ -6,6 +6,7 @@ import type {
   ConnectionStatus,
   Channel,
   ChannelManagerCallbacks,
+  Subscriber,
 } from "./types.js";
 
 /**
@@ -18,6 +19,7 @@ interface InternalChannelState {
   presence: PresenceState;
   typingUsers: Set<string>;
   realtimeMessages: Message[];
+  subscribers: Subscriber[];
 }
 
 // Ensure WebSocket is available globally for Phoenix.
@@ -152,6 +154,7 @@ export class ChannelManager {
       presence: {},
       typingUsers: new Set<string>(),
       realtimeMessages: [],
+      subscribers: [],
     };
 
     // Setup event handlers for this channel
@@ -321,6 +324,54 @@ export class ChannelManager {
 
     const data = (await response.json()) as { messages: Message[] };
     return data.messages || [];
+  }
+
+  /**
+   * Fetch and store subscriber list for a private channel.
+   * Only applicable to private channels.
+   */
+  async fetchSubscribers(channelSlug: string): Promise<Subscriber[]> {
+    // Only fetch for private channels
+    if (!channelSlug.startsWith("private_room:")) {
+      return [];
+    }
+
+    const backendUrl = this.wsUrl
+      .replace(/^wss:/, "https:")
+      .replace(/^ws:/, "http:")
+      .replace(/\/socket$/, "");
+
+    const encodedSlug = encodeURIComponent(channelSlug);
+    const url = `${backendUrl}/api/channels/${encodedSlug}/subscribers`;
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch subscribers: ${response.status}`);
+    }
+
+    const data = (await response.json()) as { subscribers: Subscriber[] };
+    const subscribers = data.subscribers || [];
+
+    // Store in channel state
+    const channelState = this.channelStates.get(channelSlug);
+    if (channelState) {
+      channelState.subscribers = subscribers;
+    }
+
+    return subscribers;
+  }
+
+  /**
+   * Get subscriber list for a specific channel.
+   */
+  getSubscribers(channelSlug: string): Subscriber[] {
+    const channelState = this.channelStates.get(channelSlug);
+    return channelState?.subscribers || [];
   }
 
   /**
