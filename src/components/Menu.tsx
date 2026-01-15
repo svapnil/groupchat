@@ -34,10 +34,14 @@ export function Menu({
 }: MenuProps) {
   const { stdout } = useStdout();
 
+  const sortedPublicChannels = useMemo(() => {
+    return [...publicChannels].sort((a, b) => a.id.localeCompare(b.id));
+  }, [publicChannels]);
+
   // Combine all channels into a single navigable list
   const allChannels = useMemo(() => {
-    return [...publicChannels, ...privateChannels];
-  }, [publicChannels, privateChannels]);
+    return [...sortedPublicChannels, ...privateChannels];
+  }, [sortedPublicChannels, privateChannels]);
 
   // Selection state - index into allChannels
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -91,7 +95,7 @@ export function Menu({
   const contentHeight = height - topPadding - headerHeight;
 
   // Calculate which index is the start of private channels for section headers
-  const privateStartIndex = publicChannels.length;
+  const privateStartIndex = sortedPublicChannels.length;
 
   return (
     <Box
@@ -112,7 +116,7 @@ export function Menu({
 
       <Box flexDirection="column" height={contentHeight} padding={2}>
         {/* Public Channels Section */}
-        {publicChannels.length > 0 && (
+        {sortedPublicChannels.length > 0 && (
           <Box flexDirection="column" marginBottom={1}>
             <Box marginBottom={1}>
               <Text bold color="white">
@@ -120,7 +124,7 @@ export function Menu({
               </Text>
             </Box>
 
-            {publicChannels.map((channel, idx) => {
+            {sortedPublicChannels.map((channel, idx) => {
               const isSelected = selectedIndex === idx;
               const unreadCount = unreadCounts[channel.slug] || 0;
               return (
