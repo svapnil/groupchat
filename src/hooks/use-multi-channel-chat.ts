@@ -114,12 +114,16 @@ export function useMultiChannelChat(token: string | null, currentChannel: string
     managerRef.current = manager;
 
     // Connect and subscribe to all channels
+    const authToken = token;
     async function init() {
+      if (!authToken) {
+        return;
+      }
       try {
         await manager.connect();
 
         // Fetch list of channels
-        const channelsResponse = await fetchChannels(config.wsUrl, token);
+        const channelsResponse = await fetchChannels(config.wsUrl, authToken);
         const allChannels = [
           ...channelsResponse.channels.public,
           ...channelsResponse.channels.private,

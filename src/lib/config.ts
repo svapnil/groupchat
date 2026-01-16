@@ -1,7 +1,7 @@
 import { config as loadEnv } from "dotenv";
 
-// Only load .env file in development (not in production)
-if (process.env.NODE_ENV !== "production") {
+// Only load .env file during local/dev-like runs.
+if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
   loadEnv();
 }
 

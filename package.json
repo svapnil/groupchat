@@ -1,6 +1,6 @@
 {
   "name": "groupchat",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "CLI chat client for Groupchat",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,13 +14,18 @@
   "bin": {
     "groupchat": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "dev": "tsup src/index.ts --format esm --watch",
     "dev:bun": "bunx tsup src/index.ts --format esm --watch",
     "start": "NODE_ENV=production node dist/index.js",
     "start:bun": "NODE_ENV=production bun dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run build"
   },
   "dependencies": {
     "chalk": "^5.3.0",

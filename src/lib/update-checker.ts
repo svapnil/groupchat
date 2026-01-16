@@ -32,8 +32,8 @@ async function fetchLatestVersion(packageName: string): Promise<string | null> {
       return null;
     }
 
-    const data = await response.json();
-    return data.version || null;
+    const data = (await response.json()) as { version?: unknown };
+    return typeof data.version === "string" ? data.version : null;
   } catch {
     // Network error or timeout - fail silently
     return null;
