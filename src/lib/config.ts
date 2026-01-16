@@ -1,7 +1,9 @@
 import { config as loadEnv } from "dotenv";
 
-// Load .env file from current working directory
-loadEnv();
+// Only load .env file in development (not in production)
+if (process.env.NODE_ENV !== "production") {
+  loadEnv();
+}
 
 export interface Config {
   consoleUrl: string;

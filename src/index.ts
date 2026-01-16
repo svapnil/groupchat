@@ -7,6 +7,7 @@ import React from "react";
 import { login, logout, isAuthenticated } from "./auth/auth-manager.js";
 import { checkForUpdate, UpdateInfo } from "./lib/update-checker.js";
 import { UpdatePrompt } from "./components/UpdatePrompt.js";
+import packageJson from "../package.json" assert { type: "json" };
 
 // Ensure WebSocket is available globally for Phoenix in Node.
 if (typeof globalThis.WebSocket === "undefined") {
@@ -91,7 +92,7 @@ async function startChat() {
 program
   .name("groupchat")
   .description("CLI chat client for Groupchat")
-  .version("0.1.0");
+  .version(packageJson.version);
 
 // Default: start chat
 program.action(startChat);
