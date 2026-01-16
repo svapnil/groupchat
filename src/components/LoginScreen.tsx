@@ -25,27 +25,22 @@ export function LoginScreen({ onLogin, status, isLoading }: LoginScreenProps) {
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center" padding={2}>
       <Box marginBottom={2}>
-        <Text color="blue" bold>
+        <Text color="redBright" bold>
           {`
-  ████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗
-  ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║██╔══██╗██║
-     ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║███████║██║
-     ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║██╔══██║██║
-     ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║██║  ██║███████╗
-     ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝
-                           ██████╗██╗  ██╗ █████╗ ████████╗
-                          ██╔════╝██║  ██║██╔══██╗╚══██╔══╝
-                          ██║     ███████║███████║   ██║
-                          ██║     ██╔══██║██╔══██║   ██║
-                          ╚██████╗██║  ██║██║  ██║   ██║
-                           ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
+  ██████╗ ██████╗  ██████╗ ██╗   ██╗██████╗  ██████╗██╗  ██╗ █████╗ ████████╗████████╗██╗   ██╗
+ ██╔════╝ ██╔══██╗██╔═══██╗██║   ██║██╔══██╗██╔════╝██║  ██║██╔══██╗╚══██╔══╝╚══██╔══╝╚██╗ ██╔╝
+ ██║  ███╗██████╔╝██║   ██║██║   ██║██████╔╝██║     ███████║███████║   ██║      ██║    ╚████╔╝ 
+ ██║   ██║██╔══██╗██║   ██║██║   ██║██╔═══╝ ██║     ██╔══██║██╔══██║   ██║      ██║     ╚██╔╝  
+ ╚██████╔╝██║  ██║╚██████╔╝╚██████╔╝██║     ╚██████╗██║  ██║██║  ██║   ██║      ██║      ██║   
+  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝      ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝      ╚═╝      ╚═╝   
+                                          G R O U P C H A T 
 `}
         </Text>
       </Box>
 
       <Box
         borderStyle="single"
-        borderColor="blue"
+        borderColor="redBright"
         paddingX={4}
         paddingY={1}
         flexDirection="column"
@@ -71,10 +66,10 @@ export function LoginScreen({ onLogin, status, isLoading }: LoginScreenProps) {
           </>
         ) : (
           <>
-            <Text color="white">Welcome to Terminal Chat!</Text>
+            <Text color="redBright">Welcome to Groupchat!</Text>
             <Box marginTop={1}>
               <Text color="gray">Press </Text>
-              <Text color="cyan" bold>
+              <Text color="green" bold>
                 Enter
               </Text>
               <Text color="gray"> to login with your browser</Text>

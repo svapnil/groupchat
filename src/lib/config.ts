@@ -10,7 +10,7 @@ export interface Config {
 
 const DEFAULT_CONFIG: Config = {
   consoleUrl: "https://app.terminalchat.dev",
-  wsUrl: "wss://terminal-chat-backend.fly.dev/socket",
+  wsUrl: "wss://api.groupchatty.com/socket",
 };
 
 /**

@@ -132,7 +132,7 @@ export class ChatClient {
 
   private async fetchMessageHistory(): Promise<void> {
     // Extract backend HTTP URL from WebSocket URL
-    // e.g., wss://terminal-chat-backend.fly.dev/socket -> https://terminal-chat-backend.fly.dev
+    // e.g., wss://api.groupchatty.com/socket -> https://api.groupchatty.com
     const backendUrl = this.config.wsUrl
       .replace(/^wss:/, 'https:')
       .replace(/^ws:/, 'http:')
@@ -298,7 +298,7 @@ export async function fetchChannels(
   token: string
 ): Promise<ChannelsResponse> {
   // Extract backend HTTP URL from WebSocket URL
-  // e.g., wss://terminal-chat-backend.fly.dev/socket -> https://terminal-chat-backend.fly.dev
+  // e.g., wss://api.groupchatty.com/socket -> https://api.groupchatty.com
   const backendUrl = wsUrl
     .replace(/^wss:/, "https:")
     .replace(/^ws:/, "http:")
