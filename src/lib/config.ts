@@ -9,7 +9,7 @@ export interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-  consoleUrl: "https://app.terminalchat.dev",
+  consoleUrl: "https://app.groupchatty.com",
   wsUrl: "wss://api.groupchatty.com/socket",
 };
 
@@ -20,7 +20,7 @@ const DEFAULT_CONFIG: Config = {
 export function getConfig(): Config {
   return {
     consoleUrl:
-      process.env.TERMINAL_CHAT_CONSOLE_URL || DEFAULT_CONFIG.consoleUrl,
-    wsUrl: process.env.TERMINAL_CHAT_WS_URL || DEFAULT_CONFIG.wsUrl,
+      process.env.GROUPCHAT_CONSOLE_URL || DEFAULT_CONFIG.consoleUrl,
+    wsUrl: process.env.GROUPCHAT_WS_URL || DEFAULT_CONFIG.wsUrl,
   };
 }

@@ -1,11 +1,18 @@
 {
   "name": "groupchat",
-  "version": "0.1.0",
-  "description": "CLI chat client for Terminal Chat",
+  "version": "0.0.1",
+  "description": "CLI chat client for Groupchat",
   "type": "module",
   "main": "./dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/svapnil/groupchat-main"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
-    "terminal-chat": "./dist/index.js"
+    "groupchat": "./dist/index.js"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",

@@ -1,6 +1,6 @@
 import keytar from "keytar";
 
-const SERVICE_NAME = "terminal-chat";
+const SERVICE_NAME = "groupchat";
 const TOKEN_ACCOUNT = "auth-token";
 const EXPIRY_ACCOUNT = "auth-token-expiry";
 

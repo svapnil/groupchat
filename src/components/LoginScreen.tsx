@@ -13,7 +13,7 @@ export function LoginScreen({ onLogin, status, isLoading }: LoginScreenProps) {
   // Update terminal tab title for unauthenticated view
   useEffect(() => {
     if (!stdout) return;
-    stdout.write("\x1b]0;Welcome to Terminal Chat\x07");
+    stdout.write("\x1b]0;Welcome to Groupchatty\x07");
   }, [stdout]);
 
   useInput((input, key) => {

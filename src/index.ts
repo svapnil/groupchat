@@ -5,6 +5,8 @@ import { program } from "commander";
 import { render } from "ink";
 import React from "react";
 import { login, logout, isAuthenticated } from "./auth/auth-manager.js";
+import { checkForUpdate, UpdateInfo } from "./lib/update-checker.js";
+import { UpdatePrompt } from "./components/UpdatePrompt.js";
 
 // Ensure WebSocket is available globally for Phoenix in Node.
 if (typeof globalThis.WebSocket === "undefined") {
@@ -21,7 +23,7 @@ async function handleLogin() {
   });
 
   if (result.success) {
-    console.log("\n✓ Login successful! Run 'terminal-chat' to start chatting.\n");
+    console.log("\n✓ Login successful! Run 'groupchat' to start chatting.\n");
     process.exit(0);
   } else {
     console.error(`\n✗ Login failed: ${result.error}\n`);
@@ -36,12 +38,35 @@ async function handleLogout() {
   process.exit(0);
 }
 
+// Show update prompt and wait for user response
+async function showUpdatePrompt(updateInfo: UpdateInfo): Promise<void> {
+  return new Promise((resolve) => {
+    const { unmount, waitUntilExit } = render(
+      React.createElement(UpdatePrompt, {
+        updateInfo,
+        onComplete: () => {
+          unmount();
+          resolve();
+        },
+      })
+    );
+
+    waitUntilExit().then(() => resolve());
+  });
+}
+
 // Start chat (default command)
 async function startChat() {
   // Check if terminal supports our requirements
   if (!process.stdout.isTTY) {
-    console.error("Error: terminal-chat requires an interactive terminal.\n");
+    console.error("Error: groupchat requires an interactive terminal.\n");
     process.exit(1);
+  }
+
+  // Check for updates (don't block on network errors)
+  const updateInfo = await checkForUpdate();
+  if (updateInfo.updateAvailable) {
+    await showUpdatePrompt(updateInfo);
   }
 
   // Clear the terminal screen
@@ -64,32 +89,9 @@ async function startChat() {
 
 // Set up CLI
 program
-  .name("terminal-chat")
-  .description("CLI chat client for Terminal Chat")
+  .name("groupchat")
+  .description("CLI chat client for Groupchat")
   .version("0.1.0");
-
-program
-  .command("login")
-  .description("Login to Terminal Chat")
-  .action(handleLogin);
-
-program
-  .command("logout")
-  .description("Logout from Terminal Chat")
-  .action(handleLogout);
-
-program
-  .command("status")
-  .description("Check authentication status")
-  .action(async () => {
-    const authenticated = await isAuthenticated();
-    if (authenticated) {
-      console.log("✓ You are logged in.\n");
-    } else {
-      console.log("✗ Not logged in. Run 'terminal-chat login' to authenticate.\n");
-    }
-    process.exit(0);
-  });
 
 // Default: start chat
 program.action(startChat);

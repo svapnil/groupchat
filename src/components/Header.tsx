@@ -48,7 +48,7 @@ export function Header({
               ${" "}
             </Text>
             <Text color="blue" bold>
-              terminal-chat
+              groupchat
             </Text>
             <Text color="gray"> --session </Text>
             <Text color="yellow">{username || "..."}</Text>
