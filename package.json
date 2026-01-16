@@ -22,8 +22,8 @@
     "build": "tsup src/index.ts --format esm --dts --clean",
     "dev": "tsup src/index.ts --format esm --watch",
     "dev:bun": "bunx tsup src/index.ts --format esm --watch",
-    "start": "NODE_ENV=production node dist/index.js",
-    "start:bun": "NODE_ENV=production bun dist/index.js",
+    "start": "NODE_ENV=development node dist/index.js",
+    "start:bun": "NODE_ENV=development bun dist/index.js",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
