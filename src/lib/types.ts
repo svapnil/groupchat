@@ -27,6 +27,7 @@ export interface User {
 export interface Subscriber {
   user_id: number;
   username: string;
+  role: "member" | "admin";
 }
 
 export interface SubscribersResponse {

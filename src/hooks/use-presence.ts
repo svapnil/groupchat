@@ -6,6 +6,7 @@ import type { User, PresenceState, Subscriber } from "../lib/types.js";
  */
 export interface UserWithStatus extends User {
   isOnline: boolean;
+  role?: "member" | "admin";
 }
 
 /**
@@ -55,6 +56,7 @@ function mergeSubscribersWithPresence(
       user_id: subscriber.user_id,
       online_at: isOnline ? presence[subscriber.username].metas[0]?.online_at || "" : "",
       isOnline,
+      role: subscriber.role,
     };
   });
 }

@@ -293,9 +293,10 @@ export class ChannelManager {
     // Handle user invitation to channel
     // TODO: Let's create realtime system messages to render this
     channel.on("user_invited", (payload: unknown) => {
-      const { user_id, username, invited_by } = payload as {
+      const { user_id, username, role, invited_by } = payload as {
         user_id: number;
         username: string;
+        role: "member" | "admin";
         invited_by: string;
       };
 
@@ -309,7 +310,7 @@ export class ChannelManager {
           // Add to subscribers if not already there
           const exists = channelState.subscribers.some((s) => s.user_id === user_id);
           if (!exists) {
-            channelState.subscribers.push({ user_id, username });
+            channelState.subscribers.push({ user_id, username, role });
           }
         }
 

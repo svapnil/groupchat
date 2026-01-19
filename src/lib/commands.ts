@@ -205,6 +205,7 @@ export interface Command {
   syntax: string;         // e.g., "/invite @user"
   description: string;
   privateOnly: boolean;
+  adminOnly?: boolean;
   parameters: CommandParameter[];
   eventType: string;      // Phoenix event to send
 }
@@ -219,6 +220,7 @@ export const COMMANDS: Command[] = [
     syntax: "/invite @user",
     description: "Invite a user to join the channel",
     privateOnly: true,
+    adminOnly: true,
     parameters: [
       { name: "user", type: "username", required: true, prefix: "@", source: "search" },
     ],
@@ -229,6 +231,7 @@ export const COMMANDS: Command[] = [
     syntax: "/remove @user",
     description: "Remove a user from the channel",
     privateOnly: true,
+    adminOnly: true,
     parameters: [
       { name: "user", type: "username", required: true, prefix: "@", source: "subscribed_without_self" },
     ],

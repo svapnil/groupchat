@@ -44,9 +44,19 @@ export function useCommandInput({
 }: UseCommandInputOptions) {
   const [inputValue, setInputValue] = useState("");
 
+  const isChannelAdmin = useMemo(
+    () => subscribers.some((s) => s.username === username && s.role === "admin"),
+    [subscribers, username]
+  );
+
   const availableCommands = useMemo(
-    () => COMMANDS.filter((cmd) => (cmd.privateOnly ? isPrivateChannel : true)),
-    [isPrivateChannel]
+    () =>
+      COMMANDS.filter((cmd) => {
+        if (cmd.privateOnly && !isPrivateChannel) return false;
+        if (cmd.adminOnly && !isChannelAdmin) return false;
+        return true;
+      }),
+    [isPrivateChannel, isChannelAdmin]
   );
 
   const baseContext: ValidationContext = useMemo(

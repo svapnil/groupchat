@@ -80,6 +80,9 @@ export function UserList({
               {user.username === currentUsername && (
                 <Text color="gray"> (you)</Text>
               )}
+              {user.role === "admin" && (
+                <Text color="yellow"> ★</Text>
+              )}
             </Box>
           );
         })}
