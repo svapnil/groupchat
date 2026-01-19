@@ -34,6 +34,16 @@ export interface SubscribersResponse {
   count: number;
 }
 
+export interface UserSearchResult {
+  user_id: number;
+  username: string;
+}
+
+export interface UserSearchResponse {
+  users: UserSearchResult[];
+  count: number;
+}
+
 export interface PresenceState {
   [username: string]: {
     metas: Array<{
@@ -101,4 +111,9 @@ export interface ChannelManagerCallbacks {
   onConnectionChange?: (status: ConnectionStatus) => void;
   onError?: (error: string) => void;
   onChannelJoined?: (channelSlug: string, username: string) => void;
+  onInvitedToChannel?: (channelSlug: string, invitedBy: string) => void;
+  onUserInvitedToChannel?: (channelSlug: string, username: string, userId: number, invitedBy: string) => void;
+  onRemovedFromChannel?: (channelSlug: string, removedBy: string) => void;
+  onUserRemovedFromChannel?: (channelSlug: string, username: string, removedBy: string) => void;
+  onChannelListChanged?: () => void;
 }

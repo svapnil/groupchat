@@ -289,6 +289,69 @@ export class ChannelManager {
         this.callbacks.onUserTyping?.(channelSlug, username, false);
       }
     });
+
+    // Handle user invitation to channel
+    // TODO: Let's create realtime system messages to render this
+    channel.on("user_invited", (payload: unknown) => {
+      const { user_id, username, invited_by } = payload as {
+        user_id: number;
+        username: string;
+        invited_by: string;
+      };
+
+      // If the invited user is the current user, notify them
+      if (username === this.username) {
+        this.callbacks.onInvitedToChannel?.(channelSlug, invited_by);
+      } else {
+        // Someone else was invited - update subscribers list
+        const channelState = this.channelStates.get(channelSlug);
+        if (channelState) {
+          // Add to subscribers if not already there
+          const exists = channelState.subscribers.some((s) => s.user_id === user_id);
+          if (!exists) {
+            channelState.subscribers.push({ user_id, username });
+          }
+        }
+
+        // Notify callback for active channel
+        if (channelSlug === this.currentActiveChannel) {
+          this.callbacks.onUserInvitedToChannel?.(channelSlug, username, user_id, invited_by);
+        }
+      }
+    });
+
+    // Handle user removal from channel
+    // TODO: Let's create realtime system messages to render this
+    channel.on("user_removed", (payload: unknown) => {
+      const { user_id, username, removed_by } = payload as {
+        user_id: number;
+        username: string;
+        removed_by: string;
+      };
+
+      // If the removed user is the current user, leave the channel
+      if (username === this.username) {
+        // Leave the channel
+        channel.leave();
+        this.channelStates.delete(channelSlug);
+
+        // Notify callback that we were removed
+        this.callbacks.onRemovedFromChannel?.(channelSlug, removed_by);
+      } else {
+        // Someone else was removed - just update subscribers list
+        const channelState = this.channelStates.get(channelSlug);
+        if (channelState) {
+          channelState.subscribers = channelState.subscribers.filter(
+            (s) => s.user_id !== user_id
+          );
+        }
+
+        // Notify callback for active channel
+        if (channelSlug === this.currentActiveChannel) {
+          this.callbacks.onUserRemovedFromChannel?.(channelSlug, username, removed_by);
+        }
+      }
+    });
   }
 
   /**
@@ -405,6 +468,47 @@ export class ChannelManager {
         })
         .receive("timeout", () => {
           const errorMsg = "Message send timeout";
+          this.callbacks.onError?.(errorMsg);
+          reject(new Error("timeout"));
+        });
+    });
+  }
+
+  /**
+   * Send a custom command event to a specific channel.
+   */
+  async sendCommand(
+    channelSlug: string,
+    eventType: string,
+    data: any
+  ): Promise<{ message_id: string }> {
+    const channelState = this.channelStates.get(channelSlug);
+    if (!channelState) {
+      throw new Error(`Not subscribed to channel: ${channelSlug}`);
+    }
+
+    if (!this.socket || this.connectionStatus !== "connected") {
+      throw new Error("Connection lost");
+    }
+
+    // Use the stored channel instance (already joined)
+    const channel = channelState.channel;
+
+    return new Promise((resolve, reject) => {
+      channel
+        .push(eventType, data)
+        .receive("ok", (resp: unknown) => {
+          const response = resp as { message_id: string };
+          resolve(response);
+        })
+        .receive("error", (err: unknown) => {
+          const error = err as { reason?: string };
+          const errorMsg = error.reason || "Failed to send command";
+          this.callbacks.onError?.(errorMsg);
+          reject(new Error(errorMsg));
+        })
+        .receive("timeout", () => {
+          const errorMsg = "Command send timeout";
           this.callbacks.onError?.(errorMsg);
           reject(new Error("timeout"));
         });

@@ -8,6 +8,7 @@ import type {
   ChannelsResponse,
   UnreadCounts,
   SubscribersResponse,
+  UserSearchResponse,
 } from "./types.js";
 
 // Ensure WebSocket is available globally for Phoenix.
@@ -407,4 +408,45 @@ export async function fetchSubscribers(
   }
 
   return response.json() as Promise<SubscribersResponse>;
+}
+
+/**
+ * Search for users by username prefix.
+ * When channelSlug is provided, excludes users already subscribed to that channel.
+ */
+export async function searchUsers(
+  wsUrl: string,
+  token: string,
+  startsWith: string,
+  channelSlug?: string,
+  limit: number = 20
+): Promise<UserSearchResponse> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const encodedStartsWith = encodeURIComponent(startsWith);
+  const params = new URLSearchParams({
+    startsWith: encodedStartsWith,
+    limit: limit.toString(),
+  });
+
+  if (channelSlug) {
+    params.append("channel_slug", encodeURIComponent(channelSlug));
+  }
+
+  const url = `${backendUrl}/api/users/search?${params.toString()}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to search users: ${response.status}`);
+  }
+
+  return response.json() as Promise<UserSearchResponse>;
 }

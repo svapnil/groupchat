@@ -82,7 +82,7 @@ export function App() {
   }, []);
 
   // Channels hook - fetch available channels
-  const { publicChannels, privateChannels, unreadCounts, refetchUnreadCounts } = useChannels(token);
+  const { publicChannels, privateChannels, unreadCounts, refetchUnreadCounts, refetch: refetchChannels } = useChannels(token);
 
   // Multi-channel chat hook - maintains persistent connection
   const {
@@ -99,10 +99,21 @@ export function App() {
     connect,
     disconnect,
     channelManager,
-  } = useMultiChannelChat(token, currentChannel);
+  } = useMultiChannelChat(token, currentChannel, refetchChannels);
 
   // Presence hook
   const { users } = usePresence(presenceState, subscribers, currentChannel);
+
+  // Command send handler
+  const sendCommand = useCallback(
+    async (eventType: string, data: any) => {
+      if (!channelManager) {
+        throw new Error("Not connected");
+      }
+      await channelManager.sendCommand(currentChannel, eventType, data);
+    },
+    [currentChannel, channelManager]
+  );
 
   // Find current channel details
   const allChannels = [...publicChannels, ...privateChannels];
@@ -360,12 +371,15 @@ export function App() {
       isDetached={isScrollDetached}
       showUserList={showUserList}
       users={users}
+      subscribers={subscribers}
       isPrivateChannel={isPrivateChannel}
       topPadding={topPadding}
       onSend={sendMessage}
       onTypingStart={startTyping}
       onTypingStop={stopTyping}
+      onCommandSend={sendCommand}
       error={error}
+      token={token}
     />
   );
 }

@@ -7,6 +7,7 @@ interface InputBoxProps {
   onTypingStart: () => void;
   onTypingStop: () => void;
   disabled: boolean;
+  onInputChange?: (value: string) => void;
 }
 
 export function InputBox({
@@ -14,6 +15,7 @@ export function InputBox({
   onTypingStart,
   onTypingStop,
   disabled,
+  onInputChange,
 }: InputBoxProps) {
   const [value, setValue] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -24,6 +26,7 @@ export function InputBox({
   const handleChange = useCallback(
     (newValue: string) => {
       setValue(newValue);
+      onInputChange?.(newValue);
 
       // Start typing if not already
       if (!isTypingRef.current && newValue.length > 0) {
@@ -48,7 +51,7 @@ export function InputBox({
         onTypingStop();
       }
     },
-    [onTypingStart, onTypingStop]
+    [onTypingStart, onTypingStop, onInputChange]
   );
 
   // Handle send

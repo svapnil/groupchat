@@ -41,6 +41,8 @@ export function UserList({
       width={24}
       height={height}
       paddingX={1}
+      marginBottom={1}
+      overflow="hidden"
     >
       <Box marginBottom={1}>
         {isPrivateChannel ? (

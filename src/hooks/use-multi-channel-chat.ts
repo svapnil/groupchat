@@ -20,7 +20,11 @@ import type {
  *
  * API-compatible with useChat for easy migration.
  */
-export function useMultiChannelChat(token: string | null, currentChannel: string) {
+export function useMultiChannelChat(
+  token: string | null,
+  currentChannel: string,
+  onChannelListChanged?: () => void
+) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
@@ -107,6 +111,55 @@ export function useMultiChannelChat(token: string | null, currentChannel: string
           if (!username) {
             setUsername(joinedUsername);
           }
+        },
+        onInvitedToChannel: (channelSlug, invitedBy) => {
+          // We were invited to a channel - need to join it
+          // The subscription is created, but we need to actually join the Phoenix channel
+          if (managerRef.current) {
+            // Fetch updated channel list and subscribe to the new channel
+            const authToken = token;
+            async function joinNewChannel() {
+              if (!authToken || !manager) return;
+              try {
+                const channelsResponse = await fetchChannels(config.wsUrl, authToken);
+                const allChannels = [
+                  ...channelsResponse.channels.public,
+                  ...channelsResponse.channels.private,
+                ];
+
+                // Find the new channel
+                const newChannel = allChannels.find(ch => ch.slug === channelSlug);
+                if (newChannel) {
+                  await manager.subscribeToChannels([newChannel]);
+                  // Notify that channel list changed (for Menu to refetch)
+                  onChannelListChanged?.();
+                }
+              } catch (err) {
+                console.error("Failed to join new channel:", err);
+              }
+            }
+            joinNewChannel();
+          }
+        },
+        onUserInvitedToChannel: (channelSlug, invitedUsername, invitedUserId, invitedBy) => {
+          // Someone else was invited, update subscribers list
+          setSubscribers((prev) => {
+            // Check if already in list
+            const exists = prev.some((s) => s.user_id === invitedUserId);
+            if (!exists) {
+              return [...prev, { username: invitedUsername, user_id: invitedUserId }];
+            }
+            return prev;
+          });
+        },
+        onRemovedFromChannel: (channelSlug, removedBy) => {
+          // We were removed from a channel
+          setError(`You were removed from ${channelSlug} by ${removedBy}`);
+          // The channel-manager already left the channel, no action needed
+        },
+        onUserRemovedFromChannel: (channelSlug, removedUsername, removedBy) => {
+          // Someone else was removed, update subscribers list
+          setSubscribers((prev) => prev.filter((s) => s.username !== removedUsername));
         },
       }
     );
