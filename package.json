@@ -1,6 +1,6 @@
 {
   "name": "groupchat",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "CLI chat client for Groupchat",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,9 +19,9 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean",
-    "dev": "tsup src/index.ts --format esm --watch",
-    "dev:bun": "bunx tsup src/index.ts --format esm --watch",
+    "build": "tsup src/index.ts --format esm --dts --clean --no-splitting",
+    "dev": "tsup src/index.ts --format esm --watch --no-splitting",
+    "dev:bun": "bunx tsup src/index.ts --format esm --watch --no-splitting",
     "start": "NODE_ENV=development node dist/index.js",
     "start:bun": "NODE_ENV=development bun dist/index.js",
     "typecheck": "tsc --noEmit",
