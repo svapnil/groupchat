@@ -6,6 +6,7 @@ import type {
   PresenceDiff,
   ConnectionStatus,
   ChannelsResponse,
+  CreateChannelResponse,
   UnreadCounts,
   SubscribersResponse,
   UserSearchResponse,
@@ -449,4 +450,43 @@ export async function searchUsers(
   }
 
   return response.json() as Promise<UserSearchResponse>;
+}
+
+/**
+ * Create a new private channel.
+ * Returns the created channel and updated channel list.
+ */
+export async function createChannel(
+  wsUrl: string,
+  token: string,
+  name: string,
+  description?: string
+): Promise<CreateChannelResponse> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const url = `${backendUrl}/api/channels`;
+
+  const body: { name: string; description?: string } = { name };
+  if (description) {
+    body.description = description;
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const data = await response.json() as { error?: string };
+    throw new Error(data.error || `Failed to create channel: ${response.status}`);
+  }
+
+  return response.json() as Promise<CreateChannelResponse>;
 }

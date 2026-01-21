@@ -5,6 +5,10 @@ import { Layout } from "./Layout.js";
 import { useNavigation } from "../routes/Router.js";
 import type { ConnectionStatus, Channel, UnreadCounts } from "../lib/types.js";
 
+type MenuItem =
+  | { type: "channel"; channel: Channel }
+  | { type: "action"; action: "create-channel"; label: string };
+
 interface MenuProps {
   width: number;
   height: number;
@@ -44,17 +48,34 @@ export function Menu({
     return [...sortedPublicChannels, ...privateChannels];
   }, [sortedPublicChannels, privateChannels]);
 
-  // Selection state - index into allChannels
+  // Create menu items: channels + action item for creating new channel
+  const menuItems: MenuItem[] = useMemo(() => {
+    const items: MenuItem[] = allChannels.map((channel) => ({
+      type: "channel" as const,
+      channel,
+    }));
+    // Add "Create New Channel" action at the end
+    items.push({
+      type: "action",
+      action: "create-channel",
+      label: "Create New Private Channel",
+    });
+    return items;
+  }, [allChannels]);
+
+  // Selection state - index into menuItems
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Reset selection when channels change
   useEffect(() => {
-    if (allChannels.length > 0) {
+    if (menuItems.length > 0) {
       // Try to find current channel in list, otherwise default to 0
-      const currentIndex = allChannels.findIndex((c) => c.slug === currentChannel);
+      const currentIndex = menuItems.findIndex(
+        (item) => item.type === "channel" && item.channel.slug === currentChannel
+      );
       setSelectedIndex(currentIndex >= 0 ? currentIndex : 0);
     }
-  }, [allChannels, currentChannel]);
+  }, [menuItems, currentChannel]);
 
   // Update terminal tab title for menu view
   useEffect(() => {
@@ -77,16 +98,20 @@ export function Menu({
     }
 
     if (key.downArrow) {
-      setSelectedIndex((prev) => Math.min(allChannels.length - 1, prev + 1));
+      setSelectedIndex((prev) => Math.min(menuItems.length - 1, prev + 1));
       return;
     }
 
-    // Enter to select current channel and go to chat
-    if (key.return && allChannels.length > 0) {
-      const selected = allChannels[selectedIndex];
+    // Enter to select current item
+    if (key.return && menuItems.length > 0) {
+      const selected = menuItems[selectedIndex];
       if (selected) {
-        onChannelSelect(selected.slug);
-        navigate("chat");
+        if (selected.type === "channel") {
+          onChannelSelect(selected.channel.slug);
+          navigate("chat");
+        } else if (selected.type === "action" && selected.action === "create-channel") {
+          navigate("create-channel");
+        }
       }
     }
   });
@@ -163,6 +188,22 @@ export function Menu({
           </Box>
         )}
 
+        {/* Create New Channel Action */}
+        <Box flexDirection="column" marginBottom={1}>
+          {/* Only show header if there are no private channels yet */}
+          {privateChannels.length === 0 && (
+            <Box marginBottom={1}>
+              <Text bold color="white">
+                Private Channels
+              </Text>
+            </Box>
+          )}
+          <ActionItem
+            label="+ Create New Private Channel"
+            isSelected={selectedIndex === allChannels.length}
+          />
+        </Box>
+
         {/* Empty state */}
         {allChannels.length === 0 && (
           <Box>
@@ -225,6 +266,22 @@ function ChannelItem({ channel, isSelected, isPrivate = false, unreadCount = 0 }
           - {channel.description}
         </Text>
       )}
+    </Box>
+  );
+}
+
+interface ActionItemProps {
+  label: string;
+  isSelected: boolean;
+}
+
+function ActionItem({ label, isSelected }: ActionItemProps) {
+  return (
+    <Box marginLeft={2}>
+      <Text color={isSelected ? "green" : "cyan"} bold={isSelected}>
+        {isSelected ? "> " : "  "}
+        {label}
+      </Text>
     </Box>
   );
 }

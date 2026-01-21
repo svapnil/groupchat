@@ -85,6 +85,14 @@ export interface ChannelsResponse {
   };
 }
 
+export interface CreateChannelResponse {
+  channel: Channel;
+  channels: {
+    public: Channel[];
+    private: Channel[];
+  };
+}
+
 export interface UnreadCounts {
   [channelSlug: string]: number;
 }

@@ -3,6 +3,7 @@ import { Box, useApp, useInput, useStdout } from "ink";
 import { LoginScreen } from "./LoginScreen.js";
 import { Menu } from "./Menu.js";
 import { ChatView } from "./ChatView.js";
+import { CreateChannelScreen } from "./CreateChannelScreen.js";
 import { useMultiChannelChat } from "../hooks/use-multi-channel-chat.js";
 import { usePresence } from "../hooks/use-presence.js";
 import { useChannels } from "../hooks/use-channels.js";
@@ -13,6 +14,8 @@ import {
   logout,
 } from "../auth/auth-manager.js";
 import { Router, useNavigation } from "../routes/Router.js";
+import { createChannel } from "../lib/chat-client.js";
+import { getConfig } from "../lib/config.js";
 import type { AuthState } from "../lib/types.js";
 
 export function App() {
@@ -243,6 +246,16 @@ function AppContent() {
     }
   }, [disconnect, currentChannel, channelManager]);
 
+  // Handle create channel
+  const handleCreateChannel = useCallback(async (name: string, description: string) => {
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+    const config = getConfig();
+    await createChannel(config.wsUrl, token, name, description || undefined);
+    await refetchChannels();
+  }, [token, refetchChannels]);
+
   // Calculate max visible messages for scroll bounds
   const headerHeight = 3;
   const inputBoxHeight = 4;
@@ -357,6 +370,28 @@ function AppContent() {
           publicChannels={publicChannels}
           privateChannels={privateChannels}
           unreadCounts={unreadCounts}
+        />
+      </Box>
+    );
+  }
+
+  // Show Create Channel page
+  if (route === "create-channel") {
+    return (
+      <Box
+        flexDirection="column"
+        width={terminalSize.columns}
+        height={terminalSize.rows}
+        overflow="hidden"
+      >
+        <CreateChannelScreen
+          width={terminalSize.columns}
+          height={terminalSize.rows}
+          username={username}
+          connectionStatus={connectionStatus}
+          onLogout={handleLogout}
+          onCreateChannel={handleCreateChannel}
+          topPadding={topPadding}
         />
       </Box>
     );
