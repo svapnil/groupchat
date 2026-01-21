@@ -12,11 +12,21 @@ import {
   login,
   logout,
 } from "../auth/auth-manager.js";
+import { Router, useNavigation } from "../routes/Router.js";
 import type { AuthState } from "../lib/types.js";
 
 export function App() {
+  return (
+    <Router initialRoute="menu">
+      <AppContent />
+    </Router>
+  );
+}
+
+function AppContent() {
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const { route, navigate } = useNavigation();
   const isWarp = process.env.TERM_PROGRAM === "WarpTerminal";
   const topPadding = isWarp ? 1 : 0;
   const [authState, setAuthState] = useState<AuthState>("unauthenticated");
@@ -34,8 +44,7 @@ export function App() {
   // User list visibility
   const [showUserList, setShowUserList] = useState(true);
 
-  // View/Page navigation
-  const [currentView, setCurrentView] = useState<"menu" | "chat">("menu");
+  // Channel state
   const [currentChannel, setCurrentChannel] = useState("chat_room:global");
   const prevAuthStateRef = useRef<AuthState | null>(null);
 
@@ -188,10 +197,10 @@ export function App() {
 
   // Refetch unread counts when navigating to menu
   useEffect(() => {
-    if (currentView === "menu") {
+    if (route === "menu") {
       refetchUnreadCounts();
     }
-  }, [currentView, refetchUnreadCounts]);
+  }, [route, refetchUnreadCounts]);
 
   // Handle login
   const handleLogin = useCallback(async () => {
@@ -274,8 +283,8 @@ export function App() {
     }
 
     // Ctrl+Q to navigate to menu (when authenticated and in chat view)
-    if (input === "q" && key.ctrl && authState === "authenticated" && currentView === "chat") {
-      setCurrentView("menu");
+    if (input === "q" && key.ctrl && authState === "authenticated" && route === "chat") {
+      navigate("menu");
     }
 
     // Up/Down arrow keys for scrolling (only when authenticated)
@@ -328,7 +337,7 @@ export function App() {
   }
 
   // Show Menu page
-  if (currentView === "menu") {
+  if (route === "menu") {
     return (
       <Box
         flexDirection="column"
@@ -341,7 +350,6 @@ export function App() {
           height={terminalSize.rows}
           currentChannel={currentChannel}
           onChannelSelect={setCurrentChannel}
-          onBack={() => setCurrentView("chat")}
           username={username}
           connectionStatus={connectionStatus}
           onLogout={handleLogout}

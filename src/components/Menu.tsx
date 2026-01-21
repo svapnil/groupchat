@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
 import { Header } from "./Header.js";
+import { Layout } from "./Layout.js";
+import { useNavigation } from "../routes/Router.js";
 import type { ConnectionStatus, Channel, UnreadCounts } from "../lib/types.js";
 
 interface MenuProps {
@@ -8,7 +10,6 @@ interface MenuProps {
   height: number;
   currentChannel: string;
   onChannelSelect: (channel: string) => void;
-  onBack: () => void;
   username: string | null;
   connectionStatus: ConnectionStatus;
   onLogout: () => void;
@@ -23,7 +24,6 @@ export function Menu({
   height,
   currentChannel,
   onChannelSelect,
-  onBack,
   username,
   connectionStatus,
   onLogout,
@@ -33,6 +33,7 @@ export function Menu({
   unreadCounts,
 }: MenuProps) {
   const { stdout } = useStdout();
+  const { navigate } = useNavigation();
 
   const sortedPublicChannels = useMemo(() => {
     return [...publicChannels].sort((a, b) => a.id.localeCompare(b.id));
@@ -65,7 +66,7 @@ export function Menu({
   useInput((input, key) => {
     // ESC to go back to chat
     if (key.escape) {
-      onBack();
+      navigate("chat");
       return;
     }
 
@@ -85,7 +86,7 @@ export function Menu({
       const selected = allChannels[selectedIndex];
       if (selected) {
         onChannelSelect(selected.slug);
-        onBack();
+        navigate("chat");
       }
     }
   });
@@ -98,23 +99,20 @@ export function Menu({
   const privateStartIndex = sortedPublicChannels.length;
 
   return (
-    <Box
-      flexDirection="column"
-      width={width}
-      height={height}
-      overflow="hidden"
-      paddingTop={topPadding}
-    >
-      <Header
-        username={username}
-        roomName="Menu"
-        connectionStatus={connectionStatus}
-        onLogout={onLogout}
-        title={<Text bold color="cyan">Menu</Text>}
-        showStatus={false}
-      />
+    <Layout width={width} height={height} topPadding={topPadding}>
+      <Layout.Header>
+        <Header
+          username={username}
+          roomName="Menu"
+          connectionStatus={connectionStatus}
+          onLogout={onLogout}
+          title={<Text bold color="cyan">Menu</Text>}
+          showStatus={false}
+        />
+      </Layout.Header>
 
-      <Box flexDirection="column" height={contentHeight} padding={2}>
+      <Layout.Content>
+        <Box flexDirection="column" height={contentHeight} padding={2}>
         {/* Public Channels Section */}
         {sortedPublicChannels.length > 0 && (
           <Box flexDirection="column" marginBottom={1}>
@@ -195,8 +193,9 @@ export function Menu({
             <Text color="cyan">Ctrl+C</Text> Exit the app
           </Text>
         </Box>
-      </Box>
-    </Box>
+        </Box>
+      </Layout.Content>
+    </Layout>
   );
 }
 

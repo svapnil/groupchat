@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Box, Text, useStdout } from "ink";
 import { Header } from "./Header.js";
+import { Layout } from "./Layout.js";
 import { MessageList } from "./MessageList.js";
 import { UserList } from "./UserList.js";
 import { InputBox } from "./InputBox.js";
@@ -88,29 +89,26 @@ export function ChatView({
   }, [stdout, connectionStatus, displayName]);
 
   return (
-    <Box
-      flexDirection="column"
-      width={terminalSize.columns}
-      height={terminalSize.rows}
-      overflow="hidden"
-      paddingTop={topPadding}
-    >
-      <Header
-        username={username}
-        roomName={currentChannel}
-        connectionStatus={connectionStatus}
-        onLogout={onLogout}
-        title={
-          <>
-            <Text color="gray">← Menu </Text>
-            <Text color="gray" dimColor>[CTRL+Q]</Text>
-            <Text color="gray"> | </Text>
-            <Text color="cyan" bold>#{displayText}</Text>
-          </>
-        }
-      />
+    <Layout width={terminalSize.columns} height={terminalSize.rows} topPadding={topPadding}>
+      <Layout.Header>
+        <Header
+          username={username}
+          roomName={currentChannel}
+          connectionStatus={connectionStatus}
+          onLogout={onLogout}
+          title={
+            <>
+              <Text color="gray">← Menu </Text>
+              <Text color="gray" dimColor>[CTRL+Q]</Text>
+              <Text color="gray"> | </Text>
+              <Text color="cyan" bold>#{displayText}</Text>
+            </>
+          }
+        />
+      </Layout.Header>
 
-      <Box
+      <Layout.Content>
+        <Box
         flexDirection="row"
         height={Math.max(1, middleSectionHeight - tooltip.height)}
         overflow="hidden"
@@ -153,6 +151,7 @@ export function ChatView({
         error={error}
         userCount={users.length}
       />
-    </Box>
+      </Layout.Content>
+    </Layout>
   );
 }
