@@ -147,7 +147,7 @@ export function useMultiChannelChat(
             // Check if already in list
             const exists = prev.some((s) => s.user_id === invitedUserId);
             if (!exists) {
-              return [...prev, { username: invitedUsername, user_id: invitedUserId }];
+              return [...prev, { username: invitedUsername, user_id: invitedUserId, role: "member" }];
             }
             return prev;
           });
