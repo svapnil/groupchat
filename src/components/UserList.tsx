@@ -71,17 +71,26 @@ export function UserList({
             : user.username;
 
           return (
-            <Box key={user.username}>
-              <Text color={user.isOnline ? "green" : "gray"}>●</Text>
-              <Text> </Text>
-              <Text color={user.username === currentUsername ? "yellow" : "white"}>
-                {displayName}{isTruncated && "…"}
-              </Text>
-              {user.username === currentUsername && (
-                <Text color="gray"> (you)</Text>
-              )}
-              {user.role === "admin" && (
-                <Text color="yellow"> ★</Text>
+            <Box key={user.username} flexDirection="column">
+              <Box>
+                <Text color={user.isOnline ? "green" : "gray"}>●</Text>
+                <Text> </Text>
+                <Text color={user.username === currentUsername ? "yellow" : "white"}>
+                  {displayName}{isTruncated && "…"}
+                </Text>
+                {user.username === currentUsername && (
+                  <Text color="gray"> (you)</Text>
+                )}
+                {user.role === "admin" && (
+                  <Text color="yellow"> ★</Text>
+                )}
+              </Box>
+              {user.currentAgent && (
+                <Box marginLeft={2}>
+                  <Text color={user.currentAgent === "claude" ? "redBright" : "cyan"}>
+                    ⤷ Using {user.currentAgent === "claude" ? "Claude" : "Codex"}
+                  </Text>
+                </Box>
               )}
             </Box>
           );

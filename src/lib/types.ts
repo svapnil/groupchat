@@ -45,6 +45,8 @@ export interface UserSearchResponse {
   count: number;
 }
 
+export type AgentType = "claude" | "codex" | null;
+
 export interface PresenceState {
   [username: string]: {
     metas: Array<{
@@ -52,6 +54,7 @@ export interface PresenceState {
       username: string;
       user_id: number;
       online_at: string;
+      current_agent: AgentType;
     }>;
   };
 }

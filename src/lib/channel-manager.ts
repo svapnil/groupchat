@@ -246,14 +246,14 @@ export class ChannelManager {
         // Update presence state
         const next = { ...channelState.presence };
 
+        // Remove leaves first (presence updates send leaves + joins for same user)
+        Object.keys(diff.leaves).forEach((username) => {
+          delete next[username];
+        });
+
         // Add joins
         Object.entries(diff.joins).forEach(([username, data]) => {
           next[username] = data;
-        });
-
-        // Remove leaves
-        Object.keys(diff.leaves).forEach((username) => {
-          delete next[username];
         });
 
         channelState.presence = next;
@@ -546,6 +546,22 @@ export class ChannelManager {
     } catch {
       // Ignore typing indicator errors
     }
+  }
+
+  /**
+   * Push an event to all subscribed channels.
+   * Used for user-wide state updates like current_agent.
+   */
+  pushToAllChannels(eventType: string, payload: Record<string, unknown>): void {
+    if (this.connectionStatus !== "connected") return;
+
+    this.channelStates.forEach((state) => {
+      try {
+        state.channel.push(eventType, payload);
+      } catch {
+        // Ignore errors for individual channels
+      }
+    });
   }
 
   /**

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { User, PresenceState, Subscriber } from "../lib/types.js";
+import type { AgentType, User, PresenceState, Subscriber } from "../lib/types.js";
 
 /**
  * Extended user type with online status indicator.
@@ -7,16 +7,18 @@ import type { User, PresenceState, Subscriber } from "../lib/types.js";
 export interface UserWithStatus extends User {
   isOnline: boolean;
   role?: "member" | "admin";
+  currentAgent?: AgentType;
 }
 
 /**
  * Convert presence state to array of users.
  */
-function presenceToUsers(presence: PresenceState): User[] {
+function presenceToUsers(presence: PresenceState): (User & { currentAgent?: AgentType })[] {
   return Object.entries(presence).map(([username, data]) => ({
     username,
     user_id: data.metas[0]?.user_id ?? 0,
     online_at: data.metas[0]?.online_at || "",
+    currentAgent: data.metas[0]?.current_agent ?? null,
   }));
 }
 
@@ -42,6 +44,7 @@ function mergeSubscribersWithPresence(
     return onlineUsers.map((user) => ({
       ...user,
       isOnline: true,
+      currentAgent: user.currentAgent,
     }));
   }
 
@@ -57,6 +60,7 @@ function mergeSubscribersWithPresence(
       online_at: isOnline ? presence[subscriber.username].metas[0]?.online_at || "" : "",
       isOnline,
       role: subscriber.role,
+      currentAgent: isOnline ? presence[subscriber.username].metas[0]?.current_agent ?? null : null,
     };
   });
 }

@@ -74,14 +74,14 @@ export function useMultiChannelChat(
           setPresenceState((prev) => {
             const next = { ...prev };
 
+            // Remove leaves first (presence updates send leaves + joins for same user)
+            Object.keys(diff.leaves).forEach((username) => {
+              delete next[username];
+            });
+
             // Add joins
             Object.entries(diff.joins).forEach(([username, data]) => {
               next[username] = data;
-            });
-
-            // Remove leaves
-            Object.keys(diff.leaves).forEach((username) => {
-              delete next[username];
             });
 
             return next;

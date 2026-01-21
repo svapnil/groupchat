@@ -6,6 +6,7 @@ import { ChatView } from "./ChatView.js";
 import { CreateChannelScreen } from "./CreateChannelScreen.js";
 import { useMultiChannelChat } from "../hooks/use-multi-channel-chat.js";
 import { usePresence } from "../hooks/use-presence.js";
+import { useAgentDetection } from "../hooks/use-agent-detection.js";
 import { useChannels } from "../hooks/use-channels.js";
 import {
   isAuthenticated,
@@ -115,6 +116,9 @@ function AppContent() {
 
   // Presence hook
   const { users } = usePresence(presenceState, subscribers, currentChannel);
+
+  // Add agent detection
+  useAgentDetection(channelManager, connectionStatus === "connected");
 
   // Command send handler
   const sendCommand = useCallback(
