@@ -7,7 +7,7 @@ const POLL_INTERVAL_MS = 2000;
 
 function detectCurrentAgent(): AgentType {
   try {
-    const result = execSync(`ps -p $(pgrep -x -n 'codex|claude|Cursor') -o comm=`, {
+    const result = execSync(`ps -p $(pgrep -x -n 'codex|claude|Cursor|Windsurf\\ Helper') -o comm=`, {
       stdio: "pipe",
       encoding: "utf-8",
     }).trim();
@@ -15,6 +15,7 @@ function detectCurrentAgent(): AgentType {
     if (result.includes("@openai/codex")) return "codex";
     if (result === "claude") return "claude";
     if (result.includes("Cursor.app")) return "cursor";
+    if (result.includes("Windsurf.app")) return "windsurf";
     return null;
   } catch {
     return null;

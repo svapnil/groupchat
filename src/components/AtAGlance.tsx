@@ -19,10 +19,12 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
         acc.codex++;
       } else if (agent === "cursor") {
         acc.cursor++;
+      } else if (agent === "windsurf") {
+        acc.windsurf++;
       }
       return acc;
     },
-    { total: 0, claude: 0, codex: 0, cursor: 0 }
+    { total: 0, claude: 0, codex: 0, cursor: 0, windsurf: 0 }
   );
 
   return (
@@ -67,6 +69,15 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
             <Text color={AGENT_CONFIG.cursor.color}>● </Text>
             <Text color="white">
               {userStats.cursor} Using {AGENT_CONFIG.cursor.displayName}
+            </Text>
+          </Box>
+        )}
+
+        {userStats.windsurf > 0 && (
+          <Box>
+            <Text color={AGENT_CONFIG.windsurf.color}>● </Text>
+            <Text color="white">
+              {userStats.windsurf} Using {AGENT_CONFIG.windsurf.displayName}
             </Text>
           </Box>
         )}

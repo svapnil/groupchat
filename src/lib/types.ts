@@ -45,7 +45,7 @@ export interface UserSearchResponse {
   count: number;
 }
 
-export type AgentType = "claude" | "codex" | "cursor" | null;
+export type AgentType = "claude" | "codex" | "cursor" | "windsurf" | null;
 
 export interface PresenceState {
   [username: string]: {

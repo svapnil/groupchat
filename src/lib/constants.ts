@@ -20,6 +20,11 @@ export const AGENT_CONFIG = {
     displayName: "Cursor",
     color: "blueBright" as const,
   },
+  windsurf: {
+    type: "windsurf" as const,
+    displayName: "Windsurf",
+    color: "magenta" as const,
+  },
 } as const;
 
 /**
@@ -33,7 +38,7 @@ export function getAgentDisplayName(agent: AgentType): string {
 /**
  * Helper to get agent color
  */
-export function getAgentColor(agent: AgentType): "redBright" | "cyan" | "blueBright" | undefined {
+export function getAgentColor(agent: AgentType): "redBright" | "cyan" | "blueBright" | "magenta" | undefined {
   if (!agent) return undefined;
   return AGENT_CONFIG[agent].color;
 }
