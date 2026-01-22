@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Box, Text, useInput, useApp } from "ink";
 import { UpdateInfo, getUpdateCommand } from "../lib/update-checker.js";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 
 interface UpdatePromptProps {
   updateInfo: UpdateInfo;
@@ -46,8 +46,21 @@ export function UpdatePrompt({ updateInfo, onComplete }: UpdatePromptProps) {
 
     try {
       execSync(command, { stdio: "inherit" });
-      console.log("\n\nUpdate complete! Please restart groupchat.\n");
-      exit();
+      console.log("\n\nUpdate complete! Restarting...\n");
+
+      // Spawn a new instance of groupchat with the same arguments
+      // Skip the first two args (node executable and script path)
+      const args = process.argv.slice(2);
+      const child = spawn("groupchat", args, {
+        detached: true,
+        stdio: "inherit",
+      });
+
+      // Allow parent to exit while child continues
+      child.unref();
+
+      // Small delay to ensure child process starts
+      setTimeout(() => exit(), 100);
     } catch (err) {
       setUpdateError(
         `Update failed. Please run manually: ${command}`

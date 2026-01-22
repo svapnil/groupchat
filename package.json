@@ -1,6 +1,6 @@
 {
   "name": "groupchat",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "CLI chat client for Groupchat",
   "type": "module",
   "main": "./dist/index.js",
