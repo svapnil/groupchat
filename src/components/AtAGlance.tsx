@@ -17,10 +17,12 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
         acc.claude++;
       } else if (agent === "codex") {
         acc.codex++;
+      } else if (agent === "cursor") {
+        acc.cursor++;
       }
       return acc;
     },
-    { total: 0, claude: 0, codex: 0 }
+    { total: 0, claude: 0, codex: 0, cursor: 0 }
   );
 
   return (
@@ -56,6 +58,15 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
             <Text color={AGENT_CONFIG.codex.color}>● </Text>
             <Text color="white">
               {userStats.codex} Using {AGENT_CONFIG.codex.displayName}
+            </Text>
+          </Box>
+        )}
+
+        {userStats.cursor > 0 && (
+          <Box>
+            <Text color={AGENT_CONFIG.cursor.color}>● </Text>
+            <Text color="white">
+              {userStats.cursor} Using {AGENT_CONFIG.cursor.displayName}
             </Text>
           </Box>
         )}

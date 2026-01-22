@@ -15,6 +15,11 @@ export const AGENT_CONFIG = {
     displayName: "Codex",
     color: "cyan" as const,
   },
+  cursor: {
+    type: "cursor" as const,
+    displayName: "Cursor",
+    color: "blueBright" as const,
+  },
 } as const;
 
 /**
@@ -28,7 +33,7 @@ export function getAgentDisplayName(agent: AgentType): string {
 /**
  * Helper to get agent color
  */
-export function getAgentColor(agent: AgentType): "redBright" | "cyan" | undefined {
+export function getAgentColor(agent: AgentType): "redBright" | "cyan" | "blueBright" | undefined {
   if (!agent) return undefined;
   return AGENT_CONFIG[agent].color;
 }
