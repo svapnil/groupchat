@@ -33,6 +33,7 @@ export function useMultiChannelChat(
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [presenceState, setPresenceState] = useState<PresenceState>({});
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [channelsReady, setChannelsReady] = useState(false);
 
   const managerRef = useRef<ChannelManager | null>(null);
   const prevChannelRef = useRef<string | null>(null);
@@ -46,6 +47,7 @@ export function useMultiChannelChat(
         managerRef.current.disconnect();
         managerRef.current = null;
       }
+      setChannelsReady(false);
       return;
     }
 
@@ -185,6 +187,9 @@ export function useMultiChannelChat(
         // Subscribe to all channels
         await manager.subscribeToChannels(allChannels);
 
+        // Mark channels as ready (triggers agent detection)
+        setChannelsReady(true);
+
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Connection failed");
@@ -200,6 +205,7 @@ export function useMultiChannelChat(
         managerRef.current.disconnect();
         managerRef.current = null;
       }
+      setChannelsReady(false);
     };
   }, [token]); // Only re-run when token changes, not currentChannel!
 
@@ -324,6 +330,6 @@ export function useMultiChannelChat(
     subscribers,
     connect, // No-op for backward compatibility
     disconnect, // No-op for backward compatibility
-    channelManager: managerRef.current,
+    channelManager: channelsReady ? managerRef.current : null,
   };
 }
