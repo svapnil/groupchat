@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import type { UserWithStatus } from "../hooks/use-presence.js";
+import { getAgentColor, getAgentDisplayName } from "../lib/constants.js";
 
 interface UserListProps {
   users: UserWithStatus[];
@@ -87,8 +88,8 @@ export function UserList({
               </Box>
               {user.currentAgent && (
                 <Box marginLeft={2}>
-                  <Text color={user.currentAgent === "claude" ? "redBright" : "cyan"}>
-                    ⤷ Using {user.currentAgent === "claude" ? "Claude" : "Codex"}
+                  <Text color={getAgentColor(user.currentAgent)}>
+                    ⤷ Using {getAgentDisplayName(user.currentAgent)}
                   </Text>
                 </Box>
               )}

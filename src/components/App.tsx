@@ -190,14 +190,7 @@ function AppContent() {
   useEffect(() => {
     return () => {
       if (currentChannel && channelManager) {
-        const markOnUnmount = async () => {
-          try {
-            await channelManager.markChannelAsRead(currentChannel);
-          } catch (err) {
-            console.error("Failed to mark as read on unmount:", err);
-          }
-        };
-        markOnUnmount();
+        channelManager.markChannelAsReadBestEffort(currentChannel);
       }
     };
   }, [currentChannel, channelManager]);
@@ -233,11 +226,7 @@ function AppContent() {
   const handleLogout = useCallback(async () => {
     // Mark current channel as read before disconnecting
     if (currentChannel && channelManager) {
-      try {
-        await channelManager.markChannelAsRead(currentChannel);
-      } catch (err) {
-        console.error("Failed to mark as read on logout:", err);
-      }
+      channelManager.markChannelAsReadBestEffort(currentChannel);
     }
     disconnect();
     setToken(null);
@@ -276,18 +265,11 @@ function AppContent() {
     // Ctrl+C to exit
     if (input === "c" && key.ctrl) {
       // Mark current channel as read before disconnecting
-      const handleExit = async () => {
-        if (currentChannel && channelManager) {
-          try {
-            await channelManager.markChannelAsRead(currentChannel);
-          } catch (err) {
-            console.error("Failed to mark as read on exit:", err);
-          }
-        }
-        disconnect();
-        exit();
-      };
-      handleExit();
+      if (currentChannel && channelManager) {
+        channelManager.markChannelAsReadBestEffort(currentChannel);
+      }
+      disconnect();
+      exit();
     }
     // Ctrl+O to logout (when authenticated)
     if (input === "o" && key.ctrl && authState === "authenticated") {
@@ -355,6 +337,9 @@ function AppContent() {
 
   // Show Menu page
   if (route === "menu") {
+    // Get aggregated presence across all channels for "At a Glance" section
+    const aggregatedPresence = channelManager?.getAggregatedPresence() || {};
+
     return (
       <Box
         flexDirection="column"
@@ -374,6 +359,7 @@ function AppContent() {
           publicChannels={publicChannels}
           privateChannels={privateChannels}
           unreadCounts={unreadCounts}
+          aggregatedPresence={aggregatedPresence}
         />
       </Box>
     );

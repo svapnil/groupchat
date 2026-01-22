@@ -573,6 +573,71 @@ export class ChannelManager {
   }
 
   /**
+   * Get aggregated presence across all channels, deduplicated by user_id.
+   * When a user appears in multiple channels, we prefer:
+   * 1. Presence with current_agent set (if available)
+   * 2. Most recent online_at timestamp
+   */
+  getAggregatedPresence(): PresenceState {
+    // Map of user_id -> presence data for deduplication
+    const userMap = new Map<number, {
+      username: string;
+      metas: PresenceState[string]["metas"];
+      online_at: string;
+      has_agent: boolean;
+    }>();
+
+    // Iterate through all channels and collect presence
+    this.channelStates.forEach((channelState) => {
+      Object.entries(channelState.presence).forEach(([username, data]) => {
+        const meta = data.metas[0];
+        if (!meta) return;
+
+        const userId = meta.user_id;
+        const hasAgent = !!meta.current_agent;
+        const onlineAt = meta.online_at;
+
+        const existing = userMap.get(userId);
+
+        // Decide whether to use this presence data
+        if (!existing) {
+          // First time seeing this user
+          userMap.set(userId, {
+            username,
+            metas: data.metas,
+            online_at: onlineAt,
+            has_agent: hasAgent,
+          });
+        } else {
+          // User already exists - prefer presence with agent, or most recent
+          const shouldReplace =
+            (hasAgent && !existing.has_agent) ||
+            (hasAgent === existing.has_agent && onlineAt > existing.online_at);
+
+          if (shouldReplace) {
+            userMap.set(userId, {
+              username,
+              metas: data.metas,
+              online_at: onlineAt,
+              has_agent: hasAgent,
+            });
+          }
+        }
+      });
+    });
+
+    // Convert back to PresenceState format
+    const aggregated: PresenceState = {};
+    userMap.forEach((data) => {
+      aggregated[data.username] = {
+        metas: data.metas,
+      };
+    });
+
+    return aggregated;
+  }
+
+  /**
    * Get buffered real-time messages for a specific channel.
    * These are messages that arrived while viewing other channels.
    */
@@ -648,6 +713,23 @@ export class ChannelManager {
           reject(new Error("timeout"));
         });
     });
+  }
+
+  /**
+   * Best-effort mark as read without waiting for an ack.
+   * Useful during shutdown paths to avoid timeouts.
+   */
+  markChannelAsReadBestEffort(channelSlug: string): void {
+    const channelState = this.channelStates.get(channelSlug);
+    if (!channelState || !channelState.channel) {
+      return;
+    }
+
+    try {
+      channelState.channel.push("mark_as_read", {});
+    } catch {
+      // Ignore errors during shutdown.
+    }
   }
 
   /**

@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
 import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
+import { AtAGlance } from "./AtAGlance.js";
 import { useNavigation } from "../routes/Router.js";
-import type { ConnectionStatus, Channel, UnreadCounts } from "../lib/types.js";
+import type { ConnectionStatus, Channel, UnreadCounts, PresenceState } from "../lib/types.js";
 
 type MenuItem =
   | { type: "channel"; channel: Channel }
@@ -21,6 +22,7 @@ interface MenuProps {
   publicChannels: Channel[];
   privateChannels: Channel[];
   unreadCounts: UnreadCounts;
+  aggregatedPresence: PresenceState;
 }
 
 export function Menu({
@@ -35,6 +37,7 @@ export function Menu({
   publicChannels,
   privateChannels,
   unreadCounts,
+  aggregatedPresence,
 }: MenuProps) {
   const { stdout } = useStdout();
   const { navigate } = useNavigation();
@@ -137,103 +140,113 @@ export function Menu({
       </Layout.Header>
 
       <Layout.Content>
-        <Box flexDirection="column" height={contentHeight} padding={2}>
-        {/* Public Channels Section */}
-        {sortedPublicChannels.length > 0 && (
-          <Box flexDirection="column" marginBottom={1}>
-            <Box marginBottom={1}>
-              <Text bold color="white">
-                Global Channels
-              </Text>
-            </Box>
+        <Box flexDirection="column" height={contentHeight}>
+          {/* Top section: Channels and At a Glance */}
+          <Box flexDirection="row" flexGrow={1}>
+            {/* Left side: Channel list */}
+            <Box flexDirection="column" flexGrow={1} padding={2}>
+              {/* Public Channels Section */}
+              {sortedPublicChannels.length > 0 && (
+                <Box flexDirection="column" marginBottom={1}>
+                  <Box marginBottom={1}>
+                    <Text bold color="white">
+                      Global Channels
+                    </Text>
+                  </Box>
 
-            {sortedPublicChannels.map((channel, idx) => {
-              const isSelected = selectedIndex === idx;
-              const unreadCount = unreadCounts[channel.slug] || 0;
-              return (
-                <ChannelItem
-                  key={channel.id}
-                  channel={channel}
-                  isSelected={isSelected}
-                  unreadCount={unreadCount}
+                  {sortedPublicChannels.map((channel, idx) => {
+                    const isSelected = selectedIndex === idx;
+                    const unreadCount = unreadCounts[channel.slug] || 0;
+                    return (
+                      <ChannelItem
+                        key={channel.id}
+                        channel={channel}
+                        isSelected={isSelected}
+                        unreadCount={unreadCount}
+                      />
+                    );
+                  })}
+                </Box>
+              )}
+
+              {/* Private Channels Section */}
+              {privateChannels.length > 0 && (
+                <Box flexDirection="column" marginBottom={1}>
+                  <Box marginBottom={1}>
+                    <Text bold color="white">
+                      Private Channels
+                    </Text>
+                  </Box>
+
+                  {privateChannels.map((channel, idx) => {
+                    const absoluteIndex = privateStartIndex + idx;
+                    const isSelected = selectedIndex === absoluteIndex;
+                    const unreadCount = unreadCounts[channel.slug] || 0;
+                    return (
+                      <ChannelItem
+                        key={channel.id}
+                        channel={channel}
+                        isSelected={isSelected}
+                        isPrivate
+                        unreadCount={unreadCount}
+                      />
+                    );
+                  })}
+                </Box>
+              )}
+
+              {/* Create New Channel Action */}
+              <Box flexDirection="column" marginBottom={1}>
+                {/* Only show header if there are no private channels yet */}
+                {privateChannels.length === 0 && (
+                  <Box marginBottom={1}>
+                    <Text bold color="white">
+                      Private Channels
+                    </Text>
+                  </Box>
+                )}
+                <ActionItem
+                  label="+ Create New Private Channel"
+                  isSelected={selectedIndex === allChannels.length}
                 />
-              );
-            })}
-          </Box>
-        )}
+              </Box>
 
-        {/* Private Channels Section */}
-        {privateChannels.length > 0 && (
-          <Box flexDirection="column" marginBottom={1}>
-            <Box marginBottom={1}>
-              <Text bold color="white">
-                Private Channels
-              </Text>
+              {/* Empty state */}
+              {allChannels.length === 0 && (
+                <Box>
+                  <Text color="gray">No channels available</Text>
+                </Box>
+              )}
             </Box>
 
-            {privateChannels.map((channel, idx) => {
-              const absoluteIndex = privateStartIndex + idx;
-              const isSelected = selectedIndex === absoluteIndex;
-              const unreadCount = unreadCounts[channel.slug] || 0;
-              return (
-                <ChannelItem
-                  key={channel.id}
-                  channel={channel}
-                  isSelected={isSelected}
-                  isPrivate
-                  unreadCount={unreadCount}
-                />
-              );
-            })}
+            {/* Right side: At a Glance (compact, top-aligned) */}
+            <Box paddingRight={2} paddingTop={2}>
+              <AtAGlance presenceState={aggregatedPresence} />
+            </Box>
           </Box>
-        )}
 
-        {/* Create New Channel Action */}
-        <Box flexDirection="column" marginBottom={1}>
-          {/* Only show header if there are no private channels yet */}
-          {privateChannels.length === 0 && (
-            <Box marginBottom={1}>
-              <Text bold color="white">
-                Private Channels
+          {/* Bottom section: Footer help text (full width) */}
+          <Box paddingX={2} paddingBottom={2}>
+            <Box
+              flexDirection="column"
+              borderStyle="single"
+              borderColor="gray"
+              paddingX={1}
+            >
+              <Text color="gray">
+                <Text color="cyan">Up/Down</Text> Navigate channels
+              </Text>
+              <Text color="gray">
+                <Text color="cyan">Enter</Text> Join selected channel
+              </Text>
+              <Text color="gray">
+                <Text color="cyan">ESC</Text> Back to chat
+              </Text>
+              <Text color="gray">
+                <Text color="cyan">Ctrl+C</Text> Exit the app
               </Text>
             </Box>
-          )}
-          <ActionItem
-            label="+ Create New Private Channel"
-            isSelected={selectedIndex === allChannels.length}
-          />
-        </Box>
-
-        {/* Empty state */}
-        {allChannels.length === 0 && (
-          <Box>
-            <Text color="gray">No channels available</Text>
           </Box>
-        )}
-
-        {/* Spacer */}
-        <Box flexGrow={1} />
-
-        {/* Footer help text */}
-        <Box
-          flexDirection="column"
-          borderStyle="single"
-          borderColor="gray"
-          paddingX={1}
-        >
-          <Text color="gray">
-            <Text color="cyan">Up/Down</Text> Navigate channels
-          </Text>
-          <Text color="gray">
-            <Text color="cyan">Enter</Text> Join selected channel
-          </Text>
-          <Text color="gray">
-            <Text color="cyan">ESC</Text> Back to chat
-          </Text>
-          <Text color="gray">
-            <Text color="cyan">Ctrl+C</Text> Exit the app
-          </Text>
-        </Box>
         </Box>
       </Layout.Content>
     </Layout>
