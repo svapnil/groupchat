@@ -5,19 +5,19 @@ import type { ChannelManager } from "../lib/channel-manager.js";
 
 const POLL_INTERVAL_MS = 2000;
 
-function isProcessRunning(processName: string): boolean {
-  try {
-    execSync(`pgrep -nx ${processName}`, { stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function detectCurrentAgent(): AgentType {
-  if (isProcessRunning("codex")) return "codex";
-  if (isProcessRunning("claude")) return "claude";
-  return null;
+  try {
+    const result = execSync(`ps -p $(pgrep -x -n 'codex|claude') -o comm=`, {
+      stdio: "pipe",
+      encoding: "utf-8",
+    }).trim();
+
+    if (result.includes("@openai/codex")) return "codex";
+    if (result === "claude") return "claude";
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function useAgentDetection(
