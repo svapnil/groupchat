@@ -35,6 +35,7 @@ interface ChatViewProps {
   onCommandSend: (eventType: string, data: any) => Promise<void>;
   error: string | null;
   token: string | null;
+  totalUnreadCount?: number;
 }
 
 export function ChatView({
@@ -61,6 +62,7 @@ export function ChatView({
   onCommandSend,
   error,
   token,
+  totalUnreadCount = 0,
 }: ChatViewProps) {
   const { stdout } = useStdout();
   const { tooltip, isInputDisabled, handleInputChange, handleSubmit } = useCommandInput({
@@ -85,8 +87,9 @@ export function ChatView({
   useEffect(() => {
     if (!stdout) return;
     const prefix = connectionStatus === "connected" ? "• " : "";
-    stdout.write(`\x1b]0;${prefix}#${displayName}\x07`);
-  }, [stdout, connectionStatus, displayName]);
+    const unreadSuffix = totalUnreadCount > 0 ? ` (${totalUnreadCount})` : "";
+    stdout.write(`\x1b]0;${prefix}#${displayName}${unreadSuffix}\x07`);
+  }, [stdout, connectionStatus, displayName, totalUnreadCount]);
 
   return (
     <Layout width={terminalSize.columns} height={terminalSize.rows} topPadding={topPadding}>

@@ -16,6 +16,7 @@ interface CreateChannelScreenProps {
   onLogout: () => void;
   onCreateChannel: (name: string, description: string) => Promise<void>;
   topPadding?: number;
+  totalUnreadCount?: number;
 }
 
 export function CreateChannelScreen({
@@ -26,6 +27,7 @@ export function CreateChannelScreen({
   onLogout,
   onCreateChannel,
   topPadding = 0,
+  totalUnreadCount = 0,
 }: CreateChannelScreenProps) {
   const { stdout } = useStdout();
   const { navigate } = useNavigation();
@@ -39,8 +41,9 @@ export function CreateChannelScreen({
   // Update terminal tab title
   useEffect(() => {
     if (!stdout) return;
-    stdout.write(`\x1b]0;Create Channel\x07`);
-  }, [stdout]);
+    const unreadSuffix = totalUnreadCount > 0 ? ` (${totalUnreadCount})` : "";
+    stdout.write(`\x1b]0;Create Channel${unreadSuffix}\x07`);
+  }, [stdout, totalUnreadCount]);
 
   // Handle keyboard input
   useInput((input, key) => {

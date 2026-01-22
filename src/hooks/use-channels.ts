@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { fetchChannels, fetchUnreadCounts } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
 import type { Channel, UnreadCounts } from "../lib/types.js";
@@ -11,6 +11,9 @@ interface UseChannelsResult {
   error: string | null;
   refetch: () => Promise<void>;
   refetchUnreadCounts: () => Promise<void>;
+  incrementUnreadCount: (channelSlug: string) => void;
+  clearUnreadCount: (channelSlug: string) => void;
+  totalUnreadCount: number;
 }
 
 export function useChannels(token: string | null): UseChannelsResult {
@@ -57,6 +60,24 @@ export function useChannels(token: string | null): UseChannelsResult {
     }
   }, [token]);
 
+  const incrementUnreadCount = useCallback((channelSlug: string) => {
+    setUnreadCounts((prev) => ({
+      ...prev,
+      [channelSlug]: (prev[channelSlug] || 0) + 1,
+    }));
+  }, []);
+
+  const clearUnreadCount = useCallback((channelSlug: string) => {
+    setUnreadCounts((prev) => ({
+      ...prev,
+      [channelSlug]: 0,
+    }));
+  }, []);
+
+  const totalUnreadCount = useMemo(() => {
+    return Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
+  }, [unreadCounts]);
+
   // Fetch on mount when token is available
   useEffect(() => {
     if (token) {
@@ -72,5 +93,8 @@ export function useChannels(token: string | null): UseChannelsResult {
     error,
     refetch: fetchData,
     refetchUnreadCounts,
+    incrementUnreadCount,
+    clearUnreadCount,
+    totalUnreadCount,
   };
 }

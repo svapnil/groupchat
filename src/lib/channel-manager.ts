@@ -221,6 +221,9 @@ export class ChannelManager {
             state.realtimeMessages.shift(); // Remove oldest
           }
         }
+
+        // Notify callback for non-active channel messages (for unread count tracking)
+        this.callbacks.onNonActiveChannelMessage?.(channelSlug, message);
       }
     });
 

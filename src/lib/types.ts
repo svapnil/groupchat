@@ -117,6 +117,7 @@ export interface ChannelState {
  */
 export interface ChannelManagerCallbacks {
   onMessage?: (channelSlug: string, message: Message) => void;
+  onNonActiveChannelMessage?: (channelSlug: string, message: Message) => void;
   onPresenceState?: (channelSlug: string, state: PresenceState) => void;
   onPresenceDiff?: (channelSlug: string, diff: PresenceDiff) => void;
   onUserTyping?: (channelSlug: string, username: string, typing: boolean) => void;

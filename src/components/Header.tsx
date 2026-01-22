@@ -42,18 +42,7 @@ export function Header({
       flexShrink={0}
     >
       <Box>
-        {title || (
-          <>
-            <Text color="cyan" bold>
-              ${" "}
-            </Text>
-            <Text color="blue" bold>
-              groupchat
-            </Text>
-            <Text color="gray"> --session </Text>
-            <Text color="yellow">{username || "..."}</Text>
-          </>
-        )}
+        {title}
       </Box>
 
       <Box>

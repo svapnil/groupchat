@@ -24,6 +24,7 @@ interface MenuProps {
   unreadCounts: UnreadCounts;
   aggregatedPresence: PresenceState;
   isLoadingChannels?: boolean;
+  totalUnreadCount?: number;
 }
 
 export function Menu({
@@ -40,6 +41,7 @@ export function Menu({
   unreadCounts,
   aggregatedPresence,
   isLoadingChannels = false,
+  totalUnreadCount = 0,
 }: MenuProps) {
   const { stdout } = useStdout();
   const { navigate } = useNavigation();
@@ -85,8 +87,9 @@ export function Menu({
   // Update terminal tab title for menu view
   useEffect(() => {
     if (!stdout) return;
-    stdout.write(`\x1b]0;Menu\x07`);
-  }, [stdout]);
+    const unreadSuffix = totalUnreadCount > 0 ? ` (${totalUnreadCount})` : "";
+    stdout.write(`\x1b]0;Menu${unreadSuffix}\x07`);
+  }, [stdout, totalUnreadCount]);
 
   // Handle keyboard input in menu
   useInput((input, key) => {

@@ -23,7 +23,8 @@ import type {
 export function useMultiChannelChat(
   token: string | null,
   currentChannel: string,
-  onChannelListChanged?: () => void
+  onChannelListChanged?: () => void,
+  incrementUnreadCount?: (channelSlug: string) => void
 ) {
   // Cache messages and subscribers per channel
   const [messageCache, setMessageCache] = useState<Record<string, Message[]>>({});
@@ -74,6 +75,10 @@ export function useMultiChannelChat(
             ...prev,
             [channelSlug]: [...(prev[channelSlug] || []), message],
           }));
+        },
+        onNonActiveChannelMessage: (channelSlug, _message) => {
+          // Increment unread count for non-active channels
+          incrementUnreadCount?.(channelSlug);
         },
         onPresenceState: (channelSlug, state) => {
           // ChannelManager already routes to active channel only

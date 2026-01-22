@@ -95,7 +95,7 @@ function AppContent() {
   }, []);
 
   // Channels hook - fetch available channels
-  const { publicChannels, privateChannels, unreadCounts, loading: isLoadingChannels, refetchUnreadCounts, refetch: refetchChannels } = useChannels(token);
+  const { publicChannels, privateChannels, unreadCounts, loading: isLoadingChannels, refetchUnreadCounts, refetch: refetchChannels, incrementUnreadCount, clearUnreadCount, totalUnreadCount } = useChannels(token);
 
   // Multi-channel chat hook - maintains persistent connection
   const {
@@ -112,7 +112,7 @@ function AppContent() {
     connect,
     disconnect,
     channelManager,
-  } = useMultiChannelChat(token, currentChannel, refetchChannels);
+  } = useMultiChannelChat(token, currentChannel, refetchChannels, incrementUnreadCount);
 
   // Presence hook
   const { users } = usePresence(presenceState, subscribers, currentChannel);
@@ -180,11 +180,13 @@ function AppContent() {
       // Mark new channel as read (on entry)
       if (currentChannel) {
         markChannelAsRead(currentChannel, true);
+        // Clear local unread count for this channel
+        clearUnreadCount(currentChannel);
       }
 
       prevChannelForMarkAsReadRef.current = currentChannel;
     }
-  }, [currentChannel, channelManager, refetchUnreadCounts]);
+  }, [currentChannel, channelManager, refetchUnreadCounts, clearUnreadCount]);
 
   // Also mark as read on app unmount (cleanup)
   useEffect(() => {
@@ -367,6 +369,7 @@ function AppContent() {
           unreadCounts={unreadCounts}
           aggregatedPresence={aggregatedPresence}
           isLoadingChannels={isLoadingChannels}
+          totalUnreadCount={totalUnreadCount}
         />
       </Box>
     );
@@ -389,6 +392,7 @@ function AppContent() {
           onLogout={handleLogout}
           onCreateChannel={handleCreateChannel}
           topPadding={topPadding}
+          totalUnreadCount={totalUnreadCount}
         />
       </Box>
     );
@@ -420,6 +424,7 @@ function AppContent() {
       onCommandSend={sendCommand}
       error={error}
       token={token}
+      totalUnreadCount={totalUnreadCount}
     />
   );
 }
