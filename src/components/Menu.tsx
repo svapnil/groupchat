@@ -23,6 +23,7 @@ interface MenuProps {
   privateChannels: Channel[];
   unreadCounts: UnreadCounts;
   aggregatedPresence: PresenceState;
+  isLoadingChannels?: boolean;
 }
 
 export function Menu({
@@ -38,6 +39,7 @@ export function Menu({
   privateChannels,
   unreadCounts,
   aggregatedPresence,
+  isLoadingChannels = false,
 }: MenuProps) {
   const { stdout } = useStdout();
   const { navigate } = useNavigation();
@@ -211,10 +213,14 @@ export function Menu({
                 />
               </Box>
 
-              {/* Empty state */}
+              {/* Loading/Empty state */}
               {allChannels.length === 0 && (
                 <Box>
-                  <Text color="gray">No channels available</Text>
+                  {isLoadingChannels ? (
+                    <Text color="cyan">Loading channels...</Text>
+                  ) : (
+                    <Text color="gray">No channels available</Text>
+                  )}
                 </Box>
               )}
             </Box>

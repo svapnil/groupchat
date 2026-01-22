@@ -25,19 +25,24 @@ export function useMultiChannelChat(
   currentChannel: string,
   onChannelListChanged?: () => void
 ) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Cache messages and subscribers per channel
+  const [messageCache, setMessageCache] = useState<Record<string, Message[]>>({});
+  const [subscriberCache, setSubscriberCache] = useState<Record<string, Subscriber[]>>({});
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
   const [username, setUsername] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [presenceState, setPresenceState] = useState<PresenceState>({});
-  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [channelsReady, setChannelsReady] = useState(false);
 
   const managerRef = useRef<ChannelManager | null>(null);
   const prevChannelRef = useRef<string | null>(null);
   const isLoadingHistory = useRef(false);
+
+  // Get messages and subscribers for current channel from cache
+  const messages = messageCache[currentChannel] || [];
+  const subscribers = subscriberCache[currentChannel] || [];
 
   // Connect and subscribe to all channels (once per session)
   useEffect(() => {
@@ -64,8 +69,11 @@ export function useMultiChannelChat(
       token,
       {
         onMessage: (channelSlug, message) => {
-          // ChannelManager already routes to active channel only, just update UI
-          setMessages((prev) => [...prev, message]);
+          // Update the message cache for this specific channel
+          setMessageCache((prev) => ({
+            ...prev,
+            [channelSlug]: [...(prev[channelSlug] || []), message],
+          }));
         },
         onPresenceState: (channelSlug, state) => {
           // ChannelManager already routes to active channel only
@@ -144,12 +152,16 @@ export function useMultiChannelChat(
           }
         },
         onUserInvitedToChannel: (channelSlug, invitedUsername, invitedUserId, invitedBy) => {
-          // Someone else was invited, update subscribers list
-          setSubscribers((prev) => {
+          // Someone else was invited, update subscribers list for this channel
+          setSubscriberCache((prev) => {
+            const currentSubs = prev[channelSlug] || [];
             // Check if already in list
-            const exists = prev.some((s) => s.user_id === invitedUserId);
+            const exists = currentSubs.some((s) => s.user_id === invitedUserId);
             if (!exists) {
-              return [...prev, { username: invitedUsername, user_id: invitedUserId, role: "member" }];
+              return {
+                ...prev,
+                [channelSlug]: [...currentSubs, { username: invitedUsername, user_id: invitedUserId, role: "member" }],
+              };
             }
             return prev;
           });
@@ -160,8 +172,14 @@ export function useMultiChannelChat(
           // The channel-manager already left the channel, no action needed
         },
         onUserRemovedFromChannel: (channelSlug, removedUsername, removedBy) => {
-          // Someone else was removed, update subscribers list
-          setSubscribers((prev) => prev.filter((s) => s.username !== removedUsername));
+          // Someone else was removed, update subscribers list for this channel
+          setSubscriberCache((prev) => {
+            const currentSubs = prev[channelSlug] || [];
+            return {
+              ...prev,
+              [channelSlug]: currentSubs.filter((s) => s.username !== removedUsername),
+            };
+          });
         },
       }
     );
@@ -240,10 +258,16 @@ export function useMultiChannelChat(
         // Fetch subscribers if private channel
         if (currentChannel.startsWith("private_room:")) {
           const subs = await manager.fetchSubscribers(currentChannel);
-          setSubscribers(subs);
+          setSubscriberCache((prev) => ({
+            ...prev,
+            [currentChannel]: subs,
+          }));
         } else {
           // Public channel - no subscriber list
-          setSubscribers([]);
+          setSubscriberCache((prev) => ({
+            ...prev,
+            [currentChannel]: [],
+          }));
         }
 
         // Get buffered real-time messages
@@ -263,7 +287,11 @@ export function useMultiChannelChat(
         // Sort by timestamp
         deduplicated.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
-        setMessages(deduplicated);
+        // Update cache for this channel
+        setMessageCache((prev) => ({
+          ...prev,
+          [currentChannel]: deduplicated,
+        }));
 
         // Clear buffered messages
         manager.clearRealtimeMessages(currentChannel);

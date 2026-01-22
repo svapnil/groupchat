@@ -95,7 +95,7 @@ function AppContent() {
   }, []);
 
   // Channels hook - fetch available channels
-  const { publicChannels, privateChannels, unreadCounts, refetchUnreadCounts, refetch: refetchChannels } = useChannels(token);
+  const { publicChannels, privateChannels, unreadCounts, loading: isLoadingChannels, refetchUnreadCounts, refetch: refetchChannels } = useChannels(token);
 
   // Multi-channel chat hook - maintains persistent connection
   const {
@@ -201,6 +201,12 @@ function AppContent() {
       refetchUnreadCounts();
     }
   }, [route, refetchUnreadCounts]);
+
+  // Reset scroll state when channel changes
+  useEffect(() => {
+    setScrollOffset(0);
+    setIsScrollDetached(false);
+  }, [currentChannel]);
 
   // Handle login
   const handleLogin = useCallback(async () => {
@@ -360,6 +366,7 @@ function AppContent() {
           privateChannels={privateChannels}
           unreadCounts={unreadCounts}
           aggregatedPresence={aggregatedPresence}
+          isLoadingChannels={isLoadingChannels}
         />
       </Box>
     );
