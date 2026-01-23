@@ -102,7 +102,7 @@ export function ChatView({
           title={
             <>
               <Text color="gray">← Menu </Text>
-              <Text color="gray" dimColor>[CTRL+Q]</Text>
+              <Text color="gray" dimColor>[SHIFT+TAB]</Text>
               <Text color="gray"> | </Text>
               <Text color="cyan" bold>#{displayText}</Text>
             </>

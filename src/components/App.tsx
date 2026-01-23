@@ -17,6 +17,7 @@ import {
 import { Router, useNavigation } from "../routes/Router.js";
 import { createChannel } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
+import { getNotificationManager } from "../lib/notification-manager.js";
 import type { AuthState } from "../lib/types.js";
 
 export function App() {
@@ -51,6 +52,13 @@ function AppContent() {
   // Channel state
   const [currentChannel, setCurrentChannel] = useState("chat_room:global");
   const prevAuthStateRef = useRef<AuthState | null>(null);
+
+  // Initialize NotificationManager with stdout
+  useEffect(() => {
+    if (stdout) {
+      getNotificationManager().setStdout(stdout);
+    }
+  }, [stdout]);
 
   // Listen for terminal resize events
   useEffect(() => {
@@ -289,8 +297,8 @@ function AppContent() {
       setShowUserList((prev) => !prev);
     }
 
-    // Ctrl+Q to navigate to menu (when authenticated and in chat view)
-    if (input === "q" && key.ctrl && authState === "authenticated" && route === "chat") {
+    // Shift+Tab to navigate to menu (when authenticated and in chat view)
+    if (key.tab && key.shift && authState === "authenticated" && route === "chat") {
       navigate("menu");
     }
 

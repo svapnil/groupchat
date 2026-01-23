@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { ChannelManager } from "../lib/channel-manager.js";
 import { fetchChannels } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
+import { getNotificationManager } from "../lib/notification-manager.js";
 import type {
   Message,
   ConnectionStatus,
@@ -64,6 +65,10 @@ export function useMultiChannelChat(
 
     const config = getConfig();
 
+    // Track username locally for notification filtering
+    // (needed because callbacks capture stale closure)
+    let myUsername: string | null = null;
+
     // Create ChannelManager with callbacks
     const manager = new ChannelManager(
       config.wsUrl,
@@ -75,6 +80,11 @@ export function useMultiChannelChat(
             ...prev,
             [channelSlug]: [...(prev[channelSlug] || []), message],
           }));
+
+          // Trigger bell notification (don't notify for own messages)
+          if (myUsername && message.username !== myUsername) {
+            getNotificationManager().notify("bell");
+          }
         },
         onNonActiveChannelMessage: (channelSlug, _message) => {
           // Increment unread count for non-active channels
@@ -126,6 +136,8 @@ export function useMultiChannelChat(
           if (!username) {
             setUsername(joinedUsername);
           }
+          // Track locally for notification filtering
+          myUsername = joinedUsername;
         },
         onInvitedToChannel: (channelSlug, invitedBy) => {
           // We were invited to a channel - need to join it

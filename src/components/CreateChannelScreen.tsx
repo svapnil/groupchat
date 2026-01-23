@@ -63,12 +63,19 @@ export function CreateChannelScreen({
       return;
     }
 
-    // Shift+Tab to move to previous field
+    // Shift+Tab to move to previous field (or back to menu if on first field)
     if (key.tab && key.shift) {
+      // If on the first field (name), go back to menu
+      if (activeField === "name") {
+        navigate("menu");
+        return;
+      }
+
+      // Otherwise, navigate to previous field
       setActiveField((prev) => {
         if (prev === "submit") return "description";
         if (prev === "description") return "name";
-        return "submit";
+        return prev;
       });
       return;
     }
@@ -221,7 +228,7 @@ export function CreateChannelScreen({
               <Text color="cyan">Tab/Down</Text> Next field
             </Text>
             <Text color="gray">
-              <Text color="cyan">Shift+Tab/Up</Text> Previous field
+              <Text color="cyan">Shift+Tab/Up</Text> Previous field / Back to menu
             </Text>
             <Text color="gray">
               <Text color="cyan">Enter</Text> Submit (when on button)

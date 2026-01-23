@@ -93,8 +93,8 @@ export function Menu({
 
   // Handle keyboard input in menu
   useInput((input, key) => {
-    // ESC to go back to chat
-    if (key.escape) {
+    // ESC or Shift+Tab to go back to chat
+    if (key.escape || (key.tab && key.shift)) {
       navigate("chat");
       return;
     }
@@ -249,7 +249,7 @@ export function Menu({
                 <Text color="cyan">Enter</Text> Join selected channel
               </Text>
               <Text color="gray">
-                <Text color="cyan">ESC</Text> Back to chat
+                <Text color="cyan">Shift+Tab/ESC</Text> Back to chat
               </Text>
               <Text color="gray">
                 <Text color="cyan">Ctrl+C</Text> Exit the app
