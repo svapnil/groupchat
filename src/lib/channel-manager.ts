@@ -204,6 +204,7 @@ export class ChannelManager {
       const message: Message = {
         ...msg,
         timestamp: extractTimestampFromUUIDv7(msg.id),
+        type: (msg as any).type || "user",  // Preserve type, default to "user"
       };
 
       // Route message based on whether this is the active channel

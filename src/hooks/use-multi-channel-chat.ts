@@ -86,8 +86,12 @@ export function useMultiChannelChat(
             getNotificationManager().notify("bell");
           }
         },
-        onNonActiveChannelMessage: (channelSlug, _message) => {
-          // Increment unread count for non-active channels
+        onNonActiveChannelMessage: (channelSlug, message) => {
+          // Don't increment unread count for system messages
+          if (message.type === "system") {
+            return;
+          }
+          // Increment unread count only for regular user messages
           incrementUnreadCount?.(channelSlug);
         },
         onPresenceState: (channelSlug, state) => {

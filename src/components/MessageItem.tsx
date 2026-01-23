@@ -42,6 +42,18 @@ function formatTime(timestamp: string): string {
 
 export function MessageItem({ message, isOwnMessage }: MessageItemProps) {
   const time = formatTime(message.timestamp);
+
+  // Render system messages differently
+  if (message.type === "system") {
+    return (
+      <Box justifyContent="center" paddingY={0}>
+        <Text color="gray" italic>
+          {message.content}
+        </Text>
+      </Box>
+    );
+  }
+
   const usernameColor = getUsernameColor(message.username);
 
   if (isOwnMessage) {

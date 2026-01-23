@@ -14,6 +14,9 @@ export interface Message {
   content: string;
   timestamp: string;
 
+  /** Message type - defaults to "user" for regular messages */
+  type?: "user" | "system";
+
   /** Optional attributes - only present when message has attributes */
   attributes?: MessageAttributes;
 }
