@@ -23,12 +23,21 @@ export function InputBox({
   const [isSending, setIsSending] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
+  const isCommandModeRef = useRef(false);
 
   // Handle typing indicator with debounce
   const handleChange = useCallback(
     (newValue: string) => {
       setValue(newValue);
-      onInputChange?.(newValue);
+      const isCommandLike = newValue.startsWith("/") || newValue.startsWith("?");
+
+      if (isCommandLike) {
+        isCommandModeRef.current = true;
+        onInputChange?.(newValue);
+      } else if (isCommandModeRef.current) {
+        isCommandModeRef.current = false;
+        onInputChange?.("");
+      }
 
       // Start typing if not already
       if (!isTypingRef.current && newValue.length > 0) {
@@ -73,6 +82,7 @@ export function InputBox({
     try {
       await onSend(trimmed);
       setValue("");
+      isCommandModeRef.current = false;
     } catch {
       // Error handled by chat hook
     } finally {

@@ -117,12 +117,15 @@ export function DmConversation({
       }
     };
 
-    // Subscribe to callbacks
+    // Subscribe to callbacks - chain to existing handlers so useDms continues to work
     const originalOnDmMessage = channelManager["callbacks"].onDmMessage;
     const originalOnDmTypingStart = channelManager["callbacks"].onDmTypingStart;
     const originalOnDmTypingStop = channelManager["callbacks"].onDmTypingStop;
 
-    channelManager["callbacks"].onDmMessage = handleDmMessage;
+    channelManager["callbacks"].onDmMessage = (msg: DmMessage) => {
+      handleDmMessage(msg);
+      originalOnDmMessage?.(msg);
+    };
     channelManager["callbacks"].onDmTypingStart = handleTypingStart;
     channelManager["callbacks"].onDmTypingStop = handleTypingStop;
 
@@ -134,15 +137,18 @@ export function DmConversation({
     };
   }, [channelManager, dm?.slug, username, isScrollDetached]);
 
-  // Send message handler
+  // Send message handler - non-blocking for responsive UI
   const handleSendMessage = useCallback(async (content: string) => {
     if (!channelManager || !dm) return;
 
-    try {
-      await channelManager.sendDmMessage(dm.slug, content);
-    } catch (err) {
+    // DELIVERED: Return immediately so InputBox clears the input without waiting
+    // Fire off the actual send in the background
+    channelManager.sendDmMessage(dm.slug, content).catch(() => {
+      // ACKNOWLEDGED (error): Server rejected the message
       setError("Failed to send message");
-    }
+    });
+
+    // ACKNOWLEDGED (success): Message appears when server broadcasts dm:new_message back
   }, [channelManager, dm]);
 
   // Typing handlers

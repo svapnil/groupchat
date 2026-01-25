@@ -3,6 +3,7 @@ import { ChannelManager } from "../lib/channel-manager.js";
 import { fetchChannels } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
 import { getNotificationManager } from "../lib/notification-manager.js";
+import { applyPresenceDiff } from "../lib/presence-utils.js";
 import type {
   Message,
   ConnectionStatus,
@@ -123,21 +124,7 @@ export function useMultiChannelChat(
         },
         onPresenceDiff: (channelSlug, diff) => {
           // ChannelManager already routes to active channel only
-          setPresenceState((prev) => {
-            const next = { ...prev };
-
-            // Remove leaves first (presence updates send leaves + joins for same user)
-            Object.keys(diff.leaves).forEach((username) => {
-              delete next[username];
-            });
-
-            // Add joins
-            Object.entries(diff.joins).forEach(([username, data]) => {
-              next[username] = data;
-            });
-
-            return next;
-          });
+          setPresenceState((prev) => applyPresenceDiff(prev, diff));
         },
         onUserTyping: (channelSlug, username, typing) => {
           // ChannelManager already routes to active channel only
@@ -229,12 +216,7 @@ export function useMultiChannelChat(
           setGlobalPresence(state);
         },
         onGlobalPresenceDiff: (diff) => {
-          setGlobalPresence((prev) => {
-            const next = { ...prev };
-            Object.keys(diff.leaves).forEach((u) => delete next[u]);
-            Object.entries(diff.joins).forEach(([u, d]) => (next[u] = d));
-            return next;
-          });
+          setGlobalPresence((prev) => applyPresenceDiff(prev, diff));
         },
       }
     );

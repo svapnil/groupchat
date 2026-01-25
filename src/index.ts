@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import WebSocket from "ws";
 import { program } from "commander";
 import { render } from "ink";
@@ -7,7 +5,7 @@ import React from "react";
 import { login, logout, isAuthenticated } from "./auth/auth-manager.js";
 import { checkForUpdate, UpdateInfo } from "./lib/update-checker.js";
 import { UpdatePrompt } from "./components/UpdatePrompt.js";
-import packageJson from "../package.json" assert { type: "json" };
+import packageJson from "../package.json";
 
 // Ensure WebSocket is available globally for Phoenix in Node.
 if (typeof globalThis.WebSocket === "undefined") {

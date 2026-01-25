@@ -9,6 +9,7 @@ import type {
   Subscriber,
   DmMessage,
 } from "./types.js";
+import { applyPresenceDiff } from "./presence-utils.js";
 
 /**
  * Internal state for each channel subscription.
@@ -191,10 +192,7 @@ export class ChannelManager {
 
       this.statusChannel.on("presence_diff", (payload: unknown) => {
         const diff = payload as PresenceDiff;
-        const next = { ...this.globalPresence };
-        Object.keys(diff.leaves).forEach((u) => delete next[u]);
-        Object.entries(diff.joins).forEach(([u, d]) => (next[u] = d));
-        this.globalPresence = next;
+        this.globalPresence = applyPresenceDiff(this.globalPresence, diff);
         this.callbacks.onGlobalPresenceDiff?.(diff);
       });
 
@@ -349,20 +347,7 @@ export class ChannelManager {
       const channelState = this.channelStates.get(channelSlug);
 
       if (channelState) {
-        // Update presence state
-        const next = { ...channelState.presence };
-
-        // Remove leaves first (presence updates send leaves + joins for same user)
-        Object.keys(diff.leaves).forEach((username) => {
-          delete next[username];
-        });
-
-        // Add joins
-        Object.entries(diff.joins).forEach(([username, data]) => {
-          next[username] = data;
-        });
-
-        channelState.presence = next;
+        channelState.presence = applyPresenceDiff(channelState.presence, diff);
       }
 
       // Only notify callback for active channel

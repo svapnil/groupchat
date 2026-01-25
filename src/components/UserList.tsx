@@ -10,7 +10,7 @@ interface UserListProps {
   isPrivateChannel?: boolean;
 }
 
-export function UserList({
+export const UserList = React.memo(function UserList({
   users,
   currentUsername,
   height,
@@ -99,4 +99,4 @@ export function UserList({
       </Box>
     </Box>
   );
-}
+});

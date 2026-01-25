@@ -1,15 +1,13 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Box, Text, useStdout } from "ink";
 import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
 import { MessageList } from "./MessageList.js";
 import { UserList } from "./UserList.js";
-import { InputBox } from "./InputBox.js";
 import { StatusBar } from "./StatusBar.js";
-import { ToolTip } from "./ToolTip.js";
+import { CommandInputPanel } from "./CommandInputPanel.js";
 import type { ConnectionStatus, Message, Subscriber } from "../lib/types.js";
 import type { UserWithStatus } from "../hooks/use-presence.js";
-import { useCommandInput } from "../hooks/use-command-input.js";
 
 interface ChatViewProps {
   terminalSize: { rows: number; columns: number };
@@ -65,17 +63,10 @@ export function ChatView({
   totalUnreadCount = 0,
 }: ChatViewProps) {
   const { stdout } = useStdout();
-  const { tooltip, isInputDisabled, handleInputChange, handleSubmit } = useCommandInput({
-    token,
-    currentChannel,
-    isPrivateChannel,
-    connectionStatus,
-    username,
-    users,
-    subscribers,
-    onSendMessage: onSend,
-    onCommandSend,
-  });
+  const [tooltipHeight, setTooltipHeight] = useState(0);
+  const handleTooltipHeightChange = useCallback((nextHeight: number) => {
+    setTooltipHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+  }, []);
 
   // Display name: use channel name if available, otherwise fall back to slug
   const displayName = channelName || currentChannel;
@@ -112,48 +103,51 @@ export function ChatView({
 
       <Layout.Content>
         <Box
-        flexDirection="row"
-        height={Math.max(1, middleSectionHeight - tooltip.height)}
-        overflow="hidden"
-      >
-        <Box flexGrow={1} flexDirection="column" overflow="hidden">
-          <MessageList
-            messages={messages}
-            currentUsername={username}
-            typingUsers={typingUsers}
-            height={Math.max(1, middleSectionHeight - tooltip.height)}
-            scrollOffset={scrollOffset}
-            isDetached={isDetached}
-          />
+          flexDirection="row"
+          height={Math.max(1, middleSectionHeight - tooltipHeight)}
+          overflow="hidden"
+        >
+          <Box flexGrow={1} flexDirection="column" overflow="hidden">
+            <MessageList
+              messages={messages}
+              currentUsername={username}
+              typingUsers={typingUsers}
+              height={Math.max(1, middleSectionHeight - tooltipHeight)}
+              scrollOffset={scrollOffset}
+              isDetached={isDetached}
+            />
+          </Box>
+          {showUserList && (
+            <UserList
+              users={users}
+              currentUsername={username}
+              // 1 below header and 1 above tooltip
+              height={Math.max(1, middleSectionHeight - tooltipHeight - 2)}
+              isPrivateChannel={isPrivateChannel}
+            />
+          )}
         </Box>
-        {showUserList && (
-          <UserList
-            users={users}
-            currentUsername={username}
-            // 1 below header and 1 above tooltip
-            height={Math.max(1, middleSectionHeight - tooltip.height - 2)}
-            isPrivateChannel={isPrivateChannel}
-          />
-        )}
-      </Box>
 
-      {tooltip.show && tooltip.tips.length > 0 && (
-        <ToolTip tips={tooltip.tips} type={tooltip.type} />
-      )}
+        <CommandInputPanel
+          token={token}
+          currentChannel={currentChannel}
+          isPrivateChannel={isPrivateChannel}
+          connectionStatus={connectionStatus}
+          username={username}
+          users={users}
+          subscribers={subscribers}
+          onSend={onSend}
+          onTypingStart={onTypingStart}
+          onTypingStop={onTypingStop}
+          onCommandSend={onCommandSend}
+          onTooltipHeightChange={handleTooltipHeightChange}
+        />
 
-      <InputBox
-        onSend={handleSubmit}
-        onTypingStart={onTypingStart}
-        onTypingStop={onTypingStop}
-        onInputChange={handleInputChange}
-        disabled={isInputDisabled}
-      />
-
-      <StatusBar
-        connectionStatus={connectionStatus}
-        error={error}
-        userCount={users.length}
-      />
+        <StatusBar
+          connectionStatus={connectionStatus}
+          error={error}
+          userCount={users.length}
+        />
       </Layout.Content>
     </Layout>
   );

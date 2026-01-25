@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ChatClient } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
+import { applyPresenceDiff } from "../lib/presence-utils.js";
 import type {
   Message,
   ConnectionStatus,
@@ -38,21 +39,7 @@ export function useChat(token: string | null, channelSlug: string) {
           setPresenceState(state);
         },
         onPresenceDiff: (diff) => {
-          setPresenceState((prev) => {
-            const next = { ...prev };
-
-            // Remove leaves first (presence updates send leaves + joins for same user)
-            Object.keys(diff.leaves).forEach((username) => {
-              delete next[username];
-            });
-
-            // Add joins
-            Object.entries(diff.joins).forEach(([username, data]) => {
-              next[username] = data;
-            });
-
-            return next;
-          });
+          setPresenceState((prev) => applyPresenceDiff(prev, diff));
         },
         onUserTyping: (user, isTyping) => {
           setTypingUsers((prev) => {

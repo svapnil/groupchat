@@ -40,7 +40,10 @@ function formatTime(timestamp: string): string {
   });
 }
 
-export function MessageItem({ message, isOwnMessage }: MessageItemProps) {
+export const MessageItem = React.memo(function MessageItem({
+  message,
+  isOwnMessage,
+}: MessageItemProps) {
   const time = formatTime(message.timestamp);
 
   // Render system messages differently
@@ -93,4 +96,4 @@ export function MessageItem({ message, isOwnMessage }: MessageItemProps) {
       </Box>
     </Box>
   );
-}
+});

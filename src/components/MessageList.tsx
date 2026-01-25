@@ -12,7 +12,7 @@ interface MessageListProps {
   isDetached: boolean;
 }
 
-export function MessageList({
+export const MessageList = React.memo(function MessageList({
   messages,
   currentUsername,
   typingUsers,
@@ -81,4 +81,4 @@ export function MessageList({
       )}
     </Box>
   );
-}
+});

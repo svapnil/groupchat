@@ -60,6 +60,9 @@ function AppContent() {
   const [currentDm, setCurrentDm] = useState<DmConvo | null>(null);
   const [shouldStartDmSearch, setShouldStartDmSearch] = useState(false);
 
+  // Track active DM slug for unread count logic
+  const activeDmSlug = route === "dm-chat" && currentDm ? currentDm.slug : null;
+
   // Initialize NotificationManager with stdout
   useEffect(() => {
     if (stdout) {
@@ -112,17 +115,6 @@ function AppContent() {
   // Channels hook - fetch available channels
   const { publicChannels, privateChannels, unreadCounts, loading: isLoadingChannels, refetchUnreadCounts, refetch: refetchChannels, incrementUnreadCount, clearUnreadCount, totalUnreadCount } = useChannels(token);
 
-  // DMs hook - fetch DM conversations
-  const {
-    conversations: dmConversations,
-    loading: isLoadingDms,
-    totalDmUnreadCount,
-    refetch: refetchDms,
-  } = useDms(token);
-
-  // Combined total unread count (channels + DMs)
-  const combinedTotalUnreadCount = totalUnreadCount + totalDmUnreadCount;
-
   // Multi-channel chat hook - maintains persistent connection
   const {
     messages,
@@ -140,6 +132,18 @@ function AppContent() {
     disconnect,
     channelManager,
   } = useMultiChannelChat(token, currentChannel, refetchChannels, incrementUnreadCount);
+
+  // DMs hook - fetch DM conversations and handle real-time updates
+  const {
+    conversations: dmConversations,
+    loading: isLoadingDms,
+    totalDmUnreadCount,
+    refetch: refetchDms,
+    clearUnreadCount: clearDmUnreadCount,
+  } = useDms(token, channelManager, username, activeDmSlug);
+
+  // Combined total unread count (channels + DMs)
+  const combinedTotalUnreadCount = totalUnreadCount + totalDmUnreadCount;
 
   // Presence hook
   const { users } = usePresence(presenceState, subscribers, currentChannel, globalPresence);
@@ -295,8 +299,9 @@ function AppContent() {
   // Handle DM selection from Menu
   const handleDmSelect = useCallback((dm: DmConvo) => {
     setCurrentDm(dm);
+    clearDmUnreadCount(dm.slug);
     navigate("dm-chat");
-  }, [navigate]);
+  }, [navigate, clearDmUnreadCount]);
 
   // Handle new DM action
   const handleNewDm = useCallback(() => {
@@ -450,6 +455,7 @@ function AppContent() {
   if (route === "dm-inbox") {
     const handleSelectDm = (dm: DmConvo) => {
       setCurrentDm(dm);
+      clearDmUnreadCount(dm.slug);
       navigate("dm-chat");
     };
 
