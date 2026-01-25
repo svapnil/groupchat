@@ -36,6 +36,7 @@ export function useMultiChannelChat(
   const [error, setError] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [presenceState, setPresenceState] = useState<PresenceState>({});
+  const [globalPresence, setGlobalPresence] = useState<PresenceState>({});
   const [channelsReady, setChannelsReady] = useState(false);
 
   const managerRef = useRef<ChannelManager | null>(null);
@@ -224,6 +225,17 @@ export function useMultiChannelChat(
             };
           });
         },
+        onGlobalPresenceState: (state) => {
+          setGlobalPresence(state);
+        },
+        onGlobalPresenceDiff: (diff) => {
+          setGlobalPresence((prev) => {
+            const next = { ...prev };
+            Object.keys(diff.leaves).forEach((u) => delete next[u]);
+            Object.entries(diff.joins).forEach(([u, d]) => (next[u] = d));
+            return next;
+          });
+        },
       }
     );
 
@@ -237,6 +249,9 @@ export function useMultiChannelChat(
       }
       try {
         await manager.connect();
+
+        // Join status channel for global presence (used by AtAGlance)
+        await manager.joinStatusChannel();
 
         // Fetch list of channels
         const channelsResponse = await fetchChannels(config.wsUrl, authToken);
@@ -398,6 +413,7 @@ export function useMultiChannelChat(
     stopTyping,
     typingUsers,
     presenceState,
+    globalPresence,
     subscribers,
     connect, // No-op for backward compatibility
     disconnect, // No-op for backward compatibility

@@ -9,7 +9,8 @@ import { useNavigation } from "../routes/Router.js";
 import { fetchDmMessages } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
 import { ChannelManager } from "../lib/channel-manager.js";
-import type { DmConversation as DmConvo, Message, ConnectionStatus, DmMessage } from "../lib/types.js";
+import { getAgentColor, getAgentDisplayName } from "../lib/constants.js";
+import type { DmConversation as DmConvo, Message, ConnectionStatus, DmMessage, PresenceState } from "../lib/types.js";
 
 interface DmConversationProps {
   terminalSize: { rows: number; columns: number };
@@ -21,6 +22,7 @@ interface DmConversationProps {
   onLogout: () => void;
   topPadding: number;
   totalUnreadCount: number;
+  globalPresence: PresenceState;
 }
 
 export function DmConversation({
@@ -33,7 +35,13 @@ export function DmConversation({
   onLogout,
   topPadding,
   totalUnreadCount,
+  globalPresence,
 }: DmConversationProps) {
+  const presenceData = globalPresence[dm.other_username];
+  const isOtherUserOnline = !!presenceData;
+  const currentAgent = presenceData?.metas[0]?.current_agent;
+  const agentDisplayName = currentAgent ? getAgentDisplayName(currentAgent) : null;
+  const agentColor = currentAgent ? getAgentColor(currentAgent) : undefined;
   const { navigate } = useNavigation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,7 +208,16 @@ export function DmConversation({
           username={username}
           connectionStatus={connectionStatus}
           onLogout={onLogout}
-          title={<Text bold color="cyan">{dm.other_username}</Text>}
+          title={
+            <Text bold color="cyan">
+              <Text color={isOtherUserOnline ? "green" : "gray"}>●</Text> {dm.other_username}
+              {agentDisplayName && (
+                <Text bold={false} color={agentColor}>
+                  {" "}- Using {agentDisplayName}
+                </Text>
+              )}
+            </Text>
+          }
         />
       </Layout.Header>
 

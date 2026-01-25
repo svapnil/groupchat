@@ -57,6 +57,8 @@ export class ChannelManager {
   private socket: Socket | null = null;
   private channelStates: Map<string, InternalChannelState> = new Map();
   private userChannel: PhoenixChannel | null = null;
+  private statusChannel: PhoenixChannel | null = null;
+  private globalPresence: PresenceState = {};
   private callbacks: ChannelManagerCallbacks;
   private wsUrl: string;
   private token: string;
@@ -170,6 +172,46 @@ export class ChannelManager {
           reject(new Error("timeout"));
         });
     });
+  }
+
+  /**
+   * Join the public:status channel for global presence tracking.
+   * Used by AtAGlance in Menu as a single source of presence truth.
+   */
+  async joinStatusChannel(): Promise<void> {
+    if (!this.socket) throw new Error("Socket not connected");
+
+    return new Promise((resolve, reject) => {
+      this.statusChannel = this.socket!.channel("public:status", {});
+
+      this.statusChannel.on("presence_state", (payload: unknown) => {
+        this.globalPresence = payload as PresenceState;
+        this.callbacks.onGlobalPresenceState?.(this.globalPresence);
+      });
+
+      this.statusChannel.on("presence_diff", (payload: unknown) => {
+        const diff = payload as PresenceDiff;
+        const next = { ...this.globalPresence };
+        Object.keys(diff.leaves).forEach((u) => delete next[u]);
+        Object.entries(diff.joins).forEach(([u, d]) => (next[u] = d));
+        this.globalPresence = next;
+        this.callbacks.onGlobalPresenceDiff?.(diff);
+      });
+
+      this.statusChannel
+        .join()
+        .receive("ok", () => resolve())
+        .receive("error", (e) => reject(e))
+        .receive("timeout", () => reject(new Error("timeout")));
+    });
+  }
+
+  /**
+   * Get global presence from the status channel.
+   * Returns all online users across the system.
+   */
+  getGlobalPresence(): PresenceState {
+    return this.globalPresence;
   }
 
   /**
@@ -614,11 +656,25 @@ export class ChannelManager {
 
   /**
    * Push an event to all subscribed channels.
+   * For update_current_agent, only sends to status channel (global presence).
    * Used for user-wide state updates like current_agent.
    */
   pushToAllChannels(eventType: string, payload: Record<string, unknown>): void {
     if (this.connectionStatus !== "connected") return;
 
+    // For agent updates, only use the status channel (global presence)
+    if (eventType === "update_current_agent") {
+      if (this.statusChannel) {
+        try {
+          this.statusChannel.push(eventType, payload);
+        } catch {
+          // Ignore errors
+        }
+      }
+      return;
+    }
+
+    // For other events, broadcast to all channels
     this.channelStates.forEach((state) => {
       try {
         state.channel.push(eventType, payload);
@@ -634,71 +690,6 @@ export class ChannelManager {
   getPresence(channelSlug: string): PresenceState {
     const channelState = this.channelStates.get(channelSlug);
     return channelState?.presence || {};
-  }
-
-  /**
-   * Get aggregated presence across all channels, deduplicated by user_id.
-   * When a user appears in multiple channels, we prefer:
-   * 1. Presence with current_agent set (if available)
-   * 2. Most recent online_at timestamp
-   */
-  getAggregatedPresence(): PresenceState {
-    // Map of user_id -> presence data for deduplication
-    const userMap = new Map<number, {
-      username: string;
-      metas: PresenceState[string]["metas"];
-      online_at: string;
-      has_agent: boolean;
-    }>();
-
-    // Iterate through all channels and collect presence
-    this.channelStates.forEach((channelState) => {
-      Object.entries(channelState.presence).forEach(([username, data]) => {
-        const meta = data.metas[0];
-        if (!meta) return;
-
-        const userId = meta.user_id;
-        const hasAgent = !!meta.current_agent;
-        const onlineAt = meta.online_at;
-
-        const existing = userMap.get(userId);
-
-        // Decide whether to use this presence data
-        if (!existing) {
-          // First time seeing this user
-          userMap.set(userId, {
-            username,
-            metas: data.metas,
-            online_at: onlineAt,
-            has_agent: hasAgent,
-          });
-        } else {
-          // User already exists - prefer presence with agent, or most recent
-          const shouldReplace =
-            (hasAgent && !existing.has_agent) ||
-            (hasAgent === existing.has_agent && onlineAt > existing.online_at);
-
-          if (shouldReplace) {
-            userMap.set(userId, {
-              username,
-              metas: data.metas,
-              online_at: onlineAt,
-              has_agent: hasAgent,
-            });
-          }
-        }
-      });
-    });
-
-    // Convert back to PresenceState format
-    const aggregated: PresenceState = {};
-    userMap.forEach((data) => {
-      aggregated[data.username] = {
-        metas: data.metas,
-      };
-    });
-
-    return aggregated;
   }
 
   /**
@@ -921,6 +912,17 @@ export class ChannelManager {
         // Ignore errors during cleanup
       }
       this.userChannel = null;
+    }
+
+    // Leave status channel
+    if (this.statusChannel) {
+      try {
+        this.statusChannel.leave();
+      } catch {
+        // Ignore errors during cleanup
+      }
+      this.statusChannel = null;
+      this.globalPresence = {};
     }
 
     // Leave all channels using stored channel instances

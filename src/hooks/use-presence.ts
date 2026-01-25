@@ -13,12 +13,19 @@ export interface UserWithStatus extends User {
 /**
  * Convert presence state to array of users.
  */
-function presenceToUsers(presence: PresenceState): (User & { currentAgent?: AgentType })[] {
+function getCurrentAgent(globalPresence: PresenceState, username: string): AgentType {
+  return globalPresence[username]?.metas[0]?.current_agent ?? null;
+}
+
+function presenceToUsers(
+  presence: PresenceState,
+  globalPresence: PresenceState
+): (User & { currentAgent?: AgentType })[] {
   return Object.entries(presence).map(([username, data]) => ({
     username,
     user_id: data.metas[0]?.user_id ?? 0,
     online_at: data.metas[0]?.online_at || "",
-    currentAgent: data.metas[0]?.current_agent ?? null,
+    currentAgent: getCurrentAgent(globalPresence, username),
   }));
 }
 
@@ -36,11 +43,12 @@ function presenceToUsers(presence: PresenceState): (User & { currentAgent?: Agen
 function mergeSubscribersWithPresence(
   subscribers: Subscriber[],
   presence: PresenceState,
+  globalPresence: PresenceState,
   isPrivateChannel: boolean
 ): UserWithStatus[] {
   if (!isPrivateChannel) {
     // Public channel: only show online users
-    const onlineUsers = presenceToUsers(presence);
+    const onlineUsers = presenceToUsers(presence, globalPresence);
     return onlineUsers.map((user) => ({
       ...user,
       isOnline: true,
@@ -60,7 +68,7 @@ function mergeSubscribersWithPresence(
       online_at: isOnline ? presence[subscriber.username].metas[0]?.online_at || "" : "",
       isOnline,
       role: subscriber.role,
-      currentAgent: isOnline ? presence[subscriber.username].metas[0]?.current_agent ?? null : null,
+      currentAgent: isOnline ? getCurrentAgent(globalPresence, subscriber.username) : null,
     };
   });
 }
@@ -68,13 +76,14 @@ function mergeSubscribersWithPresence(
 export function usePresence(
   presenceState: PresenceState,
   subscribers: Subscriber[] = [],
-  currentChannel: string = ""
+  currentChannel: string = "",
+  globalPresence: PresenceState = {}
 ) {
   const isPrivateChannel = currentChannel.startsWith("private_room:");
 
   const users = useMemo(
-    () => mergeSubscribersWithPresence(subscribers, presenceState, isPrivateChannel),
-    [presenceState, subscribers, isPrivateChannel]
+    () => mergeSubscribersWithPresence(subscribers, presenceState, globalPresence, isPrivateChannel),
+    [presenceState, globalPresence, subscribers, isPrivateChannel]
   );
 
   return { users };

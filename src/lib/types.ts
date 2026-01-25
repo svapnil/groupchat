@@ -137,6 +137,10 @@ export interface ChannelManagerCallbacks {
   onDmMessage?: (message: DmMessage) => void;
   onDmTypingStart?: (dmSlug: string, username: string) => void;
   onDmTypingStop?: (dmSlug: string, username: string) => void;
+
+  // Global presence callbacks (status channel)
+  onGlobalPresenceState?: (state: PresenceState) => void;
+  onGlobalPresenceDiff?: (diff: PresenceDiff) => void;
 }
 
 // ============================================================================

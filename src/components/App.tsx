@@ -134,6 +134,7 @@ function AppContent() {
     stopTyping,
     typingUsers,
     presenceState,
+    globalPresence,
     subscribers,
     connect,
     disconnect,
@@ -141,7 +142,7 @@ function AppContent() {
   } = useMultiChannelChat(token, currentChannel, refetchChannels, incrementUnreadCount);
 
   // Presence hook
-  const { users } = usePresence(presenceState, subscribers, currentChannel);
+  const { users } = usePresence(presenceState, subscribers, currentChannel, globalPresence);
 
   // Add agent detection
   useAgentDetection(channelManager, connectionStatus === "connected");
@@ -391,9 +392,6 @@ function AppContent() {
 
   // Show Menu page
   if (route === "menu") {
-    // Get aggregated presence across all channels for "At a Glance" section
-    const aggregatedPresence = channelManager?.getAggregatedPresence() || {};
-
     return (
       <Box
         flexDirection="column"
@@ -413,7 +411,7 @@ function AppContent() {
           publicChannels={publicChannels}
           privateChannels={privateChannels}
           unreadCounts={unreadCounts}
-          aggregatedPresence={aggregatedPresence}
+          globalPresence={globalPresence}
           isLoadingChannels={isLoadingChannels}
           totalUnreadCount={combinedTotalUnreadCount}
           dmConversations={dmConversations}
@@ -473,6 +471,7 @@ function AppContent() {
           topPadding={topPadding}
           totalUnreadCount={combinedTotalUnreadCount}
           startInSearchMode={shouldStartDmSearch}
+          globalPresence={globalPresence}
         />
       </Box>
     );
@@ -497,6 +496,7 @@ function AppContent() {
           onLogout={handleLogout}
           topPadding={topPadding}
           totalUnreadCount={combinedTotalUnreadCount}
+          globalPresence={globalPresence}
         />
       </Box>
     );

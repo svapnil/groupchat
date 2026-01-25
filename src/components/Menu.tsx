@@ -23,7 +23,7 @@ interface MenuProps {
   publicChannels: Channel[];
   privateChannels: Channel[];
   unreadCounts: UnreadCounts;
-  aggregatedPresence: PresenceState;
+  globalPresence: PresenceState;
   isLoadingChannels?: boolean;
   totalUnreadCount?: number;
   dmConversations: DmConversation[];
@@ -44,7 +44,7 @@ export function Menu({
   publicChannels,
   privateChannels,
   unreadCounts,
-  aggregatedPresence,
+  globalPresence,
   isLoadingChannels = false,
   totalUnreadCount = 0,
   dmConversations,
@@ -297,11 +297,13 @@ export function Menu({
                     {dmConversations.slice(0, 5).map((conversation, idx) => {
                       const absoluteIndex = dmStartIndex + idx;
                       const isSelected = selectedIndex === absoluteIndex;
+                      const isOnline = !!globalPresence[conversation.other_username];
                       return (
                         <DmItem
                           key={conversation.slug}
                           conversation={conversation}
                           isSelected={isSelected}
+                          isOnline={isOnline}
                         />
                       );
                     })}
@@ -331,7 +333,7 @@ export function Menu({
 
             {/* Right side: At a Glance (compact, top-aligned) */}
             <Box paddingRight={2} paddingTop={2}>
-              <AtAGlance presenceState={aggregatedPresence} />
+              <AtAGlance presenceState={globalPresence} />
             </Box>
           </Box>
 
@@ -414,9 +416,10 @@ function ActionItem({ label, isSelected, icon }: ActionItemProps) {
 interface DmItemProps {
   conversation: DmConversation;
   isSelected: boolean;
+  isOnline: boolean;
 }
 
-function DmItem({ conversation, isSelected }: DmItemProps) {
+function DmItem({ conversation, isSelected, isOnline }: DmItemProps) {
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     const now = new Date();
@@ -439,6 +442,7 @@ function DmItem({ conversation, isSelected }: DmItemProps) {
       <Box>
         <Text color={isSelected ? "green" : "white"} bold={isSelected}>
           {isSelected ? "> " : "  "}
+          <Text color={isOnline ? "green" : "gray"}>●</Text>{" "}
           {conversation.other_username}
           {conversation.unread_count > 0 && (
             <Text color="green" bold>

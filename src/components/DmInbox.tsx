@@ -6,7 +6,7 @@ import { StatusBar } from "./StatusBar.js";
 import { useNavigation } from "../routes/Router.js";
 import { fetchDmConversations, createOrGetDm, searchUsers } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
-import type { DmConversation, ConnectionStatus, UserSearchResult } from "../lib/types.js";
+import type { DmConversation, ConnectionStatus, UserSearchResult, PresenceState } from "../lib/types.js";
 
 interface DmInboxProps {
   width: number;
@@ -19,6 +19,7 @@ interface DmInboxProps {
   topPadding: number;
   totalUnreadCount: number;
   startInSearchMode?: boolean;
+  globalPresence: PresenceState;
 }
 
 export function DmInbox({
@@ -32,6 +33,7 @@ export function DmInbox({
   topPadding,
   totalUnreadCount,
   startInSearchMode = false,
+  globalPresence,
 }: DmInboxProps) {
   const { navigate } = useNavigation();
   const [conversations, setConversations] = useState<DmConversation[]>([]);
@@ -239,14 +241,17 @@ export function DmInbox({
             ) : searchResults.length === 0 ? (
               <Text color="gray">No users found</Text>
             ) : (
-              searchResults.slice(0, 10).map((user, index) => (
-                <Box key={user.user_id}>
-                  <Text color={index === searchSelectedIndex ? "cyan" : undefined}>
-                    {index === searchSelectedIndex ? "> " : "  "}
-                    {user.username}
-                  </Text>
-                </Box>
-              ))
+              searchResults.slice(0, 10).map((user, index) => {
+                const isOnline = !!globalPresence[user.username];
+                return (
+                  <Box key={user.user_id}>
+                    <Text color={index === searchSelectedIndex ? "cyan" : undefined}>
+                      {index === searchSelectedIndex ? "> " : "  "}
+                      <Text color={isOnline ? "green" : "gray"}>●</Text> {user.username}
+                    </Text>
+                  </Box>
+                );
+              })
             )}
 
             <Box marginTop={1}>
@@ -271,28 +276,31 @@ export function DmInbox({
                 <Text color="gray">Press [N] to start a new DM.</Text>
               </Box>
             ) : (
-              conversations.map((conv, index) => (
-                <Box key={conv.slug} flexDirection="column">
-                  <Box>
-                    <Text color={index === selectedIndex ? "cyan" : undefined}>
-                      {index === selectedIndex ? "> " : "  "}
-                    </Text>
-                    <Text color={index === selectedIndex ? "cyan" : "white"} bold>
-                      @{conv.other_username}
-                    </Text>
-                    <Text color="gray"> </Text>
-                    <Text color="gray">{formatTime(conv.last_activity_at)}</Text>
-                    {conv.unread_count > 0 && (
-                      <Text color="yellow"> ({conv.unread_count})</Text>
-                    )}
+              conversations.map((conv, index) => {
+                const isOnline = !!globalPresence[conv.other_username];
+                return (
+                  <Box key={conv.slug} flexDirection="column">
+                    <Box>
+                      <Text color={index === selectedIndex ? "cyan" : undefined}>
+                        {index === selectedIndex ? "> " : "  "}
+                      </Text>
+                      <Text color={index === selectedIndex ? "cyan" : "white"} bold>
+                        <Text color={isOnline ? "green" : "gray"}>●</Text> {conv.other_username}
+                      </Text>
+                      <Text color="gray"> </Text>
+                      <Text color="gray">{formatTime(conv.last_activity_at)}</Text>
+                      {conv.unread_count > 0 && (
+                        <Text color="yellow"> ({conv.unread_count})</Text>
+                      )}
+                    </Box>
+                    <Box marginLeft={4}>
+                      <Text color="gray" wrap="truncate">
+                        {conv.last_message_preview || "No messages yet"}
+                      </Text>
+                    </Box>
                   </Box>
-                  <Box marginLeft={4}>
-                    <Text color="gray" wrap="truncate">
-                      {conv.last_message_preview || "No messages yet"}
-                    </Text>
-                  </Box>
-                </Box>
-              ))
+                );
+              })
             )}
           </Box>
         )}
