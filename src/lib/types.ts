@@ -132,4 +132,43 @@ export interface ChannelManagerCallbacks {
   onRemovedFromChannel?: (channelSlug: string, removedBy: string) => void;
   onUserRemovedFromChannel?: (channelSlug: string, username: string, removedBy: string) => void;
   onChannelListChanged?: () => void;
+
+  // DM callbacks
+  onDmMessage?: (message: DmMessage) => void;
+  onDmTypingStart?: (dmSlug: string, username: string) => void;
+  onDmTypingStop?: (dmSlug: string, username: string) => void;
+}
+
+// ============================================================================
+// Direct Message Types
+// ============================================================================
+
+export interface DmMessage {
+  id: string;
+  dm_slug: string;
+  username: string;
+  content: string;
+  sender_id: number;
+  attributes?: MessageAttributes;
+}
+
+export interface DmConversation {
+  channel_id: string;
+  slug: string;
+  other_user_id: number;
+  other_username: string;
+  last_activity_at: string;
+  last_message_preview: string | null;
+  unread_count: number;
+}
+
+export interface DmConversationsResponse {
+  conversations: DmConversation[];
+}
+
+export interface CreateDmResponse {
+  channel_id: string;
+  slug: string;
+  other_user_id: number;
+  other_username: string;
 }

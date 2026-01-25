@@ -4,10 +4,13 @@ import { LoginScreen } from "./LoginScreen.js";
 import { Menu } from "./Menu.js";
 import { ChatView } from "./ChatView.js";
 import { CreateChannelScreen } from "./CreateChannelScreen.js";
+import { DmInbox } from "./DmInbox.js";
+import { DmConversation } from "./DmConversation.js";
 import { useMultiChannelChat } from "../hooks/use-multi-channel-chat.js";
 import { usePresence } from "../hooks/use-presence.js";
 import { useAgentDetection } from "../hooks/use-agent-detection.js";
 import { useChannels } from "../hooks/use-channels.js";
+import { useDms } from "../hooks/use-dms.js";
 import {
   isAuthenticated,
   getCurrentToken,
@@ -18,7 +21,7 @@ import { Router, useNavigation } from "../routes/Router.js";
 import { createChannel } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
 import { getNotificationManager } from "../lib/notification-manager.js";
-import type { AuthState } from "../lib/types.js";
+import type { AuthState, DmConversation as DmConvo } from "../lib/types.js";
 
 export function App() {
   return (
@@ -52,6 +55,10 @@ function AppContent() {
   // Channel state
   const [currentChannel, setCurrentChannel] = useState("chat_room:global");
   const prevAuthStateRef = useRef<AuthState | null>(null);
+
+  // DM state
+  const [currentDm, setCurrentDm] = useState<DmConvo | null>(null);
+  const [shouldStartDmSearch, setShouldStartDmSearch] = useState(false);
 
   // Initialize NotificationManager with stdout
   useEffect(() => {
@@ -104,6 +111,17 @@ function AppContent() {
 
   // Channels hook - fetch available channels
   const { publicChannels, privateChannels, unreadCounts, loading: isLoadingChannels, refetchUnreadCounts, refetch: refetchChannels, incrementUnreadCount, clearUnreadCount, totalUnreadCount } = useChannels(token);
+
+  // DMs hook - fetch DM conversations
+  const {
+    conversations: dmConversations,
+    loading: isLoadingDms,
+    totalDmUnreadCount,
+    refetch: refetchDms,
+  } = useDms(token);
+
+  // Combined total unread count (channels + DMs)
+  const combinedTotalUnreadCount = totalUnreadCount + totalDmUnreadCount;
 
   // Multi-channel chat hook - maintains persistent connection
   const {
@@ -205,12 +223,20 @@ function AppContent() {
     };
   }, [currentChannel, channelManager]);
 
-  // Refetch unread counts when navigating to menu
+  // Refetch unread counts and DM conversations when navigating to menu
   useEffect(() => {
     if (route === "menu") {
       refetchUnreadCounts();
+      refetchDms();
     }
-  }, [route, refetchUnreadCounts]);
+  }, [route, refetchUnreadCounts, refetchDms]);
+
+  // Reset search mode flag when leaving dm-inbox
+  useEffect(() => {
+    if (route !== "dm-inbox") {
+      setShouldStartDmSearch(false);
+    }
+  }, [route]);
 
   // Reset scroll state when channel changes
   useEffect(() => {
@@ -264,6 +290,18 @@ function AppContent() {
     await createChannel(config.wsUrl, token, name, description || undefined);
     await refetchChannels();
   }, [token, refetchChannels]);
+
+  // Handle DM selection from Menu
+  const handleDmSelect = useCallback((dm: DmConvo) => {
+    setCurrentDm(dm);
+    navigate("dm-chat");
+  }, [navigate]);
+
+  // Handle new DM action
+  const handleNewDm = useCallback(() => {
+    setShouldStartDmSearch(true);
+    navigate("dm-inbox");
+  }, [navigate]);
 
   // Calculate max visible messages for scroll bounds
   const headerHeight = 3;
@@ -377,7 +415,11 @@ function AppContent() {
           unreadCounts={unreadCounts}
           aggregatedPresence={aggregatedPresence}
           isLoadingChannels={isLoadingChannels}
-          totalUnreadCount={totalUnreadCount}
+          totalUnreadCount={combinedTotalUnreadCount}
+          dmConversations={dmConversations}
+          isLoadingDms={isLoadingDms}
+          onDmSelect={handleDmSelect}
+          onNewDm={handleNewDm}
         />
       </Box>
     );
@@ -400,7 +442,61 @@ function AppContent() {
           onLogout={handleLogout}
           onCreateChannel={handleCreateChannel}
           topPadding={topPadding}
-          totalUnreadCount={totalUnreadCount}
+          totalUnreadCount={combinedTotalUnreadCount}
+        />
+      </Box>
+    );
+  }
+
+  // Show DM Inbox page
+  if (route === "dm-inbox") {
+    const handleSelectDm = (dm: DmConvo) => {
+      setCurrentDm(dm);
+      navigate("dm-chat");
+    };
+
+    return (
+      <Box
+        flexDirection="column"
+        width={terminalSize.columns}
+        height={terminalSize.rows}
+        overflow="hidden"
+      >
+        <DmInbox
+          width={terminalSize.columns}
+          height={terminalSize.rows}
+          username={username}
+          connectionStatus={connectionStatus}
+          token={token}
+          onLogout={handleLogout}
+          onSelectDm={handleSelectDm}
+          topPadding={topPadding}
+          totalUnreadCount={combinedTotalUnreadCount}
+          startInSearchMode={shouldStartDmSearch}
+        />
+      </Box>
+    );
+  }
+
+  // Show DM Conversation page
+  if (route === "dm-chat" && currentDm) {
+    return (
+      <Box
+        flexDirection="column"
+        width={terminalSize.columns}
+        height={terminalSize.rows}
+        overflow="hidden"
+      >
+        <DmConversation
+          terminalSize={terminalSize}
+          dm={currentDm}
+          connectionStatus={connectionStatus}
+          username={username}
+          channelManager={channelManager}
+          token={token}
+          onLogout={handleLogout}
+          topPadding={topPadding}
+          totalUnreadCount={combinedTotalUnreadCount}
         />
       </Box>
     );
@@ -432,7 +528,7 @@ function AppContent() {
       onCommandSend={sendCommand}
       error={error}
       token={token}
-      totalUnreadCount={totalUnreadCount}
+      totalUnreadCount={combinedTotalUnreadCount}
     />
   );
 }

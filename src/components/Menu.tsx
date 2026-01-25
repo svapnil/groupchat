@@ -4,11 +4,12 @@ import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
 import { AtAGlance } from "./AtAGlance.js";
 import { useNavigation } from "../routes/Router.js";
-import type { ConnectionStatus, Channel, UnreadCounts, PresenceState } from "../lib/types.js";
+import type { ConnectionStatus, Channel, UnreadCounts, PresenceState, DmConversation } from "../lib/types.js";
 
 type MenuItem =
   | { type: "channel"; channel: Channel }
-  | { type: "action"; action: "create-channel"; label: string };
+  | { type: "dm"; conversation: DmConversation }
+  | { type: "action"; action: "create-channel" | "new-dm" | "dm-see-more"; label: string };
 
 interface MenuProps {
   width: number;
@@ -25,6 +26,10 @@ interface MenuProps {
   aggregatedPresence: PresenceState;
   isLoadingChannels?: boolean;
   totalUnreadCount?: number;
+  dmConversations: DmConversation[];
+  isLoadingDms?: boolean;
+  onDmSelect: (dm: DmConversation) => void;
+  onNewDm: () => void;
 }
 
 export function Menu({
@@ -42,6 +47,10 @@ export function Menu({
   aggregatedPresence,
   isLoadingChannels = false,
   totalUnreadCount = 0,
+  dmConversations,
+  isLoadingDms = false,
+  onDmSelect,
+  onNewDm,
 }: MenuProps) {
   const { stdout } = useStdout();
   const { navigate } = useNavigation();
@@ -55,20 +64,61 @@ export function Menu({
     return [...sortedPublicChannels, ...privateChannels];
   }, [sortedPublicChannels, privateChannels]);
 
-  // Create menu items: channels + action item for creating new channel
+  // Create menu items: channels + create channel + DM section
   const menuItems: MenuItem[] = useMemo(() => {
-    const items: MenuItem[] = allChannels.map((channel) => ({
-      type: "channel" as const,
-      channel,
-    }));
-    // Add "Create New Channel" action at the end
+    const items: MenuItem[] = [];
+
+    // Global Channels section
+    sortedPublicChannels.forEach((channel) => {
+      items.push({
+        type: "channel",
+        channel,
+      });
+    });
+
+    // Private Channels section
+    privateChannels.forEach((channel) => {
+      items.push({
+        type: "channel",
+        channel,
+      });
+    });
+
+    // Create New Channel action
     items.push({
       type: "action",
       action: "create-channel",
-      label: "Create New Private Channel",
+      label: "+ Create New Private Channel",
     });
+
+    // Direct Messages section
+    // "+ New Message" action
+    items.push({
+      type: "action",
+      action: "new-dm",
+      label: "+ New Message",
+    });
+
+    // Add up to 5 most recent DM conversations
+    const recentDms = dmConversations.slice(0, 5);
+    recentDms.forEach((conversation) => {
+      items.push({
+        type: "dm",
+        conversation,
+      });
+    });
+
+    // Add "See More..." if more than 5 conversations
+    if (dmConversations.length > 5) {
+      items.push({
+        type: "action",
+        action: "dm-see-more",
+        label: "See More...",
+      });
+    }
+
     return items;
-  }, [allChannels]);
+  }, [sortedPublicChannels, privateChannels, dmConversations]);
 
   // Selection state - index into menuItems
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -117,8 +167,16 @@ export function Menu({
         if (selected.type === "channel") {
           onChannelSelect(selected.channel.slug);
           navigate("chat");
-        } else if (selected.type === "action" && selected.action === "create-channel") {
-          navigate("create-channel");
+        } else if (selected.type === "dm") {
+          onDmSelect(selected.conversation);
+        } else if (selected.type === "action") {
+          if (selected.action === "create-channel") {
+            navigate("create-channel");
+          } else if (selected.action === "new-dm") {
+            onNewDm();
+          } else if (selected.action === "dm-see-more") {
+            navigate("dm-inbox");
+          }
         }
       }
     }
@@ -128,8 +186,16 @@ export function Menu({
   const headerHeight = 3;
   const contentHeight = height - topPadding - headerHeight;
 
-  // Calculate which index is the start of private channels for section headers
-  const privateStartIndex = sortedPublicChannels.length;
+  // Calculate which index is the start of each section
+  const publicStartIndex = 0; // First section is now public channels
+  const privateStartIndex = publicStartIndex + sortedPublicChannels.length;
+  const createChannelIndex = privateStartIndex + privateChannels.length;
+
+  // DM section starts after create channel
+  const newDmIndex = createChannelIndex + 1;
+  const dmStartIndex = newDmIndex + 1;
+  const dmCount = Math.min(5, dmConversations.length);
+  const dmSeeMoreIndex = dmConversations.length > 5 ? dmStartIndex + dmCount : -1;
 
   return (
     <Layout width={width} height={height} topPadding={topPadding}>
@@ -160,7 +226,8 @@ export function Menu({
                   </Box>
 
                   {sortedPublicChannels.map((channel, idx) => {
-                    const isSelected = selectedIndex === idx;
+                    const absoluteIndex = publicStartIndex + idx;
+                    const isSelected = selectedIndex === absoluteIndex;
                     const unreadCount = unreadCounts[channel.slug] || 0;
                     return (
                       <ChannelItem
@@ -175,45 +242,79 @@ export function Menu({
               )}
 
               {/* Private Channels Section */}
-              {privateChannels.length > 0 && (
-                <Box flexDirection="column" marginBottom={1}>
-                  <Box marginBottom={1}>
-                    <Text bold color="white">
-                      Private Channels
-                    </Text>
-                  </Box>
-
-                  {privateChannels.map((channel, idx) => {
-                    const absoluteIndex = privateStartIndex + idx;
-                    const isSelected = selectedIndex === absoluteIndex;
-                    const unreadCount = unreadCounts[channel.slug] || 0;
-                    return (
-                      <ChannelItem
-                        key={channel.id}
-                        channel={channel}
-                        isSelected={isSelected}
-                        isPrivate
-                        unreadCount={unreadCount}
-                      />
-                    );
-                  })}
-                </Box>
-              )}
-
-              {/* Create New Channel Action */}
               <Box flexDirection="column" marginBottom={1}>
-                {/* Only show header if there are no private channels yet */}
-                {privateChannels.length === 0 && (
-                  <Box marginBottom={1}>
-                    <Text bold color="white">
-                      Private Channels
-                    </Text>
-                  </Box>
-                )}
+                <Box marginBottom={1}>
+                  <Text bold color="white">
+                    Private Channels
+                  </Text>
+                </Box>
+
+                {privateChannels.map((channel, idx) => {
+                  const absoluteIndex = privateStartIndex + idx;
+                  const isSelected = selectedIndex === absoluteIndex;
+                  const unreadCount = unreadCounts[channel.slug] || 0;
+                  return (
+                    <ChannelItem
+                      key={channel.id}
+                      channel={channel}
+                      isSelected={isSelected}
+                      isPrivate
+                      unreadCount={unreadCount}
+                    />
+                  );
+                })}
                 <ActionItem
-                  label="+ Create New Private Channel"
-                  isSelected={selectedIndex === allChannels.length}
+                  label="+ Create a new private channel"
+                  isSelected={selectedIndex === createChannelIndex}
                 />
+              </Box>
+
+              {/* Direct Messages Section */}
+              <Box flexDirection="column" marginBottom={1}>
+                <Box marginBottom={1}>
+                  <Text bold color="white">
+                    Direct Messages
+                  </Text>
+                </Box>
+
+                {/* New Message Action */}
+                <ActionItem
+                  label="+ Start a new conversation"
+                  isSelected={selectedIndex === newDmIndex}
+                />
+
+                {/* DM Conversations or Empty State */}
+                {isLoadingDms ? (
+                  <Box marginLeft={2}>
+                    <Text color="cyan">Loading conversations...</Text>
+                  </Box>
+                ) : dmConversations.length === 0 ? (
+                  <Box marginLeft={2}>
+                    <Text color="gray">No Direct Messages Yet..</Text>
+                  </Box>
+                ) : (
+                  <>
+                    {dmConversations.slice(0, 5).map((conversation, idx) => {
+                      const absoluteIndex = dmStartIndex + idx;
+                      const isSelected = selectedIndex === absoluteIndex;
+                      return (
+                        <DmItem
+                          key={conversation.slug}
+                          conversation={conversation}
+                          isSelected={isSelected}
+                        />
+                      );
+                    })}
+
+                    {/* See More action */}
+                    {dmConversations.length > 5 && (
+                      <ActionItem
+                        label="See More..."
+                        isSelected={selectedIndex === dmSeeMoreIndex}
+                      />
+                    )}
+                  </>
+                )}
               </Box>
 
               {/* Loading/Empty state */}
@@ -295,15 +396,64 @@ function ChannelItem({ channel, isSelected, isPrivate = false, unreadCount = 0 }
 interface ActionItemProps {
   label: string;
   isSelected: boolean;
+  icon?: string;
 }
 
-function ActionItem({ label, isSelected }: ActionItemProps) {
+function ActionItem({ label, isSelected, icon }: ActionItemProps) {
   return (
     <Box marginLeft={2}>
       <Text color={isSelected ? "green" : "cyan"} bold={isSelected}>
         {isSelected ? "> " : "  "}
+        {icon && <Text>{icon} </Text>}
         {label}
       </Text>
+    </Box>
+  );
+}
+
+interface DmItemProps {
+  conversation: DmConversation;
+  isSelected: boolean;
+}
+
+function DmItem({ conversation, isSelected }: DmItemProps) {
+  const formatTime = (isoString: string) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } else if (diffDays === 1) {
+      return "Yesterday";
+    } else if (diffDays < 7) {
+      return date.toLocaleDateString([], { weekday: "short" });
+    } else {
+      return date.toLocaleDateString([], { month: "short", day: "numeric" });
+    }
+  };
+
+  return (
+    <Box flexDirection="column" marginLeft={2}>
+      <Box>
+        <Text color={isSelected ? "green" : "white"} bold={isSelected}>
+          {isSelected ? "> " : "  "}
+          {conversation.other_username}
+          {conversation.unread_count > 0 && (
+            <Text color="green" bold>
+              {" "}({conversation.unread_count})
+            </Text>
+          )}
+        </Text>
+      </Box>
+      <Box marginLeft={4}>
+        <Text color="gray" wrap="truncate">
+          {conversation.last_message_preview || "No messages yet"}
+        </Text>
+        <Text color="gray"> • </Text>
+        <Text color="gray">{formatTime(conversation.last_activity_at)}</Text>
+      </Box>
     </Box>
   );
 }

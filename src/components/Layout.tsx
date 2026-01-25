@@ -21,10 +21,14 @@ function LayoutContent({ children }: SlotProps): ReactElement {
   return <>{children}</>;
 }
 
+function LayoutFooter({ children }: SlotProps): ReactElement {
+  return <>{children}</>;
+}
+
 // Helper to extract slot content by component type
 function extractSlot(
   children: ReactNode,
-  SlotComponent: typeof LayoutHeader | typeof LayoutContent
+  SlotComponent: typeof LayoutHeader | typeof LayoutContent | typeof LayoutFooter
 ): ReactNode {
   let slotContent: ReactNode = null;
 
@@ -41,6 +45,7 @@ function extractSlot(
 export function Layout({ width, height, topPadding = 0, children }: LayoutProps) {
   const header = extractSlot(children, LayoutHeader);
   const content = extractSlot(children, LayoutContent);
+  const footer = extractSlot(children, LayoutFooter);
 
   return (
     <Box
@@ -52,6 +57,7 @@ export function Layout({ width, height, topPadding = 0, children }: LayoutProps)
     >
       {header}
       {content}
+      {footer}
     </Box>
   );
 }
@@ -59,3 +65,4 @@ export function Layout({ width, height, topPadding = 0, children }: LayoutProps)
 // Attach slot components to Layout
 Layout.Header = LayoutHeader;
 Layout.Content = LayoutContent;
+Layout.Footer = LayoutFooter;

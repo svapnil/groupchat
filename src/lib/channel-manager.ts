@@ -7,6 +7,7 @@ import type {
   Channel,
   ChannelManagerCallbacks,
   Subscriber,
+  DmMessage,
 } from "./types.js";
 
 /**
@@ -55,12 +56,14 @@ const MAX_REALTIME_MESSAGES_PER_CHANNEL = 100;
 export class ChannelManager {
   private socket: Socket | null = null;
   private channelStates: Map<string, InternalChannelState> = new Map();
+  private userChannel: PhoenixChannel | null = null;
   private callbacks: ChannelManagerCallbacks;
   private wsUrl: string;
   private token: string;
   private connectionStatus: ConnectionStatus = "disconnected";
   private currentActiveChannel: string | null = null;
   private username: string | null = null;
+  private userId: number | null = null;
 
   constructor(wsUrl: string, token: string, callbacks: ChannelManagerCallbacks = {}) {
     this.wsUrl = wsUrl;
@@ -133,6 +136,63 @@ export class ChannelManager {
         console.error(`Failed to subscribe to ${channelSlug}:`, result.reason);
         this.callbacks.onError?.(`Failed to join channel: ${channelSlug}`);
       }
+    });
+  }
+
+  /**
+   * Join the user channel for DM messaging.
+   * Must be called after connect() and after we know the user_id.
+   */
+  async joinUserChannel(userId: number): Promise<void> {
+    if (!this.socket) {
+      throw new Error("Socket not connected. Call connect() first.");
+    }
+
+    this.userId = userId;
+
+    return new Promise((resolve, reject) => {
+      this.userChannel = this.socket!.channel(`user:${userId}`, {});
+
+      // Setup DM event handlers
+      this.setupUserChannelHandlers();
+
+      this.userChannel
+        .join()
+        .receive("ok", () => {
+          resolve();
+        })
+        .receive("error", (error: unknown) => {
+          this.callbacks.onError?.("Failed to join user channel");
+          reject(error);
+        })
+        .receive("timeout", () => {
+          this.callbacks.onError?.("Timeout joining user channel");
+          reject(new Error("timeout"));
+        });
+    });
+  }
+
+  /**
+   * Setup event handlers for the user channel (DM routing).
+   */
+  private setupUserChannelHandlers(): void {
+    if (!this.userChannel) return;
+
+    // Handle DM messages
+    this.userChannel.on("dm:new_message", (payload: unknown) => {
+      const msg = payload as DmMessage;
+      this.callbacks.onDmMessage?.(msg);
+    });
+
+    // Handle DM typing indicators
+    this.userChannel.on("dm:typing_start", (payload: unknown) => {
+      const { dm_slug, username } = payload as { dm_slug: string; username: string };
+      this.callbacks.onDmTypingStart?.(dm_slug, username);
+    });
+
+    this.userChannel.on("dm:typing_stop", (payload: unknown) => {
+      const { dm_slug, username } = payload as { dm_slug: string; username: string };
+      this.callbacks.onDmTypingStop?.(dm_slug, username);
     });
   }
 
@@ -764,10 +824,105 @@ export class ChannelManager {
     });
   }
 
+  // ============================================================================
+  // Direct Message Methods
+  // ============================================================================
+
+  /**
+   * Send a DM message via the user channel.
+   */
+  async sendDmMessage(dmSlug: string, content: string): Promise<{ message_id: string }> {
+    if (!this.userChannel) {
+      throw new Error("User channel not connected");
+    }
+
+    if (!this.socket || this.connectionStatus !== "connected") {
+      throw new Error("Connection lost");
+    }
+
+    return new Promise((resolve, reject) => {
+      this.userChannel!
+        .push("dm:send", { dm_slug: dmSlug, content })
+        .receive("ok", (resp: unknown) => {
+          const response = resp as { message_id: string };
+          resolve(response);
+        })
+        .receive("error", (err: unknown) => {
+          const error = err as { reason?: string };
+          const errorMsg = error.reason || "Failed to send DM";
+          this.callbacks.onError?.(errorMsg);
+          reject(new Error(errorMsg));
+        })
+        .receive("timeout", () => {
+          const errorMsg = "DM send timeout";
+          this.callbacks.onError?.(errorMsg);
+          reject(new Error("timeout"));
+        });
+    });
+  }
+
+  /**
+   * Send typing:start indicator for a DM.
+   */
+  startDmTyping(dmSlug: string): void {
+    if (!this.userChannel || this.connectionStatus !== "connected") return;
+
+    try {
+      this.userChannel.push("dm:typing_start", { dm_slug: dmSlug });
+    } catch {
+      // Ignore typing indicator errors
+    }
+  }
+
+  /**
+   * Send typing:stop indicator for a DM.
+   */
+  stopDmTyping(dmSlug: string): void {
+    if (!this.userChannel || this.connectionStatus !== "connected") return;
+
+    try {
+      this.userChannel.push("dm:typing_stop", { dm_slug: dmSlug });
+    } catch {
+      // Ignore typing indicator errors
+    }
+  }
+
+  /**
+   * Mark a DM as read.
+   */
+  async markDmAsRead(dmSlug: string): Promise<void> {
+    if (!this.userChannel) return;
+
+    return new Promise((resolve, reject) => {
+      this.userChannel!
+        .push("dm:mark_read", { dm_slug: dmSlug })
+        .receive("ok", () => resolve())
+        .receive("error", (err: unknown) => reject(err))
+        .receive("timeout", () => reject(new Error("timeout")));
+    });
+  }
+
+  /**
+   * Get the user ID (set when joining user channel).
+   */
+  getUserId(): number | null {
+    return this.userId;
+  }
+
   /**
    * Disconnect from all channels and close the socket.
    */
   disconnect(): void {
+    // Leave user channel
+    if (this.userChannel) {
+      try {
+        this.userChannel.leave();
+      } catch {
+        // Ignore errors during cleanup
+      }
+      this.userChannel = null;
+    }
+
     // Leave all channels using stored channel instances
     this.channelStates.forEach((state) => {
       try {
@@ -787,6 +942,7 @@ export class ChannelManager {
     this.channelStates.clear();
     this.currentActiveChannel = null;
     this.username = null;
+    this.userId = null;
     this.setConnectionStatus("disconnected");
   }
 

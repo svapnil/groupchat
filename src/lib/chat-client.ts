@@ -10,6 +10,8 @@ import type {
   UnreadCounts,
   SubscribersResponse,
   UserSearchResponse,
+  DmConversationsResponse,
+  CreateDmResponse,
 } from "./types.js";
 
 // Ensure WebSocket is available globally for Phoenix.
@@ -489,4 +491,102 @@ export async function createChannel(
   }
 
   return response.json() as Promise<CreateChannelResponse>;
+}
+
+// ============================================================================
+// Direct Message API Functions
+// ============================================================================
+
+/**
+ * Fetch DM conversations for the current user.
+ */
+export async function fetchDmConversations(
+  wsUrl: string,
+  token: string
+): Promise<DmConversationsResponse> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const url = `${backendUrl}/api/dm`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch DM conversations: ${response.status}`);
+  }
+
+  return response.json() as Promise<DmConversationsResponse>;
+}
+
+/**
+ * Create a new DM conversation with another user, or get existing.
+ * Can use either other_user_id or other_username.
+ */
+export async function createOrGetDm(
+  wsUrl: string,
+  token: string,
+  otherUser: { user_id: number } | { username: string }
+): Promise<CreateDmResponse> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const url = `${backendUrl}/api/dm`;
+
+  const body = "user_id" in otherUser
+    ? { other_user_id: otherUser.user_id }
+    : { other_username: otherUser.username };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const data = await response.json() as { error?: string };
+    throw new Error(data.error || `Failed to create DM: ${response.status}`);
+  }
+
+  return response.json() as Promise<CreateDmResponse>;
+}
+
+/**
+ * Fetch messages for a specific DM conversation.
+ */
+export async function fetchDmMessages(
+  wsUrl: string,
+  token: string,
+  dmSlug: string,
+  limit: number = 50
+): Promise<{ messages: Message[]; dm_slug: string }> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const encodedSlug = encodeURIComponent(dmSlug);
+  const url = `${backendUrl}/api/dm/${encodedSlug}/messages?limit=${limit}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch DM messages: ${response.status}`);
+  }
+
+  return response.json() as Promise<{ messages: Message[]; dm_slug: string }>;
 }

@@ -8,6 +8,7 @@ interface InputBoxProps {
   onTypingStop: () => void;
   disabled: boolean;
   onInputChange?: (value: string) => void;
+  placeholder?: string;
 }
 
 export function InputBox({
@@ -16,6 +17,7 @@ export function InputBox({
   onTypingStop,
   disabled,
   onInputChange,
+  placeholder,
 }: InputBoxProps) {
   const [value, setValue] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -103,7 +105,7 @@ export function InputBox({
             value={value}
             onChange={handleChange}
             onSubmit={handleSubmit}
-            placeholder={disabled ? "Connecting..." : "Type a message..."}
+            placeholder={disabled ? "Connecting..." : placeholder || "Type a message..."}
           />
         </Box>
         <Text color={disabled || !value.trim() ? "gray" : "green"}>

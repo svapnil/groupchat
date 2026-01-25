@@ -41,6 +41,7 @@ export function useMultiChannelChat(
   const managerRef = useRef<ChannelManager | null>(null);
   const prevChannelRef = useRef<string | null>(null);
   const isLoadingHistory = useRef(false);
+  const userChannelJoinAttemptedRef = useRef(false);
 
   // Get messages and subscribers for current channel from cache
   const messages = messageCache[currentChannel] || [];
@@ -97,6 +98,27 @@ export function useMultiChannelChat(
         onPresenceState: (channelSlug, state) => {
           // ChannelManager already routes to active channel only
           setPresenceState(state);
+
+          if (userChannelJoinAttemptedRef.current) {
+            return;
+          }
+
+          const currentUsername = manager.getUsername();
+          if (!currentUsername) {
+            return;
+          }
+
+          const meta = state[currentUsername]?.metas?.[0];
+          const userId = meta?.user_id;
+          if (!userId) {
+            return;
+          }
+
+          userChannelJoinAttemptedRef.current = true;
+          manager.joinUserChannel(userId).catch((err) => {
+            console.error("Failed to join user channel:", err);
+            userChannelJoinAttemptedRef.current = false;
+          });
         },
         onPresenceDiff: (channelSlug, diff) => {
           // ChannelManager already routes to active channel only
