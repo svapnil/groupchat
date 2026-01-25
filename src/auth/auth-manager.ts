@@ -61,12 +61,12 @@ const SUCCESS_HTML = `
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Terminal Chat - Authentication Successful</title>
+  <title>Groupchat - Authentication Successful</title>
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-      background: #1F1F1F;
-      color: #CCCCCC;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: #0A0A0A;
+      color: #E8E6E3;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -74,13 +74,15 @@ const SUCCESS_HTML = `
       margin: 0;
     }
     .container { text-align: center; padding: 2rem; }
-    .success { color: #4EC9B0; font-size: 1.5rem; margin-bottom: 1rem; }
-    .message { color: #9D9D9D; }
+    .title { font-size: 2rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2rem; }
+    .success { font-size: 1.25rem; margin-bottom: 1rem; }
+    .message { color: #666666; font-size: 0.875rem; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="success">&#10003; Authentication successful!</div>
+    <div class="title">GROUPCHAT</div>
+    <div class="success">[OK] Authentication successful</div>
     <div class="message">You can close this window and return to the terminal.</div>
   </div>
 </body>
@@ -92,12 +94,12 @@ const ERROR_HTML = (message: string) => `
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Terminal Chat - Authentication Failed</title>
+  <title>Groupchat - Authentication Failed</title>
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-      background: #1F1F1F;
-      color: #CCCCCC;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: #0A0A0A;
+      color: #E8E6E3;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -105,13 +107,15 @@ const ERROR_HTML = (message: string) => `
       margin: 0;
     }
     .container { text-align: center; padding: 2rem; }
-    .error { color: #F85149; font-size: 1.5rem; margin-bottom: 1rem; }
-    .message { color: #9D9D9D; }
+    .title { font-size: 2rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2rem; }
+    .error { font-size: 1.25rem; margin-bottom: 1rem; }
+    .message { color: #666666; font-size: 0.875rem; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="error">✗ Authentication failed</div>
+    <div class="title">GROUPCHAT</div>
+    <div class="error">[!] Authentication failed</div>
     <div class="message">${message}</div>
   </div>
 </body>
