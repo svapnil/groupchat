@@ -29,7 +29,7 @@ export class NotificationManager {
     this.config = { ...this.config, ...config };
   }
 
-  notify(type: NotificationType = "bell"): boolean {
+  notify(type: NotificationType = "bell", message?: string): boolean {
     if (!this.config.enabled) {
       return false;
     }
@@ -43,6 +43,8 @@ export class NotificationManager {
 
     if (type === "bell") {
       this.sendBell();
+    } else if (type === "alert") {
+      this.sendAlert(message ?? "New notification");
     }
 
     return true;
@@ -50,6 +52,20 @@ export class NotificationManager {
 
   private sendBell(): void {
     this.stdout?.write("\x07");
+  }
+
+  /**
+   * Send an OS notification via OSC 9 (supported by Ghostty, iTerm2, etc.)
+   * Also sends a bell for terminals that don't support OSC 9
+   */
+  private sendAlert(message: string): void {
+    if (!this.stdout) return;
+
+    // Send bell first for compatibility
+    this.sendBell();
+
+    // Send OSC 9 notification: ESC ] 9 ; <message> BEL
+    this.stdout.write(`\x1b]9;${message}\x07`);
   }
 }
 

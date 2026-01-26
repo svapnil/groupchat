@@ -112,9 +112,9 @@ export function useDms(
       }
     });
 
-    // Trigger bell notification for messages from others (not in active conversation)
+    // Trigger OS notification for DMs from others (not in active conversation)
     if (!isOwnMessage && !isActiveConversation) {
-      getNotificationManager().notify("bell");
+      getNotificationManager().notify("alert", `New DM from ${msg.username}`);
     }
   }, []); // No deps - uses refs for changing values
 

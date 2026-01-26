@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Text, useInput, useApp } from "ink";
+import { Box, Text, useInput } from "ink";
 import { UpdateInfo, getUpdateCommand } from "../lib/update-checker.js";
 import { execSync, spawn } from "child_process";
 
@@ -17,7 +17,6 @@ export function UpdatePrompt({ updateInfo, onComplete }: UpdatePromptProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
-  const { exit } = useApp();
 
   useInput((input, key) => {
     if (isUpdating) return;
@@ -58,9 +57,7 @@ export function UpdatePrompt({ updateInfo, onComplete }: UpdatePromptProps) {
 
       // Allow parent to exit while child continues
       child.unref();
-
-      // Small delay to ensure child process starts
-      setTimeout(() => exit(), 100);
+      process.exit(0);
     } catch (err) {
       setUpdateError(
         `Update failed. Please run manually: ${command}`
