@@ -284,7 +284,7 @@ export function Menu({
                 />
 
                 {/* DM Conversations or Empty State */}
-                {isLoadingDms ? (
+                {isLoadingDms && dmConversations.length === 0 ? (
                   <Box marginLeft={2}>
                     <Text color="cyan">Loading conversations...</Text>
                   </Box>
