@@ -120,7 +120,7 @@ export function InputBox({
         </Box>
         <Text color={disabled || !value.trim() ? "gray" : "green"}>
           {" "}
-          [SEND]
+          SEND
         </Text>
       </Box>
       <Box>

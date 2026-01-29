@@ -34,7 +34,7 @@ export function AtAGlance({ presenceState, height }: AtAGlanceProps) {
       flexShrink={0}
       borderStyle="single"
       borderColor="gray"
-      width={24}
+      width={28}
       height={height}
       paddingX={1}
       overflow="hidden"
@@ -52,40 +52,28 @@ export function AtAGlance({ presenceState, height }: AtAGlanceProps) {
         {userStats.claude > 0 && (
           <Box>
             <Text color={AGENT_CONFIG.claude.color}>●</Text>
-            <Text> </Text>
-            <Text color="white">
-              {userStats.claude} Using {AGENT_CONFIG.claude.displayName}
-            </Text>
+            <Text color="white"> {userStats.claude} Using {AGENT_CONFIG.claude.displayName}</Text>
           </Box>
         )}
 
         {userStats.codex > 0 && (
           <Box>
             <Text color={AGENT_CONFIG.codex.color}>●</Text>
-            <Text> </Text>
-            <Text color="white">
-              {userStats.codex} Using {AGENT_CONFIG.codex.displayName}
-            </Text>
+            <Text color="white"> {userStats.codex} Using {AGENT_CONFIG.codex.displayName}</Text>
           </Box>
         )}
 
         {userStats.cursor > 0 && (
           <Box>
             <Text color={AGENT_CONFIG.cursor.color}>●</Text>
-            <Text> </Text>
-            <Text color="white">
-              {userStats.cursor} Using {AGENT_CONFIG.cursor.displayName}
-            </Text>
+            <Text color="white"> {userStats.cursor} Using {AGENT_CONFIG.cursor.displayName}</Text>
           </Box>
         )}
 
         {userStats.windsurf > 0 && (
           <Box>
             <Text color={AGENT_CONFIG.windsurf.color}>●</Text>
-            <Text> </Text>
-            <Text color="white">
-              {userStats.windsurf} Using {AGENT_CONFIG.windsurf.displayName}
-            </Text>
+            <Text color="white"> {userStats.windsurf} Using {AGENT_CONFIG.windsurf.displayName}</Text>
           </Box>
         )}
 

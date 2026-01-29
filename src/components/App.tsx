@@ -23,12 +23,17 @@ import { getConfig } from "../lib/config.js";
 import { getNotificationManager } from "../lib/notification-manager.js";
 import type { AuthState, DmConversation as DmConvo } from "../lib/types.js";
 import { calculateMiddleSectionHeight, calculateMaxVisibleMessages } from "../lib/layout.js";
+import { StatusMessageProvider, useStatusMessage } from "../hooks/use-status-message.js";
+
+const CTRL_C_TIMEOUT = 3000; // 3 seconds to confirm exit
 
 export function App() {
   return (
-    <Router initialRoute="menu">
-      <AppContent />
-    </Router>
+    <StatusMessageProvider>
+      <Router initialRoute="menu">
+        <AppContent />
+      </Router>
+    </StatusMessageProvider>
   );
 }
 
@@ -36,6 +41,7 @@ function AppContent() {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { route, navigate } = useNavigation();
+  const { pushMessage } = useStatusMessage();
   const isWarp = process.env.TERM_PROGRAM === "WarpTerminal";
   const topPadding = isWarp ? 1 : 0;
   const [authState, setAuthState] = useState<AuthState>("unauthenticated");
@@ -55,6 +61,9 @@ function AppContent() {
 
   // Channel state
   const [currentChannel, setCurrentChannel] = useState("chat_room:global");
+
+  // Ctrl+C double-tap tracking
+  const lastCtrlCRef = useRef<number>(0);
   const prevAuthStateRef = useRef<AuthState | null>(null);
 
   // DM state
@@ -131,7 +140,6 @@ function AppContent() {
     globalPresence,
     subscribers,
     connect,
-    disconnect,
     channelManager,
   } = useMultiChannelChat(token, currentChannel, refetchChannels, incrementUnreadCount);
 
@@ -274,10 +282,12 @@ function AppContent() {
   // Handle logout
   const handleLogout = useCallback(async () => {
     // Mark current channel as read before disconnecting
-    if (currentChannel && channelManager) {
-      channelManager.markChannelAsReadBestEffort(currentChannel);
+    if (channelManager) {
+      if (currentChannel) {
+        channelManager.markChannelAsReadBestEffort(currentChannel);
+      }
+      channelManager.disconnect();
     }
-    disconnect();
     setToken(null);
     setAuthState("unauthenticated");
     setAuthStatus("");
@@ -286,7 +296,7 @@ function AppContent() {
     } catch {
       setAuthStatus("Logged out locally; failed to clear credentials.");
     }
-  }, [disconnect, currentChannel, channelManager]);
+  }, [currentChannel, channelManager]);
 
   // Handle create channel
   const handleCreateChannel = useCallback(async (name: string, description: string) => {
@@ -318,14 +328,29 @@ function AppContent() {
 
   // Global keyboard shortcuts
   useInput((input, key) => {
-    // Ctrl+C to exit
+    // Ctrl+C to exit (double-tap within 3 seconds)
     if (input === "c" && key.ctrl) {
-      // Mark current channel as read before disconnecting
-      if (currentChannel && channelManager) {
-        channelManager.markChannelAsReadBestEffort(currentChannel);
+      const now = Date.now();
+      const timeSinceLastCtrlC = now - lastCtrlCRef.current;
+
+      if (timeSinceLastCtrlC < CTRL_C_TIMEOUT) {
+        // Second press within timeout - exit
+        if (channelManager) {
+          if (currentChannel) {
+            channelManager.markChannelAsReadBestEffort(currentChannel);
+          }
+          channelManager.disconnect();
+        }
+        exit();
+        // Force exit to avoid waiting for Phoenix socket timeout
+        process.stdout.write('\n');
+        process.exit(0);
+      } else {
+        // First press - show message and record time
+        lastCtrlCRef.current = now;
+        pushMessage("Press Ctrl+C again to exit", "info", CTRL_C_TIMEOUT);
       }
-      disconnect();
-      exit();
+      return;
     }
     // Ctrl+O to logout (when authenticated)
     if (input === "o" && key.ctrl && authState === "authenticated") {

@@ -88,7 +88,7 @@ export const UserList = React.memo(function UserList({
               {user.currentAgent && (
                 <Box marginLeft={2}>
                   <Text color={getAgentColor(user.currentAgent)}>
-                    ⤷ Using {getAgentDisplayName(user.currentAgent)}
+                    ⎿ Using {getAgentDisplayName(user.currentAgent)}
                   </Text>
                 </Box>
               )}

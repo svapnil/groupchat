@@ -67,9 +67,6 @@ export function ChatView({
 
   // Display name: use channel name if available, otherwise fall back to slug
   const displayName = channelName || currentChannel;
-  const displayText = channelDescription
-    ? `${displayName} - ${channelDescription}`
-    : displayName;
 
   // Update terminal tab title for chat view
   useEffect(() => {
@@ -129,7 +126,7 @@ export function ChatView({
           error={error}
           backLabel="Menu"
           backShortcut="ESC"
-          title={<Text color="cyan" bold>#{displayText}</Text>}
+          title={<Text color={isPrivateChannel ? "cyan" : "green"} bold>#{displayName}</Text>}
         />
       </Layout.Footer>
     </Layout>

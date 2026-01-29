@@ -140,12 +140,6 @@ export function Menu({
 
   // Handle keyboard input in menu
   useInput((input, key) => {
-    // Esc to go back to chat
-    if (key.escape) {
-      navigate("chat");
-      return;
-    }
-
     // Arrow key navigation
     if (key.upArrow) {
       setSelectedIndex((prev) => Math.max(0, prev - 1));
@@ -336,7 +330,7 @@ export function Menu({
                 <Text color="cyan">Enter</Text> Join selected channel
               </Text>
               <Text color="gray">
-                <Text color="cyan">Esc</Text> Back to chat
+                <Text color="cyan">Ctrl+O</Text> Logout
               </Text>
               <Text color="gray">
                 <Text color="cyan">Ctrl+C</Text> Exit the app

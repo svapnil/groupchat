@@ -84,6 +84,9 @@ async function startChat() {
   } catch (err) {
     // Clean exit
   }
+
+  // Ensure terminal returns to a new line after exit
+  process.stdout.write('\n');
 }
 
 // Set up CLI

@@ -1,10 +1,11 @@
 import React from "react";
 import { Box, Text } from "ink";
 import type { ConnectionStatus } from "../lib/types.js";
+import { useStatusMessage, type StatusMessage } from "../hooks/use-status-message.js";
 
 interface StatusBarProps {
   connectionStatus: ConnectionStatus;
-  error: string | null;
+  error?: string | null;
   showUserToggle?: boolean;
   backLabel?: string;
   backShortcut?: string;
@@ -19,12 +20,26 @@ export function StatusBar({
   backShortcut,
   title,
 }: StatusBarProps) {
+  // Try to get message from context, but don't fail if provider is missing
+  let contextMessage: StatusMessage | null = null;
+  try {
+    const ctx = useStatusMessage();
+    contextMessage = ctx.message;
+  } catch {
+    // Provider not available, that's fine
+  }
+
+  // Context message takes precedence, then error prop
+  const displayMessage = contextMessage ?? (error ? { text: error, type: "error" as const } : null);
+
   const statusColor =
     connectionStatus === "connected"
       ? "green"
       : connectionStatus === "connecting"
         ? "yellow"
         : "red";
+
+  const messageColor = displayMessage?.type === "error" ? "red" : "gray";
 
   return (
     <Box
@@ -53,12 +68,12 @@ export function StatusBar({
 
       {/* Right side: status and shortcuts */}
       <Box>
-        {error ? (
-          <Text color="red">[Error: {error}]</Text>
+        {displayMessage ? (
+          <Text color={messageColor}>{displayMessage.text}</Text>
         ) : (
           <>
             <Text color={statusColor}>●</Text>
-            <Text color="gray"> | ↑/↓ scroll{showUserToggle ? " | Ctrl+E users" : ""} | Ctrl+C exit</Text>
+            <Text color="gray"> | ↑/↓ scroll{showUserToggle ? " | Ctrl+E users" : ""}</Text>
           </>
         )}
       </Box>
