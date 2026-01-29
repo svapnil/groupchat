@@ -60,6 +60,7 @@ function AppContent() {
   // DM state
   const [currentDm, setCurrentDm] = useState<DmConvo | null>(null);
   const [shouldStartDmSearch, setShouldStartDmSearch] = useState(false);
+  const [dmPreviousRoute, setDmPreviousRoute] = useState<"menu" | "dm-inbox">("dm-inbox");
 
   // Track active DM slug for unread count logic
   const activeDmSlug = route === "dm-chat" && currentDm ? currentDm.slug : null;
@@ -301,6 +302,7 @@ function AppContent() {
   const handleDmSelect = useCallback((dm: DmConvo) => {
     setCurrentDm(dm);
     clearDmUnreadCount(dm.slug);
+    setDmPreviousRoute("menu");
     navigate("dm-chat");
   }, [navigate, clearDmUnreadCount]);
 
@@ -335,8 +337,8 @@ function AppContent() {
       setShowUserList((prev) => !prev);
     }
 
-    // Shift+Tab to navigate to menu (when authenticated and in chat view)
-    if (key.tab && key.shift && authState === "authenticated" && route === "chat") {
+    // Esc to navigate to menu (when authenticated and in chat view)
+    if (key.escape && authState === "authenticated" && route === "chat") {
       navigate("menu");
     }
 
@@ -403,9 +405,7 @@ function AppContent() {
           height={terminalSize.rows}
           currentChannel={currentChannel}
           onChannelSelect={setCurrentChannel}
-          username={username}
           connectionStatus={connectionStatus}
-          onLogout={handleLogout}
           topPadding={topPadding}
           publicChannels={publicChannels}
           privateChannels={privateChannels}
@@ -434,9 +434,7 @@ function AppContent() {
         <CreateChannelScreen
           width={terminalSize.columns}
           height={terminalSize.rows}
-          username={username}
           connectionStatus={connectionStatus}
-          onLogout={handleLogout}
           onCreateChannel={handleCreateChannel}
           topPadding={topPadding}
           totalUnreadCount={combinedTotalUnreadCount}
@@ -450,6 +448,7 @@ function AppContent() {
     const handleSelectDm = (dm: DmConvo) => {
       setCurrentDm(dm);
       clearDmUnreadCount(dm.slug);
+      setDmPreviousRoute("dm-inbox");
       navigate("dm-chat");
     };
 
@@ -463,10 +462,8 @@ function AppContent() {
         <DmInbox
           width={terminalSize.columns}
           height={terminalSize.rows}
-          username={username}
           connectionStatus={connectionStatus}
           token={token}
-          onLogout={handleLogout}
           onSelectDm={handleSelectDm}
           topPadding={topPadding}
           totalUnreadCount={combinedTotalUnreadCount}
@@ -493,10 +490,10 @@ function AppContent() {
           username={username}
           channelManager={channelManager}
           token={token}
-          onLogout={handleLogout}
           topPadding={topPadding}
           totalUnreadCount={combinedTotalUnreadCount}
           globalPresence={globalPresence}
+          previousRoute={dmPreviousRoute}
         />
       </Box>
     );
@@ -511,7 +508,6 @@ function AppContent() {
       channelDescription={currentChannelDetails?.description || undefined}
       connectionStatus={connectionStatus}
       username={username}
-      onLogout={handleLogout}
       messages={messages}
       typingUsers={typingUsers}
       middleSectionHeight={middleSectionHeight}

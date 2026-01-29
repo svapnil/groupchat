@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
 import TextInput from "ink-text-input";
-import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
+import { StatusBar } from "./StatusBar.js";
 import { useNavigation } from "../routes/Router.js";
 import type { ConnectionStatus } from "../lib/types.js";
 import { LAYOUT_HEIGHTS } from "../lib/layout.js";
@@ -12,9 +12,7 @@ type ActiveField = "name" | "description" | "submit";
 interface CreateChannelScreenProps {
   width: number;
   height: number;
-  username: string | null;
   connectionStatus: ConnectionStatus;
-  onLogout: () => void;
   onCreateChannel: (name: string, description: string) => Promise<void>;
   topPadding?: number;
   totalUnreadCount?: number;
@@ -23,9 +21,7 @@ interface CreateChannelScreenProps {
 export function CreateChannelScreen({
   width,
   height,
-  username,
   connectionStatus,
-  onLogout,
   onCreateChannel,
   topPadding = 0,
   totalUnreadCount = 0,
@@ -64,19 +60,12 @@ export function CreateChannelScreen({
       return;
     }
 
-    // Shift+Tab to move to previous field (or back to menu if on first field)
+    // Shift+Tab to move to previous field
     if (key.tab && key.shift) {
-      // If on the first field (name), go back to menu
-      if (activeField === "name") {
-        navigate("menu");
-        return;
-      }
-
-      // Otherwise, navigate to previous field
       setActiveField((prev) => {
         if (prev === "submit") return "description";
         if (prev === "description") return "name";
-        return prev;
+        return "submit"; // cycle to submit if on name
       });
       return;
     }
@@ -126,21 +115,10 @@ export function CreateChannelScreen({
     }
   };
 
-  const contentHeight = height - topPadding - LAYOUT_HEIGHTS.header;
+  const contentHeight = height - topPadding - LAYOUT_HEIGHTS.statusBar;
 
   return (
     <Layout width={width} height={height} topPadding={topPadding}>
-      <Layout.Header>
-        <Header
-          username={username}
-          roomName="Create Channel"
-          connectionStatus={connectionStatus}
-          onLogout={onLogout}
-          title={<Text bold color="cyan">Create New Private Channel</Text>}
-          showStatus={false}
-        />
-      </Layout.Header>
-
       <Layout.Content>
         <Box flexDirection="column" height={contentHeight} padding={2}>
           {/* Name field */}
@@ -227,7 +205,7 @@ export function CreateChannelScreen({
               <Text color="cyan">Tab/Down</Text> Next field
             </Text>
             <Text color="gray">
-              <Text color="cyan">Shift+Tab/Up</Text> Previous field / Back to menu
+              <Text color="cyan">Shift+Tab/Up</Text> Previous field
             </Text>
             <Text color="gray">
               <Text color="cyan">Enter</Text> Submit (when on button)
@@ -238,6 +216,17 @@ export function CreateChannelScreen({
           </Box>
         </Box>
       </Layout.Content>
+
+      <Layout.Footer>
+        <StatusBar
+          connectionStatus={connectionStatus}
+          error={error}
+          showUserToggle={false}
+          backLabel="Menu"
+          backShortcut="ESC"
+          title={<Text color="cyan" bold>Create New Private Channel</Text>}
+        />
+      </Layout.Footer>
     </Layout>
   );
 }

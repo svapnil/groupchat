@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput } from "ink";
-import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
 import { StatusBar } from "./StatusBar.js";
 import { InputBox } from "./InputBox.js";
@@ -20,10 +19,10 @@ interface DmConversationProps {
   username: string | null;
   channelManager: ChannelManager | null;
   token: string | null;
-  onLogout: () => void;
   topPadding: number;
   totalUnreadCount: number;
   globalPresence: PresenceState;
+  previousRoute: "menu" | "dm-inbox";
 }
 
 export function DmConversation({
@@ -33,10 +32,10 @@ export function DmConversation({
   username,
   channelManager,
   token,
-  onLogout,
   topPadding,
   totalUnreadCount,
   globalPresence,
+  previousRoute,
 }: DmConversationProps) {
   const presenceData = globalPresence[dm.other_username];
   const isOtherUserOnline = !!presenceData;
@@ -170,12 +169,12 @@ export function DmConversation({
 
   useInput((input, key) => {
     // Navigate back
-    if (key.escape || (key.shift && key.tab)) {
+    if (key.escape) {
       // Mark as read before leaving
       if (channelManager && dm) {
         channelManager.markDmAsRead(dm.slug).catch(() => {});
       }
-      navigate("dm-inbox");
+      navigate(previousRoute);
       return;
     }
 
@@ -202,25 +201,6 @@ export function DmConversation({
 
   return (
     <Layout width={terminalSize.columns} height={terminalSize.rows} topPadding={topPadding}>
-      <Layout.Header>
-        <Header
-          roomName={`DM with @${dm.other_username}`}
-          username={username}
-          connectionStatus={connectionStatus}
-          onLogout={onLogout}
-          title={
-            <Text bold color="cyan">
-              <Text color={isOtherUserOnline ? "green" : "gray"}>●</Text> {dm.other_username}
-              {agentDisplayName && (
-                <Text bold={false} color={agentColor}>
-                  {" "}- Using {agentDisplayName}
-                </Text>
-              )}
-            </Text>
-          }
-        />
-      </Layout.Header>
-
       <Layout.Content>
         <Box flexDirection="column" height={middleSectionHeight}>
           {loading ? (
@@ -256,6 +236,13 @@ export function DmConversation({
           connectionStatus={connectionStatus}
           error={error}
           showUserToggle={false}
+          backLabel={previousRoute === "menu" ? "Menu" : "DM Inbox"}
+          backShortcut="ESC"
+          title={
+            <Text color="cyan" bold>
+              <Text color={isOtherUserOnline ? "green" : "gray"}>●</Text> {dm.other_username}
+            </Text>
+          }
         />
       </Layout.Footer>
     </Layout>

@@ -1,20 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput } from "ink";
-import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
 import { StatusBar } from "./StatusBar.js";
 import { useNavigation } from "../routes/Router.js";
 import { fetchDmConversations, createOrGetDm, searchUsers } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
+import { LAYOUT_HEIGHTS } from "../lib/layout.js";
 import type { DmConversation, ConnectionStatus, UserSearchResult, PresenceState } from "../lib/types.js";
 
 interface DmInboxProps {
   width: number;
   height: number;
-  username: string | null;
   connectionStatus: ConnectionStatus;
   token: string | null;
-  onLogout: () => void;
   onSelectDm: (dm: DmConversation) => void;
   topPadding: number;
   totalUnreadCount: number;
@@ -25,10 +23,8 @@ interface DmInboxProps {
 export function DmInbox({
   width,
   height,
-  username,
   connectionStatus,
   token,
-  onLogout,
   onSelectDm,
   topPadding,
   totalUnreadCount,
@@ -165,7 +161,7 @@ export function DmInbox({
     }
 
     // Normal mode input handling
-    if (key.escape || (key.shift && key.tab)) {
+    if (key.escape) {
       navigate("menu");
       return;
     }
@@ -211,20 +207,12 @@ export function DmInbox({
     }
   };
 
+  const contentHeight = height - topPadding - LAYOUT_HEIGHTS.statusBar;
+
   return (
     <Layout width={width} height={height} topPadding={topPadding}>
-      <Layout.Header>
-        <Header
-          roomName="Direct Messages"
-          username={username}
-          connectionStatus={connectionStatus}
-          onLogout={onLogout}
-          title={<Text bold color="cyan">Direct Messages</Text>}
-        />
-      </Layout.Header>
-
       <Layout.Content>
-        <Box flexDirection="column" paddingX={1}>
+        <Box flexDirection="column" height={contentHeight} paddingX={1}>
         {/* Search mode */}
         {isSearching ? (
           <Box flexDirection="column">
@@ -263,7 +251,7 @@ export function DmInbox({
           <Box flexDirection="column">
             <Box marginBottom={1} justifyContent="space-between">
               <Text color="cyan" bold>Conversations</Text>
-              <Text color="gray">[N] New DM  [Shift+Tab] Back</Text>
+              <Text color="gray">[N] New DM  [Esc] Back</Text>
             </Box>
 
             {loading ? (
@@ -312,6 +300,9 @@ export function DmInbox({
           connectionStatus={connectionStatus}
           error={error}
           showUserToggle={false}
+          backLabel="Menu"
+          backShortcut="ESC"
+          title={<Text color="cyan" bold>Direct Messages</Text>}
         />
       </Layout.Footer>
     </Layout>

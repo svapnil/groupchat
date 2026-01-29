@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Box, Text, useStdout } from "ink";
-import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
 import { MessageList } from "./MessageList.js";
 import { UserList } from "./UserList.js";
@@ -16,7 +15,6 @@ interface ChatViewProps {
   channelDescription?: string;
   connectionStatus: ConnectionStatus;
   username: string | null;
-  onLogout: () => void;
   messages: Message[];
   typingUsers: string[];
   middleSectionHeight: number;
@@ -43,7 +41,6 @@ export function ChatView({
   channelDescription,
   connectionStatus,
   username,
-  onLogout,
   messages,
   typingUsers,
   middleSectionHeight,
@@ -84,23 +81,6 @@ export function ChatView({
 
   return (
     <Layout width={terminalSize.columns} height={terminalSize.rows} topPadding={topPadding}>
-      <Layout.Header>
-        <Header
-          username={username}
-          roomName={currentChannel}
-          connectionStatus={connectionStatus}
-          onLogout={onLogout}
-          title={
-            <>
-              <Text color="gray">← Menu </Text>
-              <Text color="gray" dimColor>[SHIFT+TAB]</Text>
-              <Text color="gray"> | </Text>
-              <Text color="cyan" bold>#{displayText}</Text>
-            </>
-          }
-        />
-      </Layout.Header>
-
       <Layout.Content>
         <Box
           flexDirection="row"
@@ -121,8 +101,7 @@ export function ChatView({
             <UserList
               users={users}
               currentUsername={username}
-              // 1 below header and 1 above tooltip
-              height={Math.max(1, middleSectionHeight - tooltipHeight - 2)}
+              height={Math.max(1, middleSectionHeight - tooltipHeight - 1)}
               isPrivateChannel={isPrivateChannel}
             />
           )}
@@ -142,12 +121,17 @@ export function ChatView({
           onCommandSend={onCommandSend}
           onTooltipHeightChange={handleTooltipHeightChange}
         />
+      </Layout.Content>
 
+      <Layout.Footer>
         <StatusBar
           connectionStatus={connectionStatus}
           error={error}
+          backLabel="Menu"
+          backShortcut="ESC"
+          title={<Text color="cyan" bold>#{displayText}</Text>}
         />
-      </Layout.Content>
+      </Layout.Footer>
     </Layout>
   );
 }

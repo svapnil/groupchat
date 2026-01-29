@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
-import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
+import { StatusBar } from "./StatusBar.js";
 import { AtAGlance } from "./AtAGlance.js";
 import { useNavigation } from "../routes/Router.js";
 import type { ConnectionStatus, Channel, UnreadCounts, PresenceState, DmConversation } from "../lib/types.js";
@@ -17,9 +17,7 @@ interface MenuProps {
   height: number;
   currentChannel: string;
   onChannelSelect: (channel: string) => void;
-  username: string | null;
   connectionStatus: ConnectionStatus;
-  onLogout: () => void;
   topPadding?: number;
   publicChannels: Channel[];
   privateChannels: Channel[];
@@ -38,9 +36,7 @@ export function Menu({
   height,
   currentChannel,
   onChannelSelect,
-  username,
   connectionStatus,
-  onLogout,
   topPadding = 0,
   publicChannels,
   privateChannels,
@@ -139,13 +135,13 @@ export function Menu({
   useEffect(() => {
     if (!stdout) return;
     const unreadSuffix = totalUnreadCount > 0 ? ` (${totalUnreadCount})` : "";
-    stdout.write(`\x1b]0;Menu${unreadSuffix}\x07`);
+    stdout.write(`\x1b]0;groupchat${unreadSuffix}\x07`);
   }, [stdout, totalUnreadCount]);
 
   // Handle keyboard input in menu
   useInput((input, key) => {
-    // ESC or Shift+Tab to go back to chat
-    if (key.escape || (key.tab && key.shift)) {
+    // Esc to go back to chat
+    if (key.escape) {
       navigate("chat");
       return;
     }
@@ -183,7 +179,7 @@ export function Menu({
     }
   });
 
-  const contentHeight = height - topPadding - LAYOUT_HEIGHTS.header;
+  const contentHeight = height - topPadding - LAYOUT_HEIGHTS.statusBar;
 
   // Calculate which index is the start of each section
   const publicStartIndex = 0; // First section is now public channels
@@ -198,17 +194,6 @@ export function Menu({
 
   return (
     <Layout width={width} height={height} topPadding={topPadding}>
-      <Layout.Header>
-        <Header
-          username={username}
-          roomName="Menu"
-          connectionStatus={connectionStatus}
-          onLogout={onLogout}
-          title={<Text bold color="cyan">Menu</Text>}
-          showStatus={false}
-        />
-      </Layout.Header>
-
       <Layout.Content>
         <Box flexDirection="column" height={contentHeight}>
           {/* Top section: Channels and At a Glance */}
@@ -332,7 +317,7 @@ export function Menu({
 
             {/* Right side: At a Glance (compact, top-aligned) */}
             <Box paddingRight={2} paddingTop={2}>
-              <AtAGlance presenceState={globalPresence} />
+              <AtAGlance presenceState={globalPresence} height={contentHeight - 4} />
             </Box>
           </Box>
 
@@ -351,7 +336,7 @@ export function Menu({
                 <Text color="cyan">Enter</Text> Join selected channel
               </Text>
               <Text color="gray">
-                <Text color="cyan">Shift+Tab/ESC</Text> Back to chat
+                <Text color="cyan">Esc</Text> Back to chat
               </Text>
               <Text color="gray">
                 <Text color="cyan">Ctrl+C</Text> Exit the app
@@ -360,6 +345,14 @@ export function Menu({
           </Box>
         </Box>
       </Layout.Content>
+
+      <Layout.Footer>
+        <StatusBar
+          connectionStatus={connectionStatus}
+          error={null}
+          showUserToggle={false}
+        />
+      </Layout.Footer>
     </Layout>
   );
 }
@@ -376,7 +369,6 @@ function ChannelItem({ channel, isSelected, isPrivate = false, unreadCount = 0 }
     <Box marginLeft={2}>
       <Text color={isSelected ? "green" : "white"} bold={isSelected}>
         {isSelected ? "> " : "  "}
-        {isPrivate && <Text color="yellow">🔒 </Text>}
         #{channel.name || channel.slug}
         {unreadCount > 0 && (
           <Text color="green" bold>

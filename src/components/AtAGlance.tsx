@@ -5,9 +5,10 @@ import { AGENT_CONFIG } from "../lib/constants.js";
 
 interface AtAGlanceProps {
   presenceState: PresenceState;
+  height: number;
 }
 
-export function AtAGlance({ presenceState }: AtAGlanceProps) {
+export function AtAGlance({ presenceState, height }: AtAGlanceProps) {
   // Count online users and their agents
   const userStats = Object.values(presenceState).reduce(
     (acc, userData) => {
@@ -33,8 +34,10 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
       flexShrink={0}
       borderStyle="single"
       borderColor="gray"
-      width={26}
+      width={24}
+      height={height}
       paddingX={1}
+      overflow="hidden"
     >
       <Box marginBottom={1}>
         <Text color="white">At A Glance</Text>
@@ -48,7 +51,8 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
 
         {userStats.claude > 0 && (
           <Box>
-            <Text color={AGENT_CONFIG.claude.color}>● </Text>
+            <Text color={AGENT_CONFIG.claude.color}>●</Text>
+            <Text> </Text>
             <Text color="white">
               {userStats.claude} Using {AGENT_CONFIG.claude.displayName}
             </Text>
@@ -57,7 +61,8 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
 
         {userStats.codex > 0 && (
           <Box>
-            <Text color={AGENT_CONFIG.codex.color}>● </Text>
+            <Text color={AGENT_CONFIG.codex.color}>●</Text>
+            <Text> </Text>
             <Text color="white">
               {userStats.codex} Using {AGENT_CONFIG.codex.displayName}
             </Text>
@@ -66,7 +71,8 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
 
         {userStats.cursor > 0 && (
           <Box>
-            <Text color={AGENT_CONFIG.cursor.color}>● </Text>
+            <Text color={AGENT_CONFIG.cursor.color}>●</Text>
+            <Text> </Text>
             <Text color="white">
               {userStats.cursor} Using {AGENT_CONFIG.cursor.displayName}
             </Text>
@@ -75,7 +81,8 @@ export function AtAGlance({ presenceState }: AtAGlanceProps) {
 
         {userStats.windsurf > 0 && (
           <Box>
-            <Text color={AGENT_CONFIG.windsurf.color}>● </Text>
+            <Text color={AGENT_CONFIG.windsurf.color}>●</Text>
+            <Text> </Text>
             <Text color="white">
               {userStats.windsurf} Using {AGENT_CONFIG.windsurf.displayName}
             </Text>
