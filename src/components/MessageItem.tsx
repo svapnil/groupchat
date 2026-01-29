@@ -5,6 +5,7 @@ import type { Message } from "../lib/types.js";
 interface MessageItemProps {
   message: Message;
   isOwnMessage: boolean;
+  showHeader?: boolean;
 }
 
 /**
@@ -43,6 +44,7 @@ function formatTime(timestamp: string): string {
 export const MessageItem = React.memo(function MessageItem({
   message,
   isOwnMessage,
+  showHeader = true,
 }: MessageItemProps) {
   const time = formatTime(message.timestamp);
 
@@ -60,17 +62,19 @@ export const MessageItem = React.memo(function MessageItem({
   const usernameColor = getUsernameColor(message.username);
 
   if (isOwnMessage) {
-    // Own messages: right-aligned
+    // Own messages: left-aligned
     return (
-      <Box justifyContent="flex-end" paddingY={0}>
-        <Box flexDirection="column" alignItems="flex-end">
-          <Box>
-            <Text color="gray">[{time}] </Text>
-            <Text color={usernameColor} bold>
-              {message.username}
-            </Text>
-            <Text color="gray"> →</Text>
-          </Box>
+      <Box justifyContent="flex-start" paddingY={0}>
+        <Box flexDirection="column">
+          {showHeader && (
+            <Box>
+              <Text color="gray">→ </Text>
+              <Text color={usernameColor} bold>
+                {message.username}
+              </Text>
+              <Text color="gray"> {time}</Text>
+            </Box>
+          )}
           <Box paddingLeft={2}>
             <Text>{message.content}</Text>
           </Box>
@@ -79,17 +83,19 @@ export const MessageItem = React.memo(function MessageItem({
     );
   }
 
-  // Others' messages: left-aligned
+  // Others' messages: right-aligned
   return (
-    <Box justifyContent="flex-start" paddingY={0}>
-      <Box flexDirection="column">
-        <Box>
-          <Text color="gray">← </Text>
-          <Text color={usernameColor} bold>
-            {message.username}
-          </Text>
-          <Text color="gray"> [{time}]</Text>
-        </Box>
+    <Box justifyContent="flex-end" paddingY={0}>
+      <Box flexDirection="column" alignItems="flex-end">
+        {showHeader && (
+          <Box>
+            <Text color="gray">{time} </Text>
+            <Text color={usernameColor} bold>
+              {message.username}
+            </Text>
+            <Text color="gray"> ←</Text>
+          </Box>
+        )}
         <Box paddingLeft={2}>
           <Text>{message.content}</Text>
         </Box>

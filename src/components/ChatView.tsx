@@ -146,7 +146,6 @@ export function ChatView({
         <StatusBar
           connectionStatus={connectionStatus}
           error={error}
-          userCount={users.length}
         />
       </Layout.Content>
     </Layout>

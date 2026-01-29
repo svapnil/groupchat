@@ -109,7 +109,7 @@ export function InputBox({
       flexShrink={0}
     >
       <Box>
-        <Text color="cyan">$ </Text>
+        <Text color="cyan">❯ </Text>
         <Box flexGrow={1}>
           <TextInput
             value={value}

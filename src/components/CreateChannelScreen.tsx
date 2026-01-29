@@ -5,6 +5,7 @@ import { Header } from "./Header.js";
 import { Layout } from "./Layout.js";
 import { useNavigation } from "../routes/Router.js";
 import type { ConnectionStatus } from "../lib/types.js";
+import { LAYOUT_HEIGHTS } from "../lib/layout.js";
 
 type ActiveField = "name" | "description" | "submit";
 
@@ -125,9 +126,7 @@ export function CreateChannelScreen({
     }
   };
 
-  // Header is 3 lines tall
-  const headerHeight = 3;
-  const contentHeight = height - topPadding - headerHeight;
+  const contentHeight = height - topPadding - LAYOUT_HEIGHTS.header;
 
   return (
     <Layout width={width} height={height} topPadding={topPadding}>

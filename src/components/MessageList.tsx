@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Box, Text } from "ink";
 import { MessageItem } from "./MessageItem.js";
 import type { Message } from "../lib/types.js";
+import { LAYOUT_HEIGHTS } from "../lib/layout.js";
 
 interface MessageListProps {
   messages: Message[];
@@ -24,10 +25,9 @@ export const MessageList = React.memo(function MessageList({
   const othersTyping = typingUsers.filter((u) => u !== currentUsername);
 
   // Calculate how many messages can fit in the available space
-  // Each message takes approximately 2 lines (timestamp/username + content)
+  // Most messages take 1 line (content only), first in sequence takes 2 (header + content)
   const visibleMessages = useMemo(() => {
-    const linesPerMessage = 2;
-    const maxMessages = Math.floor(height / linesPerMessage);
+    const maxMessages = Math.floor(height / LAYOUT_HEIGHTS.linesPerMessage);
 
     // Calculate slice indices based on scroll offset
     // scrollOffset=0 means we're at the bottom (most recent messages)
@@ -53,13 +53,18 @@ export const MessageList = React.memo(function MessageList({
           <Text color="gray">No messages yet. Say hello!</Text>
         </Box>
       ) : (
-        visibleMessages.map((message) => (
-          <MessageItem
-            key={message.id}
-            message={message}
-            isOwnMessage={message.username === currentUsername}
-          />
-        ))
+        visibleMessages.map((message, index) => {
+          const prevMessage = visibleMessages[index - 1];
+          const showHeader = !prevMessage || prevMessage.username !== message.username;
+          return (
+            <MessageItem
+              key={message.id}
+              message={message}
+              isOwnMessage={message.username === currentUsername}
+              showHeader={showHeader}
+            />
+          );
+        })
       )}
 
       {isDetached && (

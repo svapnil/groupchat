@@ -5,22 +5,15 @@ import type { ConnectionStatus } from "../lib/types.js";
 interface StatusBarProps {
   connectionStatus: ConnectionStatus;
   error: string | null;
-  userCount: number;
+  showUserToggle?: boolean;
 }
 
 export function StatusBar({
   connectionStatus,
   error,
-  userCount,
+  showUserToggle = true,
 }: StatusBarProps) {
-  const presenceText =
-    connectionStatus === "connected"
-      ? "Active"
-      : connectionStatus === "connecting"
-        ? "Connecting"
-        : "Disconnected";
-
-  const presenceColor =
+  const statusColor =
     connectionStatus === "connected"
       ? "green"
       : connectionStatus === "connecting"
@@ -32,26 +25,18 @@ export function StatusBar({
       borderStyle="single"
       borderColor="gray"
       paddingX={1}
-      justifyContent="space-between"
+      justifyContent="flex-end"
       width="100%"
       flexShrink={0}
     >
-      <Box>
-        {error ? (
-          <Text color="red">[Error: {error}]</Text>
-        ) : (
-          <>
-            <Text color="gray">→ Presence: </Text>
-            <Text color={presenceColor}>{presenceText}</Text>
-          </>
-        )}
-      </Box>
-
-      <Box>
-        <Text color="gray">Users: </Text>
-        <Text color="cyan">{userCount}</Text>
-        <Text color="gray"> | ↑/↓ scroll | Ctrl+E users | Ctrl+C exit</Text>
-      </Box>
+      {error ? (
+        <Text color="red">[Error: {error}]</Text>
+      ) : (
+        <>
+          <Text color={statusColor}>●</Text>
+          <Text color="gray"> | ↑/↓ scroll{showUserToggle ? " | Ctrl+E users" : ""} | Ctrl+C exit</Text>
+        </>
+      )}
     </Box>
   );
 }

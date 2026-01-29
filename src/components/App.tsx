@@ -22,6 +22,7 @@ import { createChannel } from "../lib/chat-client.js";
 import { getConfig } from "../lib/config.js";
 import { getNotificationManager } from "../lib/notification-manager.js";
 import type { AuthState, DmConversation as DmConvo } from "../lib/types.js";
+import { calculateMiddleSectionHeight, calculateMaxVisibleMessages } from "../lib/layout.js";
 
 export function App() {
   return (
@@ -310,15 +311,8 @@ function AppContent() {
   }, [navigate]);
 
   // Calculate max visible messages for scroll bounds
-  const headerHeight = 3;
-  const inputBoxHeight = 4;
-  const statusBarHeight = 1;
-  const middleSectionHeight = Math.max(
-    5,
-    terminalSize.rows - topPadding - headerHeight - inputBoxHeight - statusBarHeight
-  );
-  const linesPerMessage = 2;
-  const maxVisibleMessages = Math.floor(middleSectionHeight / linesPerMessage);
+  const middleSectionHeight = calculateMiddleSectionHeight(terminalSize.rows, topPadding);
+  const maxVisibleMessages = calculateMaxVisibleMessages(middleSectionHeight);
 
   // Global keyboard shortcuts
   useInput((input, key) => {

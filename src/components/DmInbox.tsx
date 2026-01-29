@@ -311,7 +311,7 @@ export function DmInbox({
         <StatusBar
           connectionStatus={connectionStatus}
           error={error}
-          userCount={0}
+          showUserToggle={false}
         />
       </Layout.Footer>
     </Layout>

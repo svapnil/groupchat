@@ -11,6 +11,7 @@ import { getConfig } from "../lib/config.js";
 import { ChannelManager } from "../lib/channel-manager.js";
 import { getAgentColor, getAgentDisplayName } from "../lib/constants.js";
 import type { DmConversation as DmConvo, Message, ConnectionStatus, DmMessage, PresenceState } from "../lib/types.js";
+import { calculateMiddleSectionHeight, calculateMaxVisibleMessages } from "../lib/layout.js";
 
 interface DmConversationProps {
   terminalSize: { rows: number; columns: number };
@@ -163,15 +164,8 @@ export function DmConversation({
   }, [channelManager, dm]);
 
   // Calculate layout
-  const headerHeight = 3;
-  const inputBoxHeight = 4;
-  const statusBarHeight = 1;
-  const middleSectionHeight = Math.max(
-    5,
-    terminalSize.rows - topPadding - headerHeight - inputBoxHeight - statusBarHeight
-  );
-  const linesPerMessage = 2;
-  const maxVisibleMessages = Math.floor(middleSectionHeight / linesPerMessage);
+  const middleSectionHeight = calculateMiddleSectionHeight(terminalSize.rows, topPadding);
+  const maxVisibleMessages = calculateMaxVisibleMessages(middleSectionHeight);
   const maxOffset = Math.max(0, messages.length - maxVisibleMessages);
 
   useInput((input, key) => {
@@ -261,7 +255,7 @@ export function DmConversation({
         <StatusBar
           connectionStatus={connectionStatus}
           error={error}
-          userCount={2}
+          showUserToggle={false}
         />
       </Layout.Footer>
     </Layout>

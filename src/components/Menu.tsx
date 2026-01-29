@@ -5,6 +5,7 @@ import { Layout } from "./Layout.js";
 import { AtAGlance } from "./AtAGlance.js";
 import { useNavigation } from "../routes/Router.js";
 import type { ConnectionStatus, Channel, UnreadCounts, PresenceState, DmConversation } from "../lib/types.js";
+import { LAYOUT_HEIGHTS } from "../lib/layout.js";
 
 type MenuItem =
   | { type: "channel"; channel: Channel }
@@ -182,9 +183,7 @@ export function Menu({
     }
   });
 
-  // Header is 3 lines tall
-  const headerHeight = 3;
-  const contentHeight = height - topPadding - headerHeight;
+  const contentHeight = height - topPadding - LAYOUT_HEIGHTS.header;
 
   // Calculate which index is the start of each section
   const publicStartIndex = 0; // First section is now public channels
