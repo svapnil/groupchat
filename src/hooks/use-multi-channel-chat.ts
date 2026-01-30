@@ -218,6 +218,10 @@ export function useMultiChannelChat(
         onGlobalPresenceDiff: (diff) => {
           setGlobalPresence((prev) => applyPresenceDiff(prev, diff));
         },
+        onChannelListChanged: () => {
+          // Called when user is added to a channel via web invite
+          onChannelListChanged?.();
+        },
       }
     );
 
@@ -282,11 +286,11 @@ export function useMultiChannelChat(
 
     prevChannelRef.current = currentChannel;
 
-    // Set active channel in manager (affects message routing)
-    manager.setActiveChannel(currentChannel);
-
     // Load history for this channel
     async function loadHistory() {
+      // Set active channel in manager (affects message routing)
+      // This also subscribes to the channel if not already subscribed
+      await manager.setActiveChannel(currentChannel);
       if (isLoadingHistory.current || !manager) return;
 
       isLoadingHistory.current = true;

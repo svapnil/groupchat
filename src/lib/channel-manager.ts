@@ -234,6 +234,23 @@ export class ChannelManager {
       const { dm_slug, username } = payload as { dm_slug: string; username: string };
       this.callbacks.onDmTypingStop?.(dm_slug, username);
     });
+
+    // Handle channel_added (user subscribed to a new channel via web/invite)
+    this.userChannel.on("channel_added", (payload: unknown) => {
+      const { slug, name, type } = payload as { slug: string; name: string | null; type: string };
+
+      // Auto-subscribe to the new channel if not already subscribed
+      if (!this.channelStates.has(slug)) {
+        this.subscribeToChannel(slug)
+          .then(() => {
+            // Notify that channel list changed so UI can refresh
+            this.callbacks.onChannelListChanged?.();
+          })
+          .catch((err) => {
+            console.error(`Failed to auto-subscribe to ${slug}:`, err);
+          });
+      }
+    });
   }
 
   /**
@@ -257,6 +274,10 @@ export class ChannelManager {
       subscribers: [],
     };
 
+    // Store channel state BEFORE joining so event handlers can access it
+    // (presence_state event arrives right after join, sometimes before join callback)
+    this.channelStates.set(channelSlug, channelState);
+
     // Setup event handlers for this channel
     this.setupChannelHandlers(channel, channelSlug);
 
@@ -272,20 +293,21 @@ export class ChannelManager {
             this.username = response.username;
           }
 
-          // Store channel state
-          this.channelStates.set(channelSlug, channelState);
-
           // Notify callback
           this.callbacks.onChannelJoined?.(channelSlug, response.username || "");
 
           resolve();
         })
         .receive("error", (error: unknown) => {
+          // Remove channel state on join failure
+          this.channelStates.delete(channelSlug);
           const errorMsg = `Failed to join channel: ${channelSlug}`;
           this.callbacks.onError?.(errorMsg);
           reject(error);
         })
         .receive("timeout", () => {
+          // Remove channel state on timeout
+          this.channelStates.delete(channelSlug);
           const errorMsg = `Timeout joining channel: ${channelSlug}`;
           this.callbacks.onError?.(errorMsg);
           reject(new Error("timeout"));
@@ -449,9 +471,20 @@ export class ChannelManager {
   /**
    * Set the currently active channel.
    * This determines whether incoming messages are delivered immediately or buffered.
+   * Also subscribes to the channel if not already subscribed.
    */
-  setActiveChannel(channelSlug: string): void {
+  async setActiveChannel(channelSlug: string): Promise<void> {
     this.currentActiveChannel = channelSlug;
+
+    // Subscribe to the channel if not already subscribed
+    // This handles the case where a channel was created/added but we haven't joined yet
+    if (!this.channelStates.has(channelSlug)) {
+      try {
+        await this.subscribeToChannel(channelSlug);
+      } catch (err) {
+        console.error(`Failed to subscribe to ${channelSlug}:`, err);
+      }
+    }
   }
 
   /**
