@@ -140,13 +140,13 @@ export function Menu({
 
   // Handle keyboard input in menu
   useInput((input, key) => {
-    // Arrow key navigation
-    if (key.upArrow) {
+    // Arrow key navigation (and vim-style j/k)
+    if (key.upArrow || input === "k") {
       setSelectedIndex((prev) => Math.max(0, prev - 1));
       return;
     }
 
-    if (key.downArrow) {
+    if (key.downArrow || input === "j") {
       setSelectedIndex((prev) => Math.min(menuItems.length - 1, prev + 1));
       return;
     }

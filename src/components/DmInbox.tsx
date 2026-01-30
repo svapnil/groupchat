@@ -138,12 +138,12 @@ export function DmInbox({
         return;
       }
 
-      if (key.upArrow) {
+      if (key.upArrow || input === "k") {
         setSearchSelectedIndex((prev) => Math.max(0, prev - 1));
         return;
       }
 
-      if (key.downArrow) {
+      if (key.downArrow || input === "j") {
         setSearchSelectedIndex((prev) => Math.min(searchResults.length - 1, prev + 1));
         return;
       }
