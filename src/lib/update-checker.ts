@@ -13,6 +13,28 @@ export interface UpdateInfo {
   updateAvailable: boolean;
 }
 
+type InstallMethod = "homebrew" | "npm";
+
+function detectInstallMethod(): InstallMethod {
+  const env = process.env;
+
+  // Homebrew typically exposes these env vars in its shells.
+  if (env.HOMEBREW_PREFIX || env.HOMEBREW_CELLAR || env.HOMEBREW_REPOSITORY) {
+    return "homebrew";
+  }
+
+  // Detect Homebrew-managed paths when running from a Cellar install.
+  const candidates = [process.argv[1], process.execPath].filter(
+    (value): value is string => typeof value === "string"
+  );
+
+  if (candidates.some((p) => p.includes("/Cellar/") || p.includes("/Homebrew/"))) {
+    return "homebrew";
+  }
+
+  return "npm";
+}
+
 /**
  * Fetches the latest version from npm registry
  */
@@ -88,5 +110,9 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
  * Returns the npm install command for updating
  */
 export function getUpdateCommand(): string {
+  if (detectInstallMethod() === "homebrew") {
+    return "brew upgrade groupchat";
+  }
+
   return `npm install -g ${packageJson.name}`;
 }
