@@ -5,7 +5,7 @@ import { Menu } from "./Menu.js";
 import { ChatView } from "./ChatView.js";
 import { CreateChannelScreen } from "./CreateChannelScreen.js";
 import { DmInbox } from "./DmInbox.js";
-import { DmConversation } from "./DmConversation.js";
+import { DmConversation } from "./DmChatView.js";
 import { useMultiChannelChat } from "../hooks/use-multi-channel-chat.js";
 import { usePresence } from "../hooks/use-presence.js";
 import { useAgentDetection } from "../hooks/use-agent-detection.js";
