@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, createSignal } from "solid-js"
-import { useKeyboard } from "@opentui/solid"
+import { useKeyboard, useRenderer } from "@opentui/solid"
 import { Layout } from "../components/Layout"
 import { StatusBar } from "../components/StatusBar"
 import { useNavigation } from "../components/Router"
@@ -25,6 +25,7 @@ export function CreateChannelScreen(props: CreateChannelScreenProps) {
   const chat = useChatStore()
   const channels = useChannelsStore()
   const dms = useDmStore()
+  const renderer = useRenderer()
 
   const [name, setName] = createSignal("")
   const [description, setDescription] = createSignal("")
@@ -35,9 +36,8 @@ export function CreateChannelScreen(props: CreateChannelScreenProps) {
   const totalUnreadCount = createMemo(() => channels.totalUnreadCount() + dms.totalUnreadCount())
 
   createEffect(() => {
-    if (!process.stdout) return
     const unreadSuffix = totalUnreadCount() > 0 ? ` (${totalUnreadCount()})` : ""
-    process.stdout.write(`\x1b]0;Create Channel${unreadSuffix}\x07`)
+    renderer.setTerminalTitle(`Create Channel${unreadSuffix}`)
   })
 
   const handleSubmit = async () => {

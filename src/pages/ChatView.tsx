@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
-import { useKeyboard } from "@opentui/solid"
+import { useKeyboard, useRenderer } from "@opentui/solid"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { Layout } from "../components/Layout"
 import { MessageList } from "../components/MessageList"
@@ -24,6 +24,7 @@ export function ChatView(props: ChatViewProps) {
   const channels = useChannelsStore()
   const dms = useDmStore()
   const auth = useAuth()
+  const renderer = useRenderer()
 
   const [isDetached, setIsDetached] = createSignal(false)
   const [detachedLines, setDetachedLines] = createSignal(0)
@@ -79,11 +80,10 @@ export function ChatView(props: ChatViewProps) {
   }
 
   createEffect(() => {
-    if (!process.stdout) return
-    const prefix = chat.connectionStatus() === "connected" ? "* " : ""
+    const prefix = chat.connectionStatus() === "connected" ? "• " : ""
     const unreadSuffix = channels.totalUnreadCount() + dms.totalUnreadCount()
     const suffix = unreadSuffix > 0 ? ` (${unreadSuffix})` : ""
-    process.stdout.write(`\x1b]0;${prefix}#${displayName()}${suffix}\x07`)
+    renderer.setTerminalTitle(`${prefix}#${displayName()}${suffix}`)
   })
 
   createEffect(() => {

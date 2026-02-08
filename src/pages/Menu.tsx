@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
-import { useKeyboard } from "@opentui/solid"
+import { useKeyboard, useRenderer } from "@opentui/solid"
 import { Layout } from "../components/Layout"
 import { StatusBar } from "../components/StatusBar"
 import { AtAGlance } from "../components/AtAGlance"
@@ -27,6 +27,7 @@ export function Menu(props: MenuProps) {
   const channels = useChannelsStore()
   const chat = useChatStore()
   const dms = useDmStore()
+  const renderer = useRenderer()
 
   const sortedPublicChannels = createMemo(() => {
     return [...channels.publicChannels()].sort((a, b) => a.id.localeCompare(b.id))
@@ -92,9 +93,7 @@ export function Menu(props: MenuProps) {
   createEffect(() => {
     const unreadTotal = channels.totalUnreadCount() + dms.totalUnreadCount()
     const suffix = unreadTotal > 0 ? ` (${unreadTotal})` : ""
-    if (process.stdout) {
-      process.stdout.write(`\x1b]0;groupchat${suffix}\x07`)
-    }
+    renderer.setTerminalTitle(`groupchat${suffix}`)
   })
 
   useKeyboard((key) => {
@@ -155,8 +154,7 @@ export function Menu(props: MenuProps) {
   const dmCount = () => Math.min(5, dms.conversations().length)
   const dmSeeMoreIndex = () => (dms.conversations().length > 5 ? dmStartIndex() + dmCount() : -1)
   const helpLines = [
-    "Up/Down Navigate channels",
-    "Join selected channel",
+    "↑/↓ Navigate channels",
     "Ctrl+O Logout",
     "Ctrl+C Exit the app",
   ]

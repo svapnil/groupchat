@@ -1,5 +1,5 @@
 import { Show, createMemo, onMount } from "solid-js"
-import { useKeyboard } from "@opentui/solid"
+import { useKeyboard, useRenderer } from "@opentui/solid"
 
 export type LoginScreenProps = {
   onLogin: () => void
@@ -8,13 +8,12 @@ export type LoginScreenProps = {
 }
 
 export function LoginScreen(props: LoginScreenProps) {
+  const renderer = useRenderer()
   const isLoading = () => props.isLoading
   const hasStatus = createMemo(() => props.status.trim().length > 0)
 
   onMount(() => {
-    if (process.stdout) {
-      process.stdout.write("\x1b]0;Welcome to Groupchatty\x07")
-    }
+    renderer.setTerminalTitle("Welcome to Groupchatty")
   })
 
   useKeyboard((key) => {
