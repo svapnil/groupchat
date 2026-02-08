@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+// Wrapper script for groupchat. Resolves and executes a platform-specific binary package.
+
+const { existsSync, realpathSync } = require("fs");
+const { join, dirname } = require("path");
+const { spawnSync } = require("child_process");
+
+const platformMap = {
+  darwin: "darwin",
+  linux: "linux",
+  win32: "win32",
+};
+
+const archMap = {
+  x64: "x64",
+  arm64: "arm64",
+};
+
+const os = platformMap[process.platform];
+const arch = archMap[process.arch];
+
+if (!os) {
+  console.error(`groupchat: unsupported OS: ${process.platform}`);
+  process.exit(1);
+}
+
+if (!arch) {
+  console.error(`groupchat: unsupported architecture: ${process.arch}`);
+  process.exit(1);
+}
+
+const pkg = `@groupchat-cli/${os}-${arch}`;
+const binaryName = os === "win32" ? "groupchat.exe" : "groupchat";
+
+const scriptPath = realpathSync(__filename);
+const scriptDir = dirname(scriptPath);
+const logicalScriptDir = dirname(__filename);
+
+const candidates = [
+  // Nested under main package (npm default for scoped optionalDeps)
+  join(scriptDir, "..", "node_modules", pkg, "bin", binaryName),
+  join(logicalScriptDir, "..", "node_modules", pkg, "bin", binaryName),
+  // Hoisted layout
+  join(scriptDir, "..", "..", pkg, "bin", binaryName),
+  join(logicalScriptDir, "..", "..", pkg, "bin", binaryName),
+  // Local development
+  join(scriptDir, "..", "npm", `${os}-${arch}`, "bin", binaryName),
+  join(logicalScriptDir, "..", "npm", `${os}-${arch}`, "bin", binaryName),
+];
+
+// Global npm installs can put packages in either <prefix>/node_modules or <prefix>/lib/node_modules.
+const prefixProc = spawnSync("npm", ["prefix", "-g"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+if (prefixProc.status === 0) {
+  const prefix = prefixProc.stdout.trim();
+  if (prefix) {
+    candidates.push(join(prefix, "node_modules", pkg, "bin", binaryName));
+    candidates.push(join(prefix, "lib", "node_modules", pkg, "bin", binaryName));
+  }
+}
+
+const binaryPath = candidates.find((candidate) => existsSync(candidate));
+
+if (!binaryPath) {
+  console.error(`groupchat: could not find platform binary for ${os}-${arch}`);
+  console.error(`Expected package: ${pkg}`);
+  console.error("Try reinstalling: npm install -g groupchat");
+  process.exit(1);
+}
+
+const result = spawnSync(binaryPath, process.argv.slice(2), { stdio: "inherit" });
+if (result.error) {
+  console.error(`groupchat: failed to launch ${binaryPath}`);
+  console.error(result.error.message);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);
