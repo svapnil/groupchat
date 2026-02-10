@@ -7,6 +7,17 @@ import type {
 } from "./commands.js";
 import { parameterValidators } from "./commands.js";
 
+const normalizeUsernameParameterValue = (value: string, prefix: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (prefix && trimmed.startsWith(prefix)) {
+    return trimmed.substring(prefix.length);
+  }
+
+  return trimmed;
+};
+
 // ============================================
 // PARSED COMMAND STATE
 // ============================================
@@ -190,7 +201,7 @@ export function extractCommandPayload(
     switch (param.type) {
       case "username": {
         const p = param as UsernameParameter;
-        const username = value.substring(p.prefix.length);
+        const username = normalizeUsernameParameterValue(value, p.prefix);
 
         // For async source, prefer asyncSearchResults
         let user;

@@ -26,7 +26,7 @@ export const useUserSearch = (options: {
       if (cache.has(cacheKey)) {
         const cached = cache.get(cacheKey) ?? []
         setResults(cached)
-        setSuggestions(cached.map((user) => `@${user.username}`))
+        setSuggestions(cached.map((user) => user.username))
         return
       }
 
@@ -35,7 +35,7 @@ export const useUserSearch = (options: {
         const result = await searchUsers(wsUrl, token, query, slug ?? undefined)
         cache.set(cacheKey, result.users)
         setResults(result.users)
-        setSuggestions(result.users.map((user) => `@${user.username}`))
+        setSuggestions(result.users.map((user) => user.username))
       } catch (err) {
         console.error("User search failed:", err)
         setResults([])

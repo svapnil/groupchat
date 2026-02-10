@@ -58,6 +58,20 @@ export interface ValidationResult {
   suggestions?: string[]; // For autocomplete
 }
 
+const normalizeUsernameValue = (value: string, prefix: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (prefix && trimmed.startsWith(prefix)) {
+    return trimmed.substring(prefix.length);
+  }
+
+  return trimmed;
+};
+
+const formatUsernameSuggestion = (username: string, prefix: string) =>
+  prefix ? `${prefix}${username}` : username;
+
 // ============================================
 // PARAMETER VALIDATORS
 // ============================================
@@ -68,10 +82,11 @@ export const parameterValidators: Record<
 > = {
   username: (value, param, ctx) => {
     const p = param as UsernameParameter;
+    const rawValue = value.trim();
 
     // For search-backed source, validate against search results
     if (p.source === "search") {
-      if (!value.startsWith(p.prefix)) {
+      if (p.prefix && !rawValue.startsWith(p.prefix)) {
         return {
           isValid: false,
           error: `Must start with ${p.prefix}`,
@@ -79,13 +94,13 @@ export const parameterValidators: Record<
         };
       }
 
-      const username = value.substring(p.prefix.length);
+      const username = normalizeUsernameValue(rawValue, p.prefix);
       const results = ctx.asyncSearchResults || [];
       if (!username) {
         return {
           isValid: false,
           error: "Username required",
-          suggestions: results.map(r => `${p.prefix}${r.username}`),
+          suggestions: results.map(r => formatUsernameSuggestion(r.username, p.prefix)),
         };
       }
 
@@ -99,7 +114,7 @@ export const parameterValidators: Record<
       return {
         isValid: results.length > 0 && !!exactMatch,
         error: results.length === 0 ? "User not found" : exactMatch ? undefined : "User not found",
-        suggestions: matching.map(r => `${p.prefix}${r.username}`),
+        suggestions: matching.map(r => formatUsernameSuggestion(r.username, p.prefix)),
       };
     }
 
@@ -119,20 +134,20 @@ export const parameterValidators: Record<
     };
     const users = getUserList();
 
-    if (!value.startsWith(p.prefix)) {
+    if (p.prefix && !rawValue.startsWith(p.prefix)) {
       return {
         isValid: false,
         error: `Must start with ${p.prefix}`,
-        suggestions: users.map(u => `${p.prefix}${u.username}`),
+        suggestions: users.map(u => formatUsernameSuggestion(u.username, p.prefix)),
       };
     }
 
-    const username = value.substring(p.prefix.length);
+    const username = normalizeUsernameValue(rawValue, p.prefix);
     if (!username) {
       return {
         isValid: false,
         error: "Username required",
-        suggestions: users.map(u => `${p.prefix}${u.username}`),
+        suggestions: users.map(u => formatUsernameSuggestion(u.username, p.prefix)),
       };
     }
 
@@ -147,7 +162,7 @@ export const parameterValidators: Record<
     return {
       isValid: !!exactMatch,
       error: exactMatch ? undefined : "User not found",
-      suggestions: matchingUsers.map(u => `${p.prefix}${u.username}`),
+      suggestions: matchingUsers.map(u => formatUsernameSuggestion(u.username, p.prefix)),
     };
   },
 
@@ -202,7 +217,7 @@ export const parameterValidators: Record<
 
 export interface Command {
   name: string;           // e.g., "/invite"
-  syntax: string;         // e.g., "/invite @user"
+  syntax: string;         // e.g., "/invite user"
   description: string;
   privateOnly: boolean;
   adminOnly?: boolean;
@@ -217,23 +232,23 @@ export interface Command {
 export const COMMANDS: Command[] = [
   {
     name: "/invite",
-    syntax: "/invite @user",
+    syntax: "/invite username",
     description: "Invite a user to join the channel",
     privateOnly: true,
     adminOnly: true,
     parameters: [
-      { name: "user", type: "username", required: true, prefix: "@", source: "search" },
+      { name: "user", type: "username", required: true, prefix: "", source: "search" },
     ],
     eventType: "invite_user",
   },
   {
     name: "/remove",
-    syntax: "/remove @user",
+    syntax: "/remove username",
     description: "Remove a user from the channel",
     privateOnly: true,
     adminOnly: true,
     parameters: [
-      { name: "user", type: "username", required: true, prefix: "@", source: "subscribed_without_self" },
+      { name: "user", type: "username", required: true, prefix: "", source: "subscribed_without_self" },
     ],
     eventType: "remove_user",
   },

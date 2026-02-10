@@ -57,7 +57,7 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
     const parsed = parsedWithoutAsync()
     if (parsed.command?.name === "/invite" && parsed.phase === "parameter") {
       const raw = parsed.parameterValues.get("user") || ""
-      return raw.replace(/^@/, "")
+      return raw.trim()
     }
     return null
   })
