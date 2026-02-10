@@ -1,4 +1,5 @@
-import { createSignal, onCleanup } from "solid-js"
+import { createMemo, createSignal, onCleanup } from "solid-js"
+import { isCommandLikeInput, startsWithKnownCommand } from "../lib/command-input"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
 
 export type InputBoxProps = {
@@ -7,6 +8,7 @@ export type InputBoxProps = {
   onTypingStop: () => void
   disabled: boolean
   onInputChange?: (value: string) => void
+  commandNames?: string[]
   placeholder?: string
 }
 
@@ -27,7 +29,7 @@ export function InputBox(props: InputBoxProps) {
 
   const handleChange = (newValue: string) => {
     setValue(newValue)
-    const isCommandLike = newValue.startsWith("/") || newValue.startsWith("?")
+    const isCommandLike = isCommandLikeInput(newValue)
 
     if (isCommandLike) {
       isCommandMode = true
@@ -95,6 +97,8 @@ export function InputBox(props: InputBoxProps) {
   })
 
   const canSend = () => !props.disabled && value().trim().length > 0
+  const isKnownCommandPrefix = createMemo(() => startsWithKnownCommand(value(), props.commandNames || []))
+  const inputTextColor = () => (isKnownCommandPrefix() ? "cyan" : "#FFFFFF")
   const placeholder = () => (props.disabled ? "Connecting..." : props.placeholder || "Type a message...")
 
   return (
@@ -123,6 +127,8 @@ export function InputBox(props: InputBoxProps) {
             placeholder={placeholder()}
             focused={!props.disabled}
             width="100%"
+            textColor={inputTextColor()}
+            focusedTextColor={inputTextColor()}
           />
         </box>
         <text fg={canSend() ? "#00FF00" : "gray"}> SEND</text>

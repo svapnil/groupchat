@@ -1,4 +1,7 @@
-const PACKAGE_VERSION = process.env.__GROUPCHAT_VERSION__ ?? "0.0.0"
+const PACKAGE_VERSION =
+  process.env.__GROUPCHAT_VERSION__ ??
+  process.env.npm_package_version ??
+  "0.0.0"
 const PACKAGE_NAME = "groupchat"
 
 export interface UpdateInfo {

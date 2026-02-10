@@ -1,23 +1,14 @@
 import { createMemo, createSignal } from "solid-js"
-import { COMMANDS, type Command, type ValidationContext } from "../lib/commands"
+import { COMMANDS, type ValidationContext } from "../lib/commands"
 import {
   extractCommandPayload,
-  getSuggestions,
   parseCommandInput,
   type ParsedCommand,
 } from "../lib/command-parser"
+import { buildTooltipState, dispatchTooltipSuggestion, type TooltipState } from "../lib/command-tooltip"
 import type { ConnectionStatus, Subscriber } from "../lib/types"
 import type { UserWithStatus } from "./presence"
 import { useUserSearch } from "./use-user-search"
-
-type TooltipType = "Command" | "User"
-
-export type TooltipState = {
-  show: boolean
-  tips: Command[] | string[]
-  type: TooltipType
-  height: number
-}
 
 export type UseCommandInputOptions = {
   token: () => string | null
@@ -88,38 +79,17 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
   )
 
   const suggestionResult = createMemo(() => {
-    const isCommandLike = inputValue().startsWith("/") || inputValue().startsWith("?")
-    if (!isCommandLike) return null
-
-    if (parsed().command?.name === "/invite" && parsed().phase === "parameter" && userSearch.suggestions().length) {
-      return { type: "parameter", parameterSuggestions: userSearch.suggestions() } as const
-    }
-
-    return getSuggestions(inputValue(), availableCommands(), parsed())
+    return dispatchTooltipSuggestion({
+      input: inputValue(),
+      commands: availableCommands(),
+      parsed: parsed(),
+      asyncParameterSuggestions: userSearch.suggestions(),
+    })
   })
 
-  const tooltip = createMemo<TooltipState>(() => {
-    const suggestion = suggestionResult()
-    if (!suggestion) {
-      return { show: false, tips: [], type: "Command", height: 0 }
-    }
+  const tooltip = createMemo<TooltipState>(() => buildTooltipState(suggestionResult()))
 
-    if (suggestion.type === "commands" && suggestion.commands) {
-      const tips = suggestion.commands
-      return { show: true, tips, type: "Command", height: tips.length + 1 }
-    }
-
-    if (suggestion.type === "parameter" && suggestion.parameterSuggestions) {
-      const tips = suggestion.parameterSuggestions
-      return { show: true, tips, type: "User", height: tips.length + 1 }
-    }
-
-    return { show: false, tips: [], type: "Command", height: 0 }
-  })
-
-  const isInputDisabled = createMemo(
-    () => options.connectionStatus() !== "connected" || (parsed().command !== null && !parsed().isValid)
-  )
+  const isInputDisabled = createMemo(() => options.connectionStatus() !== "connected")
 
   const handleInputChange = (value: string) => {
     setInputValue(value)
@@ -130,6 +100,10 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
       ...validationContext(),
       asyncSearchResults: userSearch.results().length > 0 ? userSearch.results() : undefined,
     })
+
+    if (parsedForSend.command && !parsedForSend.isValid) {
+      return
+    }
 
     if (parsedForSend.command && parsedForSend.isValid) {
       const payload = extractCommandPayload(parsedForSend, validationContext())
@@ -144,9 +118,12 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
     setInputValue("")
   }
 
+  const availableCommandNames = createMemo(() => availableCommands().map((command) => command.name))
+
   return {
     inputValue,
     parsed,
+    availableCommandNames,
     tooltip,
     isInputDisabled,
     handleInputChange,

@@ -49,6 +49,7 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
         onTypingStart={props.onTypingStart}
         onTypingStop={props.onTypingStop}
         onInputChange={commandInput.handleInputChange}
+        commandNames={commandInput.availableCommandNames()}
         disabled={commandInput.isInputDisabled()}
       />
     </>
