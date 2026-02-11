@@ -7,6 +7,7 @@ export type InputBoxProps = {
   onTypingStart: () => void
   onTypingStop: () => void
   disabled: boolean
+  sendDisabled?: boolean
   onInputChange?: (value: string) => void
   commandNames?: string[]
   placeholder?: string
@@ -65,7 +66,7 @@ export function InputBox(props: InputBoxProps) {
   const handleSubmit = async (submittedValue?: string) => {
     const candidate = submittedValue ?? value()
     const trimmed = candidate.trim()
-    if (!trimmed || props.disabled || isSending()) return
+    if (!trimmed || props.disabled || props.sendDisabled || isSending()) return
 
     setIsSending(true)
 
@@ -96,7 +97,7 @@ export function InputBox(props: InputBoxProps) {
     }
   })
 
-  const canSend = () => !props.disabled && value().trim().length > 0
+  const canSend = () => !props.disabled && !props.sendDisabled && value().trim().length > 0
   const isKnownCommandPrefix = createMemo(() => startsWithKnownCommand(value(), props.commandNames || []))
   const inputTextColor = () => (isKnownCommandPrefix() ? "cyan" : "#FFFFFF")
   const placeholder = () => (props.disabled ? "Connecting..." : props.placeholder || "Type a message...")

@@ -51,6 +51,7 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
         onInputChange={commandInput.handleInputChange}
         commandNames={commandInput.availableCommandNames()}
         disabled={commandInput.isInputDisabled()}
+        sendDisabled={commandInput.isSendDisabled()}
       />
     </>
   )

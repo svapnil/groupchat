@@ -90,6 +90,9 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
   const tooltip = createMemo<TooltipState>(() => buildTooltipState(suggestionResult()))
 
   const isInputDisabled = createMemo(() => options.connectionStatus() !== "connected")
+  const isSendDisabled = createMemo(
+    () => options.connectionStatus() !== "connected" || (parsed().command !== null && !parsed().isValid)
+  )
 
   const handleInputChange = (value: string) => {
     setInputValue(value)
@@ -126,6 +129,7 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
     availableCommandNames,
     tooltip,
     isInputDisabled,
+    isSendDisabled,
     handleInputChange,
     handleSubmit,
   }
