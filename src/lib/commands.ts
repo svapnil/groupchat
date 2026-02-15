@@ -230,6 +230,12 @@ export const LOCAL_COMMAND_EVENTS = {
   claudeExit: "local_claude_exit",
 } as const
 
+export const isClaudeCommandEvent = (eventType: string) =>
+  eventType === LOCAL_COMMAND_EVENTS.claudeEnter || eventType === LOCAL_COMMAND_EVENTS.claudeExit
+
+export const isClaudeCommand = (command: Pick<Command, "eventType">) =>
+  isClaudeCommandEvent(command.eventType)
+
 // ============================================
 // COMMAND REGISTRY
 // ============================================

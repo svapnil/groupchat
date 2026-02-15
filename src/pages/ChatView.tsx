@@ -10,6 +10,8 @@ import { useChannelsStore } from "../stores/channel-store"
 import { useDmStore } from "../stores/dm-store"
 import { useAuth } from "../stores/auth-store"
 import { calculateMiddleSectionHeight } from "../lib/layout"
+import { isClaudeCommand } from "../lib/commands"
+import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 import { createPresenceUsers } from "../primitives/presence"
 import { createChatViewBase } from "../primitives/create-chat-view-base"
 
@@ -18,6 +20,8 @@ export type ChatViewProps = {
   height: number
   topPadding?: number
 }
+
+const runtimeCapabilities = getRuntimeCapabilities()
 
 export function ChatView(props: ChatViewProps) {
   const chat = useChatStore()
@@ -190,6 +194,7 @@ export function ChatView(props: ChatViewProps) {
           onTypingStart={handleTypingStart}
           onTypingStop={handleTypingStop}
           onCommandSend={handleSendCommand}
+          commandFilter={(command) => runtimeCapabilities.hasClaude || !isClaudeCommand(command)}
           onTooltipHeightChange={base.handleTooltipHeightChange}
           claudeMode={base.isClaudeMode()}
           claudePendingPermission={base.claude.pendingPermission()}

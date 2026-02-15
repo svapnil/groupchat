@@ -2,6 +2,7 @@ import { render } from "@opentui/solid"
 import App from "./components/App"
 import { UpdatePrompt } from "./pages/UpdatePrompt"
 import { checkForUpdate, type UpdateInfo } from "./lib/update-checker"
+import { initializeRuntimeCapabilities } from "./lib/runtime-capabilities"
 
 async function main() {
   // Check if terminal supports our requirements
@@ -9,6 +10,8 @@ async function main() {
     console.error("Error: groupchat requires an interactive terminal.\n")
     process.exit(1)
   }
+
+  initializeRuntimeCapabilities()
 
   // Check for updates
   const updateInfo = await checkForUpdate()

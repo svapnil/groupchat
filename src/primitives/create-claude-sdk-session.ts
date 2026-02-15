@@ -3,6 +3,7 @@ import { createSignal, onCleanup } from "solid-js"
 import type { ServerWebSocket } from "bun"
 import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../lib/types"
 import { debugLog } from "../lib/debug.js"
+import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 
 /**
  * Claude Code control_request subtypes from companion/WEBSOCKET_PROTOCOL_REVERSED.md (section 7).
@@ -1011,6 +1012,15 @@ export const createClaudeSdkSession = () => {
       return
     }
 
+    const runtimeCapabilities = getRuntimeCapabilities()
+    if (!runtimeCapabilities.hasClaude || !runtimeCapabilities.claudePath) {
+      const errorMessage = "Claude executable not found in PATH. Install Claude Code to use /claude."
+      log("start:missing_executable", `hasClaude=${runtimeCapabilities.hasClaude}`)
+      setLastError(errorMessage)
+      appendSystemMessage(errorMessage)
+      return
+    }
+
     setIsConnecting(true)
     setLastError(null)
     setPendingPermission(null)
@@ -1074,9 +1084,9 @@ export const createClaudeSdkSession = () => {
         "--verbose",
         "-p", "",
       ]
-      log("process:spawn", `cmd=claude`, `args=${args.join(" ")}`)
+      log("process:spawn", `cmd=${runtimeCapabilities.claudePath}`, `args=${args.join(" ")}`)
 
-      claudeProcess = Bun.spawn(["claude", ...args], {
+      claudeProcess = Bun.spawn([runtimeCapabilities.claudePath, ...args], {
         stdout: "pipe",
         stderr: "pipe",
         env: {

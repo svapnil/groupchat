@@ -9,11 +9,12 @@ import { useChatStore } from "../stores/chat-store"
 import { useAuth } from "../stores/auth-store"
 import { PRESENCE } from "../lib/colors"
 import { useChannelsStore } from "../stores/channel-store"
-import { LOCAL_COMMAND_EVENTS } from "../lib/commands"
+import { isClaudeCommand } from "../lib/commands"
 import { useNavigation } from "../components/Router"
 import { fetchDmMessages } from "../lib/chat-client"
 import { getConfig } from "../lib/config"
 import { calculateMiddleSectionHeight } from "../lib/layout"
+import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 import type { DmMessage, Message } from "../lib/types"
 import { createChatViewBase } from "../primitives/create-chat-view-base"
 
@@ -22,6 +23,8 @@ export type DmChatViewProps = {
   height: number
   topPadding?: number
 }
+
+const runtimeCapabilities = getRuntimeCapabilities()
 
 export function DmChatView(props: DmChatViewProps) {
   const navigation = useNavigation()
@@ -260,10 +263,7 @@ export function DmChatView(props: DmChatViewProps) {
           onTypingStop={handleTypingStop}
           onCommandSend={handleCommand}
           placeholder={conversation() ? `Message @${conversation()!.other_username}...` : "Type a message..."}
-          commandFilter={(command) =>
-            command.eventType === LOCAL_COMMAND_EVENTS.claudeEnter ||
-            command.eventType === LOCAL_COMMAND_EVENTS.claudeExit
-          }
+          commandFilter={(command) => runtimeCapabilities.hasClaude && isClaudeCommand(command)}
           onTooltipHeightChange={base.handleTooltipHeightChange}
           claudeMode={base.isClaudeMode()}
           claudePendingPermission={base.claude.pendingPermission()}
