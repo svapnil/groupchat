@@ -225,11 +225,34 @@ export interface Command {
   eventType: string;      // Phoenix event to send
 }
 
+export const LOCAL_COMMAND_EVENTS = {
+  claudeEnter: "local_claude_enter",
+  claudeExit: "local_claude_exit",
+} as const
+
 // ============================================
 // COMMAND REGISTRY
 // ============================================
 
 export const COMMANDS: Command[] = [
+  {
+    name: "/claude",
+    syntax: "/claude",
+    description: "Enter Claude Code mode",
+    privateOnly: false,
+    adminOnly: false,
+    parameters: [],
+    eventType: LOCAL_COMMAND_EVENTS.claudeEnter,
+  },
+  {
+    name: "/exit",
+    syntax: "/exit",
+    description: "Exit Claude Code mode",
+    privateOnly: false,
+    adminOnly: false,
+    parameters: [],
+    eventType: LOCAL_COMMAND_EVENTS.claudeExit,
+  },
   {
     name: "/invite",
     syntax: "/invite username",

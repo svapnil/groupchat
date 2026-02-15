@@ -1,0 +1,49 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`MessageList renders empty state 1`] = `
+"                                                                      
+                                                                      
+                                                                      
+                                                                      
+                     No messages yet. Say hello!                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+"
+`;
+
+exports[`MessageList renders messages and typing indicator 1`] = `
+"                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+ alice joined #general                                                
+ bob joined #general                                                  
+ bob is typing...                                                     
+                                                                      
+                                                                      
+"
+`;
+
+exports[`MessageList renders detached indicator 1`] = `
+"                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+ detached sample                                                      
+ -- 5 lines below (Down to scroll) --                                 
+                                                                      
+                                                                      
+"
+`;

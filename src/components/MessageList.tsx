@@ -2,6 +2,7 @@ import { For, Show, createMemo, type Ref } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { MessageItem } from "./MessageItem"
 import type { Message } from "../lib/types"
+import { buildClaudeDepthMap } from "../lib/claude-helpers"
 
 export type MessageListProps = {
   messages: Message[]
@@ -11,12 +12,17 @@ export type MessageListProps = {
   isDetached: boolean
   detachedLines?: number
   scrollRef?: Ref<ScrollBoxRenderable>
+  /** ID of the message that has an active (unresolved) permission request */
+  permissionMessageId?: string | null
+  /** Currently highlighted option index for the permission selector (0=Allow, 1=Deny) */
+  permissionSelectedIndex?: number
 }
 
 export function MessageList(props: MessageListProps) {
   const othersTyping = createMemo(() =>
     props.typingUsers.filter((user) => user !== props.currentUsername)
   )
+  const claudeDepthByMessageId = createMemo(() => buildClaudeDepthMap(props.messages))
 
   const footerLines = createMemo(() => {
     if (props.isDetached) return 1
@@ -54,6 +60,10 @@ export function MessageList(props: MessageListProps) {
                   message={message}
                   isOwnMessage={message.username === props.currentUsername}
                   showHeader={showHeader()}
+                  claudeDepth={claudeDepthByMessageId().get(message.id) ?? 0}
+                  permissionSelectedIndex={
+                    props.permissionMessageId === message.id ? props.permissionSelectedIndex : undefined
+                  }
                 />
               )
             }}

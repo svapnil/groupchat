@@ -11,10 +11,13 @@
   ],
   "scripts": {
     "dev": "bun --watch run src/index.tsx",
-    "dev:node": "tsx --watch src/index.tsx",
+    "dev:debug": "GROUPCHAT_DEBUG=1 bun --watch run src/index.tsx",
+    "dev:debug:console": "GROUPCHAT_DEBUG=1 SHOW_CONSOLE=true bun --watch run src/index.tsx",
     "build": "bun run build.ts",
     "start": "bun run dist/index.js",
-    "start_prod:node": "bun run build && bun run dist/index.js",
+    "test": "bun test test --preload @opentui/solid/preload",
+    "test:watch": "bun test test --watch --preload @opentui/solid/preload",
+    "test:update-snapshots": "bun test test --update-snapshots --preload @opentui/solid/preload",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run typecheck && bun run build"
   },

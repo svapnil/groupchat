@@ -1,5 +1,5 @@
 import { createMemo, createSignal } from "solid-js"
-import { COMMANDS, type ValidationContext } from "../lib/commands"
+import { COMMANDS, type Command, type ValidationContext } from "../lib/commands"
 import {
   extractCommandPayload,
   parseCommandInput,
@@ -14,6 +14,9 @@ export type UseCommandInputOptions = {
   token: () => string | null
   currentChannel: () => string
   isPrivateChannel: () => boolean
+  commandsEnabled?: () => boolean
+  commandFilter?: (command: Command) => boolean
+  inputEnabledOverride?: () => boolean
   connectionStatus: () => ConnectionStatus
   username: () => string | null
   users: () => UserWithStatus[]
@@ -24,6 +27,8 @@ export type UseCommandInputOptions = {
 
 export const useCommandInput = (options: UseCommandInputOptions) => {
   const [inputValue, setInputValue] = createSignal("")
+  const commandsEnabled = createMemo(() => options.commandsEnabled ? options.commandsEnabled() : true)
+  const inputEnabledOverride = createMemo(() => options.inputEnabledOverride ? options.inputEnabledOverride() : false)
 
   const isChannelAdmin = createMemo(() =>
     options.subscribers().some((subscriber) => subscriber.username === options.username() && subscriber.role === "admin")
@@ -31,6 +36,8 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
 
   const availableCommands = createMemo(() =>
     COMMANDS.filter((cmd) => {
+      if (!commandsEnabled()) return false
+      if (options.commandFilter && !options.commandFilter(cmd)) return false
       if (cmd.privateOnly && !options.isPrivateChannel()) return false
       if (cmd.adminOnly && !isChannelAdmin()) return false
       return true
@@ -89,9 +96,9 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
 
   const tooltip = createMemo<TooltipState>(() => buildTooltipState(suggestionResult()))
 
-  const isInputDisabled = createMemo(() => options.connectionStatus() !== "connected")
+  const isInputDisabled = createMemo(() => options.connectionStatus() !== "connected" && !inputEnabledOverride())
   const isSendDisabled = createMemo(
-    () => options.connectionStatus() !== "connected" || (parsed().command !== null && !parsed().isValid)
+    () => (options.connectionStatus() !== "connected" && !inputEnabledOverride()) || (parsed().command !== null && !parsed().isValid)
   )
 
   const handleInputChange = (value: string) => {

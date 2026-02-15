@@ -10,6 +10,7 @@ import type {
   DmMessage,
 } from "./types.js";
 import { applyPresenceDiff } from "./presence-utils.js";
+import { debugLog } from "./debug.js";
 
 /**
  * Internal state for each channel subscription.
@@ -774,7 +775,7 @@ export class ChannelManager {
     return new Promise((resolve, reject) => {
       channelState.channel.push("mark_as_read", {})
         .receive("ok", (response: unknown) => {
-          console.log(`Marked ${channelSlug} as read`, response);
+          debugLog("channel-manager", `Marked ${channelSlug} as read`, response);
           resolve();
         })
         .receive("error", (err: unknown) => {
@@ -819,7 +820,7 @@ export class ChannelManager {
     return new Promise((resolve, reject) => {
       channelState.channel.push("mark_all_read", {})
         .receive("ok", (response: unknown) => {
-          console.log(`Marked all in ${channelSlug} as read`, response);
+          debugLog("channel-manager", `Marked all in ${channelSlug} as read`, response);
           resolve();
         })
         .receive("error", (err: unknown) => {

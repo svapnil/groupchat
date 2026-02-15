@@ -1,9 +1,13 @@
 import type { Message } from "../lib/types"
+import { ClaudeMessageItem } from "./ClaudeMessageItem"
 
 export type MessageItemProps = {
   message: Message
   isOwnMessage: boolean
   showHeader?: boolean
+  claudeDepth?: number
+  /** Index of the currently highlighted permission option (0=Allow, 1=Deny) */
+  permissionSelectedIndex?: number
 }
 
 const COLORS = ["cyan", "magenta", "brightGreen", "brightBlue", "brightYellow", "brightMagenta"] as const
@@ -39,6 +43,16 @@ export function MessageItem(props: MessageItemProps) {
           <em>{props.message.content}</em>
         </text>
       </box>
+    )
+  }
+
+  if (props.message.type === "claude-response") {
+    return (
+      <ClaudeMessageItem
+        message={props.message}
+        claudeDepth={props.claudeDepth}
+        permissionSelectedIndex={props.permissionSelectedIndex}
+      />
     )
   }
 
