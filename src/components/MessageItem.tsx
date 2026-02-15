@@ -35,6 +35,7 @@ function formatTime(timestamp: string): string {
 export function MessageItem(props: MessageItemProps) {
   const showHeader = () => props.showHeader ?? true
   const time = () => formatTime(props.message.timestamp)
+  const isClaudeSessionUserMessage = () => props.message.attributes?.claudeSessionUser === true
 
   if (props.message.type === "system") {
     return (
@@ -72,7 +73,7 @@ export function MessageItem(props: MessageItemProps) {
             </box>
           )}
           <box paddingLeft={2}>
-            <text>{props.message.content}</text>
+            <text>{isClaudeSessionUserMessage() ? <em>{props.message.content}</em> : props.message.content}</text>
           </box>
         </box>
       </box>
@@ -92,7 +93,7 @@ export function MessageItem(props: MessageItemProps) {
           </box>
         )}
         <box paddingLeft={2}>
-          <text>{props.message.content}</text>
+          <text>{isClaudeSessionUserMessage() ? <em>{props.message.content}</em> : props.message.content}</text>
         </box>
       </box>
     </box>

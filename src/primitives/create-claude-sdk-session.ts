@@ -391,6 +391,7 @@ export const createClaudeSdkSession = () => {
   let streamingMessageId: string | null = null
   let thinkingMessageId: string | null = null
   let permissionMessageId: string | null = null
+  let lastAssistantMessageId: string | null = null
   const queuedOutgoing: string[] = []
   let processStdoutTail = ""
   let processStderrTail = ""
@@ -547,6 +548,42 @@ export const createClaudeSdkSession = () => {
     return true
   }
 
+  // Claude often emits a completed assistant message and then a separate result event.
+  // When there is no active streaming message to finalize, we attach that result metadata
+  // to the most recent eligible Claude response so UI components can render turn status.
+  const attachResultToClaudeMessage = (
+    targetId: string,
+    result: ClaudeMessageMetadata["result"],
+  ): boolean => {
+    let attached = false
+
+    setMessages((prev) =>
+      prev.map((message) => {
+        if (message.id !== targetId) return message
+        if (message.type !== "claude-response") return message
+        if (!message.attributes?.claude) return message
+        if (message.attributes.claude.result) return message
+        if (message.attributes.claude.thinking) return message
+        if (message.attributes.claude.permissionRequest) return message
+        if (message.attributes.claude.interrupted) return message
+
+        attached = true
+        return {
+          ...message,
+          attributes: {
+            ...message.attributes,
+            claude: {
+              ...message.attributes.claude,
+              result,
+            } satisfies ClaudeMessageMetadata,
+          },
+        }
+      })
+    )
+
+    return attached
+  }
+
   const upsertStreamingText = (
     textChunk: string,
     parentToolUseId: string | null,
@@ -643,7 +680,7 @@ export const createClaudeSdkSession = () => {
     interrupted?: boolean
     eventType?: ClaudeMessageMetadata["eventType"]
     result?: ClaudeMessageMetadata["result"]
-  }) => {
+  }): string => {
     log(
       "appendClaudeResponse",
       `eventType=${input.eventType ?? "unknown"}`,
@@ -652,8 +689,9 @@ export const createClaudeSdkSession = () => {
       `interrupted=${Boolean(input.interrupted)}`,
       `parentToolUseId=${input.parentToolUseId ?? "none"}`,
     )
+    const messageId = input.id || nextId("claude-response")
     appendMessage({
-      id: input.id || nextId("claude-response"),
+      id: messageId,
       username: "claude",
       content: input.content,
       timestamp: nowIso(),
@@ -671,6 +709,7 @@ export const createClaudeSdkSession = () => {
         } satisfies ClaudeMessageMetadata,
       },
     })
+    return messageId
   }
 
   const appendPermissionMessage = (permission: ClaudePermissionRequest) => {
@@ -787,7 +826,7 @@ export const createClaudeSdkSession = () => {
         `model=${msg.message?.model || "unknown"}`,
         `stopReason=${msg.message?.stop_reason ?? "none"}`,
       )
-      appendClaudeResponse({
+      lastAssistantMessageId = appendClaudeResponse({
         id: msg.message?.id,
         content: extractTextFromBlocks(blocks),
         contentBlocks: blocks,
@@ -823,7 +862,7 @@ export const createClaudeSdkSession = () => {
       const summary = typeof msg.tool_summary === "string" ? msg.tool_summary.trim() : ""
       if (!summary) return
       log("incoming:streamlined_tool_use_summary", `chars=${summary.length}`, previewForLog(summary))
-      appendClaudeResponse({
+      lastAssistantMessageId = appendClaudeResponse({
         content: summary,
         contentBlocks: [{ type: "text", text: summary }],
         parentToolUseId: null,
@@ -846,10 +885,14 @@ export const createClaudeSdkSession = () => {
 
       // Try to attach result metadata to existing streaming message
       const finalized = finalizeStreamingMessage(resultMetadata)
+      const attachedToAssistant =
+        !finalized && lastAssistantMessageId
+          ? attachResultToClaudeMessage(lastAssistantMessageId, resultMetadata)
+          : false
 
       // Only append a new message if there was no streaming message to finalize
       // (e.g., error before streaming started)
-      if (!finalized && isError) {
+      if (!finalized && !attachedToAssistant && isError) {
         const content = `Claude execution error: ${(msg.errors || []).join(", ") || "unknown error"}`
         log("incoming:result_without_streaming", previewForLog(content))
         appendClaudeResponse({
@@ -860,6 +903,7 @@ export const createClaudeSdkSession = () => {
           eventType: "result",
         })
       }
+      lastAssistantMessageId = null
       return
     }
 
@@ -971,7 +1015,7 @@ export const createClaudeSdkSession = () => {
     setLastError(null)
     setPendingPermission(null)
 
-    const nextRouteId = randomUUID()
+    const aRandomUUID = randomUUID()
     sdkSessionId = ""
     wsBuffer = ""
     queuedOutgoing.length = 0
@@ -980,7 +1024,7 @@ export const createClaudeSdkSession = () => {
     resetStreamCounters()
     stdoutChunkCount = 0
     stderrChunkCount = 0
-    log("start:begin", `routeId=${nextRouteId}`)
+    log("start:begin", `routeId=${aRandomUUID}`)
 
     try {
       server = Bun.serve<CLISocketData>({
@@ -988,9 +1032,9 @@ export const createClaudeSdkSession = () => {
         fetch(req, serverInstance) {
           const url = new URL(req.url)
           const match = url.pathname.match(/^\/ws\/cli\/([a-f0-9-]+)$/)
-          if (match && match[1] === nextRouteId) {
+          if (match && match[1] === aRandomUUID) {
             const upgraded = serverInstance.upgrade(req, {
-              data: { kind: "cli" as const, routeId: nextRouteId },
+              data: { kind: "cli" as const, routeId: aRandomUUID },
             })
             if (upgraded) return undefined
             log("ws_upgrade_failed", `path=${url.pathname}`)
@@ -1003,7 +1047,7 @@ export const createClaudeSdkSession = () => {
             cliSocket = ws
             setIsActive(true)
             setIsConnecting(false)
-            log("websocket:open", `routeId=${nextRouteId}`)
+            log("websocket:open", `routeId=${aRandomUUID}`)
             appendSystemMessage("Claude Code mode enabled. Type /exit to return to normal mode.")
             flushQueuedMessages()
           },
@@ -1021,7 +1065,7 @@ export const createClaudeSdkSession = () => {
       })
       log("server:ready", `port=${server.port}`)
 
-      const sdkUrl = `ws://127.0.0.1:${server.port}/ws/cli/${nextRouteId}`
+      const sdkUrl = `ws://127.0.0.1:${server.port}/ws/cli/${aRandomUUID}`
       const args = [
         "--sdk-url", sdkUrl,
         "--print",
@@ -1140,6 +1184,7 @@ export const createClaudeSdkSession = () => {
     sdkSessionId = ""
     wsBuffer = ""
     queuedOutgoing.length = 0
+    lastAssistantMessageId = null
     resetStreamCounters()
     isTearingDown = false
 
@@ -1159,12 +1204,16 @@ export const createClaudeSdkSession = () => {
 
     try {
       log("sendMessage", `username=${username}`, `chars=${trimmed.length}`, `hasSession=${sdkSessionId.length > 0}`)
+      lastAssistantMessageId = null
       appendMessage({
         id: nextId("claude-user"),
         username,
         content: trimmed,
         timestamp: nowIso(),
         type: "user",
+        attributes: {
+          claudeSessionUser: true,
+        },
       })
 
       appendThinkingMessage()

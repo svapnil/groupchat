@@ -11,7 +11,8 @@
   ],
   "scripts": {
     "dev": "bun --watch run src/index.tsx",
-    "dev:debug": "GROUPCHAT_DEBUG=1 bun --watch run src/index.tsx",
+    "dev:debug": "GROUPCHAT_DEBUG=1 bun run src/index.tsx",
+    "dev:debug:watch": "GROUPCHAT_DEBUG=1 bun --watch run src/index.tsx",
     "dev:debug:console": "GROUPCHAT_DEBUG=1 SHOW_CONSOLE=true bun --watch run src/index.tsx",
     "build": "bun run build.ts",
     "start": "bun run dist/index.js",

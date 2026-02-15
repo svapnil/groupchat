@@ -2,6 +2,7 @@ import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-j
 import type { ClaudePermissionRequest, Message } from "../lib/types"
 import { getClaudeMetadata, getPermissionOneLiner, getToolOneLiner, groupClaudeBlocks, contentToLines } from "../lib/claude-helpers"
 import { compactJson } from "../lib/utils"
+import { debugLog } from "../lib/debug"
 
 export type ClaudeMessageItemProps = {
   message: Message
@@ -50,37 +51,33 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
     if (animTimer) clearInterval(animTimer)
   })
 
-  const debugEventLabel = createMemo(() => {
-    const eventType = claude()?.eventType
-    if (eventType === "streamlined_text") return "streamlined_text"
-    if (eventType === "streamlined_tool_use_summary") return "streamlined_tool_use_summary"
-    return null
-  })
   const groupedBlocks = createMemo(() => {
     const blocks = claude()?.contentBlocks
     if (blocks && blocks.length > 0) return groupClaudeBlocks(blocks)
     return groupClaudeBlocks([{ type: "text", text: props.message.content }])
   })
+  const firstTextGroupIndex = createMemo(() => {
+    const groups = groupedBlocks()
+    for (let i = 0; i < groups.length; i += 1) {
+      const group = groups[i]
+      if (group.kind === "content" && group.block.type === "text") return i
+    }
+    return -1
+  })
+  const shouldShowResultMarker = (groupedIndex: number) => {
+    const result = claudeResult()
+    const firstTextIndex = firstTextGroupIndex()
+    const hasResult = result !== undefined
+    const show = hasResult && !result.isError && groupedIndex === firstTextIndex
+    return show
+  }
 
   return (
     <box justifyContent="flex-start" paddingLeft={leftPad()}>
       <box flexDirection="column">
-        <box flexDirection="row">
-          <Show when={depth() > 0}>
-            <text fg="#888888">↳ </text>
-          </Show>
-          <text fg="#FFA500">
-            <strong>claude</strong>
-          </text>
-          <text fg="#888888"> {time()}</text>
-        </box>
-
         <box flexDirection="column" paddingLeft={2}>
-          <Show when={debugEventLabel()}>
-            <text fg="#888888">[{debugEventLabel()}]</text>
-          </Show>
           <For each={groupedBlocks()}>
-            {(grouped) => {
+            {(grouped, groupedIndex) => {
               if (grouped.kind === "tool_group") {
                 return (
                   <box flexDirection="row">
@@ -93,10 +90,15 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
               const block = grouped.block
               if (block.type === "text") {
                 return (
-                  <box flexDirection="column">
-                    <For each={contentToLines(block.text)}>
-                      {(line) => <text>{line}</text>}
-                    </For>
+                  <box flexDirection="row">
+                    <Show when={shouldShowResultMarker(groupedIndex())}>
+                      <text fg="#FFFFFF">⏺ </text>
+                    </Show>
+                    <box flexDirection="column">
+                      <For each={contentToLines(block.text)}>
+                        {(line) => <text>{line}</text>}
+                      </For>
+                    </box>
                   </box>
                 )
               }
@@ -190,11 +192,13 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
           </Show>
 
           <Show when={claudeResult()}>
-            <text fg={claudeResult()!.isError ? "red" : "green"}>
-              [Result] {claudeResult()!.subtype}
-              {typeof claudeResult()!.durationMs === "number" ? ` • ${Math.round(claudeResult()!.durationMs! / 1000)}s` : ""}
-              {typeof claudeResult()!.numTurns === "number" ? ` • turns ${claudeResult()!.numTurns}` : ""}
-            </text>
+            {(() => {
+              const r = claudeResult()!
+              const duration = typeof r.durationMs === "number" ? ` • ${Math.round(r.durationMs / 1000)}s` : ""
+              const turns = typeof r.numTurns === "number" ? ` • turns ${r.numTurns}` : ""
+              debugLog(`[Result] ${r.subtype}${duration}${turns}`)
+              return null
+            })()}
           </Show>
 
           <Show when={isThinking()}>
