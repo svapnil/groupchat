@@ -1,3 +1,4 @@
+import { RGBA, SyntaxStyle } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { ClaudePermissionRequest, Message } from "../lib/types"
 import { getClaudeMetadata, getPermissionOneLiner, getToolOneLiner, groupClaudeBlocks, contentToLines } from "../lib/claude-helpers"
@@ -18,6 +19,19 @@ function formatTime(timestamp: string): string {
     hour12: true,
   })
 }
+
+const markdownSyntaxStyle = SyntaxStyle.fromStyles({
+  "default": {},
+  "conceal": { fg: RGBA.fromHex("#666666") },
+  "markup.heading": { bold: true },
+  "markup.strong": { bold: true },
+  "markup.italic": { italic: true },
+  "markup.raw": { fg: RGBA.fromHex("#D7BA7D") },
+  "markup.link.label": { underline: true, fg: RGBA.fromHex("#57C7FF") },
+  "markup.link.url": { dim: true, fg: RGBA.fromHex("#9AA0A6") },
+  "punctuation.special": { dim: true },
+  "markup.list": { dim: true },
+})
 
 export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
   const time = () => formatTime(props.message.timestamp)
@@ -88,21 +102,27 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
               }
 
               const block = grouped.block
+              // Results
               if (block.type === "text") {
                 return (
                   <box flexDirection="row">
                     <Show when={shouldShowResultMarker(groupedIndex())}>
                       <text fg="#FFFFFF">⏺ </text>
                     </Show>
-                    <box flexDirection="column">
-                      <For each={contentToLines(block.text)}>
-                        {(line) => <text>{line}</text>}
-                      </For>
+                    <box flexDirection="column" flexGrow={1}>
+                      <markdown
+                        content={block.text}
+                        syntaxStyle={markdownSyntaxStyle}
+                        conceal
+                        streaming={Boolean(claude()?.streaming)}
+                        width="100%"
+                      />
                     </box>
                   </box>
                 )
               }
 
+              // Thinking
               if (block.type === "thinking") {
                 return (
                   <box flexDirection="column">
@@ -114,6 +134,7 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                 )
               }
 
+              // Tool result
               if (block.type === "tool_result") {
                 const resultContent =
                   typeof block.content === "string"
