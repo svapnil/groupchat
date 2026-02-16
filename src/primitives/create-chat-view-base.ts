@@ -22,9 +22,13 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   const isClaudeMode = createMemo(() => claude.isActive() || claude.isConnecting())
   const listHeight = createMemo(() => Math.max(1, options.listHeight() - tooltipHeight()))
   const combinedMessages = createMemo(() =>
-    [...options.baseMessages(), ...claude.messages()].sort((a, b) =>
-      a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0
-    )
+    [...options.baseMessages(), ...claude.messages()].sort((a, b) => {
+      const aThinking = Boolean(a.attributes?.claude?.thinking)
+      const bThinking = Boolean(b.attributes?.claude?.thinking)
+      // Keep the temporary Claude thinking indicator pinned to the bottom.
+      if (aThinking !== bThinking) return aThinking ? 1 : -1
+      return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0
+    })
   )
   const permissionMessageId = createMemo(() => {
     const pending = claude.pendingPermission()

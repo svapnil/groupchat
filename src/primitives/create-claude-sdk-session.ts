@@ -816,8 +816,8 @@ export const createClaudeSdkSession = () => {
       return
     }
 
+    // Keep the temporary "Thinking..." message visible until the turn-level result event arrives.
     if (msg.type === "assistant") {
-      removeThinkingMessage()
       removeStreamingMessage()
       const blocks = normalizeContentBlocks(msg.message?.content)
       log(
@@ -840,7 +840,6 @@ export const createClaudeSdkSession = () => {
     }
 
     if (msg.type === "stream_event") {
-      removeThinkingMessage()
       if (!isRecord(msg.event)) return
 
       if (msg.event.type === "content_block_delta" && isRecord(msg.event.delta)) {
@@ -852,7 +851,6 @@ export const createClaudeSdkSession = () => {
     }
 
     if (msg.type === "streamlined_text") {
-      removeThinkingMessage()
       if (typeof msg.text === "string") {
         upsertStreamingText(msg.text, null, "streamlined_text")
       }
