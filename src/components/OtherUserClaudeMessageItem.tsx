@@ -238,12 +238,11 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
           <box paddingLeft={2} flexDirection="column" alignItems="flex-end" width={bubbleWidth()} overflow="hidden">
             <For each={questionContents()}>
               {(question) => (
-                <markdown
-                  content={`*${question}*`}
-                  syntaxStyle={markdownSyntaxStyle}
-                  conceal
-                  width={questionMarkdownWidth()}
-                />
+                <box width={questionMarkdownWidth()} flexDirection="row" justifyContent="flex-end">
+                  <text>
+                    <em>{question}</em>
+                  </text>
+                </box>
               )}
             </For>
           </box>
