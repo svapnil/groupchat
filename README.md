@@ -1,221 +1,55 @@
-# Groupchat - Real-time Chat, Natively in Your Terminal
+# Groupchat — Terminal Chat with Embedded AI
 
-Welcome to Groupchat, a terminal-native chat application built for developers. Chat with your team without ever leaving your terminal.
+Groupchat is a real-time messaging app for developers, built natively in your terminal. Chat with your team and run AI agents like Claude—without leaving your workflow.
 
-## What is Groupchat?
-
-Groupchat is a real-time chat application that runs entirely in your terminal. It's designed for developers and teams who want to stay connected without breaking their command-line workflow. Whether you're coding, debugging, or managing infrastructure, you can chat with colleagues instantly—all from your terminal.
-
-**Key benefits:**
-- 💻 **Native terminal experience** - No browser tabs needed
-- ⚡ **Real-time messaging** - Instant message delivery with live presence
-- 🎯 **Developer-friendly** - Built for people who live in the terminal
-- 🔐 **Secure** - OAuth-based authentication with system keychain storage
-
-## Features
-
-- **💬 Real-time Messaging** - See messages instantly as they arrive with smooth typing indicators
-- **🌐 Multiple Channels** - Join public channels or create private rooms to organize conversations
-- **👥 Live Presence** - See who's online, away, or offline with real-time status updates
-- **🔐 Secure Authentication** - Browser-based login with credentials safely stored in your system keychain
-- **⌨️ Keyboard-Driven Navigation** - Full keyboard control—no mouse required
-- **🎨 Clean, Organized Interface** - Beautiful TUI with message history, user lists, and status indicators
-- **📱 Responsive Design** - Adapts to your terminal size for optimal viewing
-
-## Installation
-
-### From npm (when published)
+## Install
 
 ```bash
 npm install -g groupchat
 ```
 
-Then verify installation:
-
-```bash
-groupchat --help
-```
-
-## Getting Started
-
-### First Time Setup
-
-1. **Start Groupchat**
-   ```bash
-   groupchat
-   ```
-
-2. **Login (if needed)**
-   If you're not already logged in, the app will prompt you to authenticate. Your browser will automatically open. Once approved, return to your terminal to start chatting.
-
-3. **You're in!**
-   The main chat interface loads automatically. Start sending messages and connecting with your team.
-
-## How to Use
-
-### Starting Groupchat
+## Start
 
 ```bash
 groupchat
 ```
 
-That's it! The app handles everything else—authentication, logging out, switching channels, and sending messages all happen within the interface.
+On first launch, you'll be prompted to log in via your browser. After that, you're in.
 
-### Navigation & Controls
+## Features
 
-**In the Chat Interface:**
+- **Real-time messaging** — instant delivery across channels
+- **Embedded AI agents** — run Claude directly in any conversation
+- **Live presence** — see who's online and typing
+- **Keyboard-driven** — no mouse required
+- **Secure auth** — OAuth login with keychain credential storage
 
-| Action | Shortcut |
-|--------|----------|
-| **View all channels** | `Ctrl+Q` |
-| **Toggle user list** | `Ctrl+E` |
-| **Logout** | `Ctrl+O` |
-| **Exit chat** | `Ctrl+C` |
-| **Send message** | `Enter` |
-| **Clear input** | `Ctrl+U` |
-| **Navigate channels** | Arrow Keys (Up/Down) |
-| **Select channel** | `Enter` |
-| **Scroll message history** | `Page Up` / `Page Down` |
+## Keyboard Shortcuts
 
-### The Chat Experience
+| Action | Key |
+|--------|-----|
+| View channels | `Ctrl+Q` |
+| Toggle user list | `Ctrl+E` |
+| Send message | `Enter` |
+| Scroll history | `Page Up / Down` |
+| Logout | `Ctrl+O` |
+| Exit | `Ctrl+C` |
 
-When you start Groupchat, you'll see:
+## Using Claude
 
-**Header Section (Top)**
-- Your username and connection status
-- Logout shortcut reminder
+In any channel, you can invoke Claude as an embedded agent. Claude runs inline with full tool use—read files, run commands, and get answers without switching apps.
 
-**Message Area (Center)**
-- Full chat history with timestamps
-- Color-coded usernames for easy identification
-- Typing indicators when others are composing
-- Unread message counts
-
-**Input Box (Bottom)**
-- Type your messages here
-- Shows connection status
-- Displays helpful hints
-
-**User List (Right)**
-- Toggle with `Ctrl+E`
-- Shows online/offline status
-- Displays user roles and activity
-
-**Status Bar (Bottom)**
-- Keyboard shortcuts at a glance
-- Connection information
-
-## Channels
-
-### Public Channels
-Open to everyone in your workspace. Join any public channel to start conversations with the team.
-
-### Private Channels
-Invite-only rooms for team discussions. You'll see a lock icon (🔒) next to private channel names.
-
-### Channel Features
-- **Unread indicators** - See at a glance which channels have new messages
-- **Real-time updates** - Messages appear instantly as they're sent
-- **Search-friendly names** - Channel names help you find relevant conversations
-- **Seamless switching** - Jump between channels instantly without losing context
-
-## Configuration
-
-Groupchat works out of the box with default settings. 
-
-## Troubleshooting
-
-### "I'm not logged in. How do I login?"
-Just run `groupchat` and it will prompt you to authenticate. Your browser will open automatically.
-
-### "I can't find a channel I need"
-Press `Ctrl+Q` to view all available channels. You can browse to find what you're looking for.
-
-### "My credentials aren't saved"
-Groupchat stores credentials in your system keychain for security. Make sure your system keychain is accessible and unlocked.
-
-### "The terminal looks broken"
-Groupchat requires a modern terminal emulator. Try resizing your terminal window or running `groupchat` again.
-
-### "I want to logout"
-Press `Ctrl+O` in the chat interface to logout and exit.
-
-## The Groupchat Experience
-
-Groupchat transforms how you communicate while coding. Instead of alt-tabbing to a browser or chat window, your conversations are right there in the terminal—exactly where your workflows happen.
-
-**Why terminal-native chat?**
-- Stay focused on your work
-- No context switching between apps
-- Fast, efficient communication
-- Keep your hands on the keyboard
-- Perfect for pair programming and remote teams
-
-## For Developers
-
-### Claude SDK mode protocol coverage
-
-The TUI Claude mode uses the hidden `claude --sdk-url` NDJSON WebSocket protocol.
-
-Control request subtypes documented by the reverse-engineered protocol:
-- `initialize`
-- `can_use_tool`
-- `interrupt`
-- `set_permission_mode`
-- `set_model`
-- `set_max_thinking_tokens`
-- `mcp_status`
-- `mcp_message`
-- `mcp_reconnect`
-- `mcp_toggle`
-- `mcp_set_servers`
-- `rewind_files`
-- `hook_callback`
-
-Current TUI implementation:
-- Handles incoming `can_use_tool` permission requests.
-- Sends outgoing `interrupt` requests (Ctrl+C in Claude mode).
-- Does not yet implement the other control request subtypes.
-
-### Technology Stack
-- **React for Terminals** - Ink provides a React-based TUI framework
-- **WebSocket** - Real-time bidirectional communication
-- **TypeScript** - Type-safe implementation
-- **Node.js** - Cross-platform CLI runtime
-
-### Contributing
-
-Interested in improving Groupchat? We welcome contributions! Check out the main repository:
-
-[https://github.com/svapnil/groupchat-main](https://github.com/svapnil/groupchat-main)
-
-### Development Setup
+## Development
 
 ```bash
 cd tui
 npm install
-npm run dev        # Watch mode with hot reload
-npm run dev:debug  # Watch mode + writes debug logs to .logs/tui-debug.log
-npm run dev:debug:console # Watch mode + OpenTUI console overlay at startup
-npm run typecheck  # Check TypeScript types
-npm run build      # Build for production
+npm run dev          # watch mode
+npm run dev:debug    # watch mode + debug log at .logs/tui-debug.log
+npm run build        # production build
+npm run typecheck    # type check
 ```
-
-### Debug Logging
-
-The OpenTUI runtime captures `console.*` output while rendering. For easier development debugging:
-
-```bash
-cd tui
-npm run dev:debug
-tail -f .logs/tui-debug.log
-```
-
-Optional environment variables:
-- `GROUPCHAT_DEBUG_FILE` override the debug file path (default `.logs/tui-debug.log`)
-- `GROUPCHAT_DEBUG_STDERR=1` mirror debug lines to stderr
-- `SHOW_CONSOLE=true` show the OpenTUI console overlay when the app starts
 
 ## License
 
-MIT - See LICENSE file in the repository
+MIT
