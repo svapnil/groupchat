@@ -1,7 +1,7 @@
 import { createSignal, For } from "solid-js"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { UpdateInfo, getUpdateCommand } from "../lib/update-checker"
-import { execSync, spawn } from "child_process"
+import { execSync } from "child_process"
 
 interface UpdatePromptProps {
   updateInfo: UpdateInfo
@@ -25,14 +25,9 @@ export function UpdatePrompt(props: UpdatePromptProps) {
 
     try {
       execSync(command, { stdio: "inherit" })
-      console.log("\n\nUpdate complete! Restarting...\n")
-
-      const args = process.argv.slice(2)
-      const child = spawn("groupchat", args, {
-        detached: true,
-        stdio: "inherit",
+      process.on("exit", () => {
+        process.stdout.write("\nGroupchat has been updated.\n\n")
       })
-      child.unref()
       renderer.destroy()
     } catch {
       setUpdateError(`Update failed. Please run manually: ${command}`)
