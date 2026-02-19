@@ -186,6 +186,7 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
   })
 
   const hasResult = createMemo(() => resultIndex() >= 0)
+  const resultMarkdownWidth = createMemo(() => Math.max(8, questionMarkdownWidth() - (hasResult() ? 2 : 0)))
   const isError = createMemo(() => {
     const index = resultIndex()
     if (index < 0) return false
@@ -267,16 +268,17 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
           </Show>
 
           <Show when={textContent()}>
-            <box flexDirection="row">
+            <box flexDirection="row" justifyContent="flex-end" width={questionMarkdownWidth()}>
               <Show when={hasResult()}>
                 <text fg="#FFFFFF">⏺ </text>
               </Show>
-              <box flexDirection="column" flexGrow={1} minWidth={0}>
+              <box flexDirection="column" minWidth={0}>
                 <markdown
                   content={textContent()}
                   syntaxStyle={markdownSyntaxStyle}
                   conceal
-                  width={Math.max(8, questionMarkdownWidth() - (hasResult() ? 2 : 0))}
+                  width="auto"
+                  maxWidth={resultMarkdownWidth()}
                 />
               </box>
             </box>
