@@ -8,6 +8,7 @@ export type MessageListProps = {
   messages: Message[]
   currentUsername: string | null
   typingUsers: string[]
+  messagePaneWidth: number
   height: number
   isDetached: boolean
   detachedLines?: number
@@ -59,6 +60,7 @@ export function MessageList(props: MessageListProps) {
                 <MessageItem
                   message={message}
                   isOwnMessage={message.username === props.currentUsername}
+                  messagePaneWidth={props.messagePaneWidth}
                   showHeader={showHeader()}
                   claudeDepth={claudeDepthByMessageId().get(message.id) ?? 0}
                   permissionSelectedIndex={

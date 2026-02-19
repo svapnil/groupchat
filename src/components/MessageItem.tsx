@@ -1,9 +1,11 @@
 import type { Message } from "../lib/types"
 import { ClaudeMessageItem } from "./ClaudeMessageItem"
+import { OtherUserClaudeMessageItem } from "./OtherUserClaudeMessageItem"
 
 export type MessageItemProps = {
   message: Message
   isOwnMessage: boolean
+  messagePaneWidth?: number
   showHeader?: boolean
   claudeDepth?: number
   /** Index of the currently highlighted permission option (0=Allow, 1=Deny) */
@@ -55,6 +57,10 @@ export function MessageItem(props: MessageItemProps) {
         permissionSelectedIndex={props.permissionSelectedIndex}
       />
     )
+  }
+
+  if (props.message.type === "cc") {
+    return <OtherUserClaudeMessageItem message={props.message} messagePaneWidth={props.messagePaneWidth} />
   }
 
   const usernameColor = () => getUsernameColor(props.message.username)

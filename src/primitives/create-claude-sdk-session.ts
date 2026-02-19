@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto"
+import { randomBytes, randomUUID } from "node:crypto"
 import { createSignal, onCleanup } from "solid-js"
 import type { ServerWebSocket } from "bun"
 import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../lib/types"
 import { debugLog } from "../lib/debug.js"
+import { getToolOneLiner } from "../lib/claude-helpers"
 import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 
 /**
@@ -140,6 +141,15 @@ export type ClaudePendingPermission = {
   input: Record<string, unknown>
 }
 
+export type CcBroadcast = {
+  turnId: string
+  sessionId?: string
+  event: "question" | "tool_call" | "text" | "result"
+  content: string
+  toolName?: string
+  isError?: boolean
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
 }
@@ -228,6 +238,26 @@ function nowIso() {
   return new Date().toISOString()
 }
 
+function generateUuidV7(): string {
+  const bytes = randomBytes(16)
+  const timestampMs = BigInt(Date.now())
+
+  bytes[0] = Number((timestampMs >> 40n) & 0xffn)
+  bytes[1] = Number((timestampMs >> 32n) & 0xffn)
+  bytes[2] = Number((timestampMs >> 24n) & 0xffn)
+  bytes[3] = Number((timestampMs >> 16n) & 0xffn)
+  bytes[4] = Number((timestampMs >> 8n) & 0xffn)
+  bytes[5] = Number(timestampMs & 0xffn)
+
+  // Version 7 (0100 in high nibble of byte 6)
+  bytes[6] = (bytes[6] & 0x0f) | 0x70
+  // RFC 4122 variant (10xx in high bits of byte 8)
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+  const hex = bytes.toString("hex")
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 let messageCounter = 0
 function nextId(prefix: string): string {
   messageCounter += 1
@@ -263,6 +293,19 @@ function previewForLog(value: string, maxChars = 160): string {
   const normalized = sanitizeProcessLine(value)
   if (normalized.length <= maxChars) return normalized
   return `${normalized.slice(0, maxChars)}...`
+}
+
+function inferToolNameFromSummary(summary: string): string {
+  const normalized = summary.trim().replace(/^[•⏺*-]\s*/, "")
+  if (!normalized) return "Tool"
+
+  const withParen = normalized.match(/^([A-Za-z][A-Za-z0-9_-]*)\s*\(/)
+  if (withParen?.[1]) return withParen[1]
+
+  const firstWord = normalized.match(/^([A-Za-z][A-Za-z0-9_-]*)\b/)
+  if (firstWord?.[1]) return firstWord[1]
+
+  return "Tool"
 }
 
 function summarizeIncomingMessageForLog(msg: ClaudeIncomingMessage): string {
@@ -380,7 +423,7 @@ export const createClaudeSdkSession = () => {
   const [isActive, setIsActive] = createSignal(false)
   const [isConnecting, setIsConnecting] = createSignal(false)
   const [messages, setMessages] = createSignal<Message[]>([])
-  const [pendingPermission, setPendingPermission] = createSignal<ClaudePendingPermission | null>(null)
+  const [pendingPermissions, setPendingPermissions] = createSignal<ClaudePendingPermission[]>([])
   const [lastError, setLastError] = createSignal<string | null>(null)
 
   let server: Bun.Server<CLISocketData> | null = null
@@ -391,7 +434,7 @@ export const createClaudeSdkSession = () => {
   let isTearingDown = false
   let streamingMessageId: string | null = null
   let thinkingMessageId: string | null = null
-  let permissionMessageId: string | null = null
+  const permissionMessageIdsByRequestId = new Map<string, string>()
   let lastAssistantMessageId: string | null = null
   const queuedOutgoing: string[] = []
   let processStdoutTail = ""
@@ -404,6 +447,9 @@ export const createClaudeSdkSession = () => {
   let stderrChunkCount = 0
   let incomingStreamEventLogCount = 0
   let incomingStreamlinedTextLogCount = 0
+  let currentTurnId: string | null = null
+  let ccSessionId = ""
+  const ccEventCallbacks = new Set<(event: CcBroadcast) => void>()
 
   const log = (...args: unknown[]) => {
     debugLog("claude-sdk-session", ...args)
@@ -416,6 +462,23 @@ export const createClaudeSdkSession = () => {
     streamlinedTextCharCount = 0
     incomingStreamEventLogCount = 0
     incomingStreamlinedTextLogCount = 0
+  }
+
+  const emitCcEvent = (event: Omit<CcBroadcast, "turnId">) => {
+    if (!currentTurnId) return
+    const payload: CcBroadcast = {
+      turnId: currentTurnId,
+      sessionId: ccSessionId || undefined,
+      ...event,
+    }
+
+    ccEventCallbacks.forEach((callback) => {
+      try {
+        callback(payload)
+      } catch (error) {
+        log("cc_event_callback_error", error)
+      }
+    })
   }
 
   const shouldLogIncomingPayload = (msg: ClaudeIncomingMessage): boolean => {
@@ -715,7 +778,7 @@ export const createClaudeSdkSession = () => {
 
   const appendPermissionMessage = (permission: ClaudePermissionRequest) => {
     const id = nextId("claude-permission")
-    permissionMessageId = id
+    permissionMessageIdsByRequestId.set(permission.requestId, id)
     log(
       "appendPermissionMessage",
       `id=${id}`,
@@ -739,16 +802,20 @@ export const createClaudeSdkSession = () => {
     })
   }
 
-  const resolvePermissionMessage = (resolution: ClaudePermissionRequest["resolution"]) => {
-    if (!permissionMessageId) return
-    const targetId = permissionMessageId
-    permissionMessageId = null
-    log("resolvePermissionMessage", `id=${targetId}`, `resolution=${resolution}`)
+  const resolvePermissionMessage = (
+    requestId: string,
+    resolution: ClaudePermissionRequest["resolution"],
+  ) => {
+    const targetId = permissionMessageIdsByRequestId.get(requestId)
+    if (!targetId) return
+    permissionMessageIdsByRequestId.delete(requestId)
+    log("resolvePermissionMessage", `requestId=${requestId}`, `id=${targetId}`, `resolution=${resolution}`)
 
     setMessages((prev) =>
       prev.map((message) => {
         if (message.id !== targetId) return message
         if (!message.attributes?.claude?.permissionRequest) return message
+        if (message.attributes.claude.permissionRequest.requestId !== requestId) return message
         return {
           ...message,
           attributes: {
@@ -820,6 +887,7 @@ export const createClaudeSdkSession = () => {
     if (msg.type === "assistant") {
       removeStreamingMessage()
       const blocks = normalizeContentBlocks(msg.message?.content)
+      const extractedText = extractTextFromBlocks(blocks)
       log(
         "incoming:assistant",
         `messageId=${msg.message?.id || "none"}`,
@@ -829,13 +897,19 @@ export const createClaudeSdkSession = () => {
       )
       lastAssistantMessageId = appendClaudeResponse({
         id: msg.message?.id,
-        content: extractTextFromBlocks(blocks),
+        content: extractedText,
         contentBlocks: blocks,
         parentToolUseId: msg.parent_tool_use_id ?? null,
         model: msg.message?.model,
         stopReason: msg.message?.stop_reason ?? null,
         eventType: "assistant",
       })
+      if (extractedText.trim().length > 0) {
+        emitCcEvent({
+          event: "text",
+          content: extractedText,
+        })
+      }
       return
     }
 
@@ -860,6 +934,11 @@ export const createClaudeSdkSession = () => {
     if (msg.type === "streamlined_tool_use_summary") {
       const summary = typeof msg.tool_summary === "string" ? msg.tool_summary.trim() : ""
       if (!summary) return
+      emitCcEvent({
+        event: "tool_call",
+        toolName: inferToolNameFromSummary(summary),
+        content: summary,
+      })
       log("incoming:streamlined_tool_use_summary", `chars=${summary.length}`, previewForLog(summary))
       lastAssistantMessageId = appendClaudeResponse({
         content: summary,
@@ -873,6 +952,9 @@ export const createClaudeSdkSession = () => {
     if (msg.type === "result") {
       removeThinkingMessage()
       const isError = Boolean(msg.is_error)
+      const errorMessage = isError
+        ? (msg.errors || []).join(", ") || (typeof msg.result === "string" ? msg.result : "")
+        : ""
       const resultMetadata = {
         subtype: msg.subtype || "success",
         isError,
@@ -902,7 +984,13 @@ export const createClaudeSdkSession = () => {
           eventType: "result",
         })
       }
+      emitCcEvent({
+        event: "result",
+        content: errorMessage,
+        isError,
+      })
       lastAssistantMessageId = null
+      currentTurnId = null
       return
     }
 
@@ -927,6 +1015,11 @@ export const createClaudeSdkSession = () => {
         description: typeof msg.request.description === "string" ? msg.request.description : undefined,
         input: msg.request.input,
       }
+      emitCcEvent({
+        event: "tool_call",
+        toolName: permission.toolName,
+        content: getToolOneLiner(permission.toolName, [{ id: permission.toolUseId, input: permission.input }]),
+      })
       log(
         "incoming:control_request_can_use_tool",
         `requestId=${permission.requestId}`,
@@ -934,27 +1027,28 @@ export const createClaudeSdkSession = () => {
         `toolUseId=${permission.toolUseId}`,
       )
       appendPermissionMessage(permission)
-      setPendingPermission({
+      setPendingPermissions((prev) => [...prev, {
         requestId: permission.requestId,
         toolName: permission.toolName,
         toolUseId: permission.toolUseId,
         agentId: permission.agentId,
         description: permission.description,
         input: permission.input,
-      })
+      }])
       return
     }
 
     if (msg.type === "control_cancel_request") {
-      const currentPending = pendingPermission()
+      const stack = pendingPermissions()
+      const match = stack.find((p) => p.requestId === msg.request_id)
       log(
         "incoming:control_cancel_request",
         `requestId=${msg.request_id}`,
-        `matchesPending=${Boolean(currentPending && currentPending.requestId === msg.request_id)}`,
+        `matchesPending=${Boolean(match)}`,
       )
-      if (currentPending && currentPending.requestId === msg.request_id) {
-        resolvePermissionMessage("cancelled")
-        setPendingPermission(null)
+      if (match) {
+        resolvePermissionMessage(msg.request_id, "cancelled")
+        setPendingPermissions((prev) => prev.filter((p) => p.requestId !== msg.request_id))
       }
       return
     }
@@ -1021,11 +1115,14 @@ export const createClaudeSdkSession = () => {
 
     setIsConnecting(true)
     setLastError(null)
-    setPendingPermission(null)
+    setPendingPermissions([])
+    permissionMessageIdsByRequestId.clear()
 
     const aRandomUUID = randomUUID()
     sdkSessionId = ""
+    ccSessionId = generateUuidV7()
     wsBuffer = ""
+    currentTurnId = null
     queuedOutgoing.length = 0
     processStdoutTail = ""
     processStderrTail = ""
@@ -1158,7 +1255,8 @@ export const createClaudeSdkSession = () => {
 
     setIsActive(false)
     setIsConnecting(false)
-    setPendingPermission(null)
+    setPendingPermissions([])
+    permissionMessageIdsByRequestId.clear()
     removeThinkingMessage()
     removeStreamingMessage()
 
@@ -1190,7 +1288,9 @@ export const createClaudeSdkSession = () => {
     }
 
     sdkSessionId = ""
+    ccSessionId = ""
     wsBuffer = ""
+    currentTurnId = null
     queuedOutgoing.length = 0
     lastAssistantMessageId = null
     resetStreamCounters()
@@ -1213,6 +1313,11 @@ export const createClaudeSdkSession = () => {
     try {
       log("sendMessage", `username=${username}`, `chars=${trimmed.length}`, `hasSession=${sdkSessionId.length > 0}`)
       lastAssistantMessageId = null
+      currentTurnId = generateUuidV7()
+      emitCcEvent({
+        event: "question",
+        content: trimmed,
+      })
       appendMessage({
         id: nextId("claude-user"),
         username,
@@ -1240,7 +1345,8 @@ export const createClaudeSdkSession = () => {
   }
 
   const respondToPendingPermission = async (behavior: "allow" | "deny") => {
-    const pending = pendingPermission()
+    const stack = pendingPermissions()
+    const pending = stack.length > 0 ? stack[stack.length - 1] : null
     if (!pending) {
       log("respondToPendingPermission:skip_no_pending", `behavior=${behavior}`)
       return
@@ -1251,11 +1357,14 @@ export const createClaudeSdkSession = () => {
       `behavior=${behavior}`,
       `requestId=${pending.requestId}`,
       `tool=${pending.toolName}`,
+      `remainingAfter=${stack.length - 1}`,
     )
 
-    resolvePermissionMessage(behavior === "allow" ? "allowed" : "denied")
-    setPendingPermission(null)
-    appendThinkingMessage()
+    resolvePermissionMessage(pending.requestId, behavior === "allow" ? "allowed" : "denied")
+    setPendingPermissions((prev) => prev.slice(0, -1))
+    if (stack.length <= 1) {
+      appendThinkingMessage()
+    }
 
     if (behavior === "allow") {
       sendToClaude({
@@ -1316,15 +1425,26 @@ export const createClaudeSdkSession = () => {
     appendSystemMessage(message)
   }
 
+  const onCcEvent = (callback: (event: CcBroadcast) => void) => {
+    ccEventCallbacks.add(callback)
+  }
+
+  const pendingPermission = () => {
+    const stack = pendingPermissions()
+    return stack.length > 0 ? stack[stack.length - 1] : null
+  }
+
   return {
     isActive,
     isConnecting,
     messages,
     pendingPermission,
+    pendingPermissions,
     lastError,
     start,
     stop,
     sendMessage,
+    onCcEvent,
     respondToPendingPermission,
     interrupt,
     appendError,

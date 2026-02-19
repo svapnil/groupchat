@@ -22,6 +22,8 @@ export type ChatViewProps = {
 }
 
 const runtimeCapabilities = getRuntimeCapabilities()
+const USER_LIST_WIDTH = 24
+const MESSAGE_LIST_HORIZONTAL_PADDING = 2
 
 export function ChatView(props: ChatViewProps) {
   const chat = useChatStore()
@@ -34,12 +36,18 @@ export function ChatView(props: ChatViewProps) {
 
   const topPadding = () => props.topPadding ?? 0
   const middleHeight = createMemo(() => calculateMiddleSectionHeight(props.height, topPadding()))
+  const messagePaneWidth = createMemo(() => {
+    const userListWidth = showUserList() ? USER_LIST_WIDTH : 0
+    return Math.max(20, props.width - userListWidth - MESSAGE_LIST_HORIZONTAL_PADDING)
+  })
 
   const base = createChatViewBase({
     baseMessages: chat.messages,
     listHeight: middleHeight,
     connectionStatus: chat.connectionStatus,
     username: chat.username,
+    channelManager: chat.channelManager,
+    currentChannel: channels.currentChannel,
   })
 
   const channelDetails = createMemo(() => {
@@ -162,6 +170,7 @@ export function ChatView(props: ChatViewProps) {
               messages={base.combinedMessages()}
               currentUsername={chat.username()}
               typingUsers={chat.typingUsers()}
+              messagePaneWidth={messagePaneWidth()}
               height={base.listHeight()}
               isDetached={base.isDetached()}
               detachedLines={base.detachedLines()}

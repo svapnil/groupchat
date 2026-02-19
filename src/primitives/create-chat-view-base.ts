@@ -4,12 +4,15 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 import { createClaudeSdkSession } from "./create-claude-sdk-session"
 import { LOCAL_COMMAND_EVENTS } from "../lib/commands"
 import type { ConnectionStatus, Message } from "../lib/types"
+import type { ChannelManager } from "../lib/channel-manager"
 
 export type CreateChatViewBaseOptions = {
   baseMessages: Accessor<Message[]>
   listHeight: Accessor<number>
   connectionStatus: Accessor<ConnectionStatus>
   username: Accessor<string | null>
+  channelManager: Accessor<ChannelManager | null>
+  currentChannel: Accessor<string | null>
 }
 
 export function createChatViewBase(options: CreateChatViewBaseOptions) {
@@ -18,8 +21,47 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   const [tooltipHeight, setTooltipHeight] = createSignal(0)
   const [permissionSelectedIndex, setPermissionSelectedIndex] = createSignal(0)
   const claude = createClaudeSdkSession()
+  const ccChannelByTurnId = new Map<string, string>()
+
+  claude.onCcEvent((event) => {
+    const manager = options.channelManager()
+    if (!manager) return
+
+    let channel = ccChannelByTurnId.get(event.turnId)
+
+    // Bind each turn to the channel active when that turn starts.
+    if (event.event === "question") {
+      const activeChannel = options.currentChannel()
+      if (!activeChannel) return
+      channel = activeChannel
+      ccChannelByTurnId.set(event.turnId, activeChannel)
+    }
+
+    if (!channel) {
+      const activeChannel = options.currentChannel()
+      if (!activeChannel) return
+      channel = activeChannel
+    }
+
+    void manager.sendCcMessage(channel, event.content, {
+      turn_id: event.turnId,
+      session_id: event.sessionId,
+      event: event.event,
+      tool_name: event.toolName,
+      is_error: event.isError,
+    })
+
+    if (event.event === "result") {
+      ccChannelByTurnId.delete(event.turnId)
+    }
+  })
 
   const isClaudeMode = createMemo(() => claude.isActive() || claude.isConnecting())
+  createEffect(() => {
+    if (!isClaudeMode()) {
+      ccChannelByTurnId.clear()
+    }
+  })
   const listHeight = createMemo(() => Math.max(1, options.listHeight() - tooltipHeight()))
   const combinedMessages = createMemo(() =>
     [...options.baseMessages(), ...claude.messages()].sort((a, b) => {
@@ -31,12 +73,13 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     })
   )
   const permissionMessageId = createMemo(() => {
-    const pending = claude.pendingPermission()
-    if (!pending) return null
+    const stack = claude.pendingPermissions()
+    if (stack.length === 0) return null
+    const top = stack[stack.length - 1]
     const msgs = claude.messages()
     for (let i = msgs.length - 1; i >= 0; i--) {
       const perm = msgs[i].attributes?.claude?.permissionRequest
-      if (perm && perm.requestId === pending.requestId) return msgs[i].id
+      if (perm && perm.requestId === top.requestId) return msgs[i].id
     }
     return null
   })
@@ -112,7 +155,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     if (!messageScrollRef) return false
 
     if (["up", "down", "pageup", "pagedown", "home", "end"].includes(key.name)) {
-      if (messageScrollRef.handleKeyPress(key)) {
+      if (messageScrollRef.handleKeyPress(key as any)) {
         updateScrollMetrics()
       }
       return true

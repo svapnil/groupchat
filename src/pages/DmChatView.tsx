@@ -25,6 +25,7 @@ export type DmChatViewProps = {
 }
 
 const runtimeCapabilities = getRuntimeCapabilities()
+const MESSAGE_LIST_HORIZONTAL_PADDING = 2
 
 export function DmChatView(props: DmChatViewProps) {
   const navigation = useNavigation()
@@ -43,12 +44,15 @@ export function DmChatView(props: DmChatViewProps) {
   const title = () => conversation()?.other_username || "DM"
   const topPadding = () => props.topPadding ?? 0
   const rawListHeight = createMemo(() => calculateMiddleSectionHeight(props.height, topPadding()))
+  const messagePaneWidth = createMemo(() => Math.max(20, props.width - MESSAGE_LIST_HORIZONTAL_PADDING))
 
   const base = createChatViewBase({
     baseMessages: messages,
     listHeight: rawListHeight,
     connectionStatus: chat.connectionStatus,
     username: chat.username,
+    channelManager: () => null,
+    currentChannel: () => null,
   })
 
   const isOtherUserOnline = createMemo(() => {
@@ -237,6 +241,7 @@ export function DmChatView(props: DmChatViewProps) {
               messages={base.combinedMessages()}
               currentUsername={chat.username()}
               typingUsers={typingUsers()}
+              messagePaneWidth={messagePaneWidth()}
               height={base.listHeight()}
               isDetached={base.isDetached()}
               detachedLines={base.detachedLines()}

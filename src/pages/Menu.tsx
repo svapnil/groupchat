@@ -171,7 +171,7 @@ export function Menu(props: MenuProps) {
                 <box flexDirection="column" marginBottom={1}>
                   <box marginBottom={1}>
                     <text>
-                      <strong>Global Channels</strong>
+                      <strong>Public Channels</strong>
                     </text>
                   </box>
                   <For each={sortedPublicChannels()}>

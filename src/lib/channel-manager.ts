@@ -1,5 +1,6 @@
 import { Socket, Channel as PhoenixChannel } from "phoenix";
 import type {
+  CcEventMetadata,
   Message,
   PresenceState,
   PresenceDiff,
@@ -598,6 +599,40 @@ export class ChannelManager {
           reject(new Error("timeout"));
         });
     });
+  }
+
+  /**
+   * Send an ephemeral Claude Code event message to a specific channel.
+   * Fire-and-forget: errors are logged but not propagated to callers.
+   */
+  async sendCcMessage(channelSlug: string, content: string, ccMeta: CcEventMetadata): Promise<void> {
+    const channelState = this.channelStates.get(channelSlug);
+    if (!channelState) {
+      return;
+    }
+
+    if (!this.socket || this.connectionStatus !== "connected") {
+      return;
+    }
+
+    try {
+      channelState.channel
+        .push("new_message", {
+          content,
+          type: "cc",
+          attributes: {
+            cc: ccMeta,
+          },
+        })
+        .receive("error", (err: unknown) => {
+          console.error(`Failed to send cc message to ${channelSlug}:`, err);
+        })
+        .receive("timeout", () => {
+          console.error(`CC message send timeout for ${channelSlug}`);
+        });
+    } catch (error) {
+      console.error(`Failed to send cc message to ${channelSlug}:`, error);
+    }
   }
 
   /**

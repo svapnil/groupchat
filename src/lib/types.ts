@@ -7,6 +7,17 @@ export interface MessageAttributes {
   /** Extensible map for message metadata */
   [key: string]: unknown;
   claude?: ClaudeMessageMetadata;
+  cc?: CcEventMetadata;
+}
+
+export interface CcEventMetadata {
+  turn_id: string;
+  session_id?: string;
+  event: "question" | "tool_call" | "text" | "result";
+  tool_name?: string;
+  is_error?: boolean;
+  events?: CcEventMetadata[];
+  contents?: string[];
 }
 
 export type ClaudeContentBlock =
@@ -54,7 +65,7 @@ export interface Message {
   timestamp: string;
 
   /** Message type - defaults to "user" for regular messages */
-  type?: "user" | "system" | "claude-response";
+  type?: "user" | "system" | "claude-response" | "cc";
 
   /** Optional attributes - only present when message has attributes */
   attributes?: MessageAttributes;
