@@ -25,13 +25,13 @@ export function LoginScreen(props: LoginScreenProps) {
   return (
     <box flexDirection="column" alignItems="center" justifyContent="center" padding={2}>
       <box marginBottom={2}>
-        <ascii_font text="GROUPCHAT" font="block" color="red" />
+        <ascii_font text="GROUPCHAT" font="block" color="#FFA500" />
       </box>
 
       <box
         border
         borderStyle="single"
-        borderColor="red"
+        borderColor="#FFA500"
         paddingLeft={4}
         paddingRight={4}
         paddingTop={1}
@@ -46,7 +46,7 @@ export function LoginScreen(props: LoginScreenProps) {
               when={hasStatus()}
               fallback={
                 <>
-                  <text fg="red">Welcome to Groupchat!</text>
+                  <text fg="#FFA500">Welcome to Groupchat!</text>
                   <box marginTop={1} flexDirection="row">
                     <text fg="#888888">Press </text>
                     <text fg="#00FF00">
@@ -57,7 +57,7 @@ export function LoginScreen(props: LoginScreenProps) {
                 </>
               }
             >
-              <text fg="red">{props.status}</text>
+              <text fg="#FFA500">{props.status}</text>
               <box marginTop={1} flexDirection="row">
                 <text fg="#888888">Press </text>
                 <text fg="cyan">

@@ -1,26 +1,31 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import type { ScrollBoxRenderable } from "@opentui/core"
 import { Layout } from "../components/Layout"
 import { StatusBar } from "../components/StatusBar"
-import { InputBox } from "../components/InputBox"
+import { CommandInputPanel } from "../components/CommandInputPanel"
 import { MessageList } from "../components/MessageList"
 import { useDmStore } from "../stores/dm-store"
 import { useChatStore } from "../stores/chat-store"
 import { useAuth } from "../stores/auth-store"
 import { PRESENCE } from "../lib/colors"
 import { useChannelsStore } from "../stores/channel-store"
+import { isClaudeCommand } from "../lib/commands"
 import { useNavigation } from "../components/Router"
 import { fetchDmMessages } from "../lib/chat-client"
 import { getConfig } from "../lib/config"
 import { calculateMiddleSectionHeight } from "../lib/layout"
+import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 import type { DmMessage, Message } from "../lib/types"
+import { createChatViewBase } from "../primitives/create-chat-view-base"
 
 export type DmChatViewProps = {
   width: number
   height: number
   topPadding?: number
 }
+
+const runtimeCapabilities = getRuntimeCapabilities()
+const MESSAGE_LIST_HORIZONTAL_PADDING = 2
 
 export function DmChatView(props: DmChatViewProps) {
   const navigation = useNavigation()
@@ -34,35 +39,27 @@ export function DmChatView(props: DmChatViewProps) {
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal<string | null>(null)
   const [typingUsers, setTypingUsers] = createSignal<string[]>([])
-  const [isDetached, setIsDetached] = createSignal(false)
-  const [detachedLines, setDetachedLines] = createSignal(0)
 
   const conversation = () => dms.currentDm()
   const title = () => conversation()?.other_username || "DM"
   const topPadding = () => props.topPadding ?? 0
-  const listHeight = createMemo(() => calculateMiddleSectionHeight(props.height, topPadding()))
+  const rawListHeight = createMemo(() => calculateMiddleSectionHeight(props.height, topPadding()))
+  const messagePaneWidth = createMemo(() => Math.max(20, props.width - MESSAGE_LIST_HORIZONTAL_PADDING))
+
+  const base = createChatViewBase({
+    baseMessages: messages,
+    listHeight: rawListHeight,
+    connectionStatus: chat.connectionStatus,
+    username: chat.username,
+    channelManager: () => null,
+    currentChannel: () => null,
+  })
 
   const isOtherUserOnline = createMemo(() => {
     const convo = conversation()
     if (!convo) return false
     return Boolean(chat.globalPresence()[convo.other_username])
   })
-
-  let messageScrollRef: ScrollBoxRenderable | undefined
-
-  const updateScrollMetrics = () => {
-    if (!messageScrollRef) return
-    const maxScroll = Math.max(0, messageScrollRef.scrollHeight - messageScrollRef.viewport.height)
-    const remaining = Math.max(0, Math.round(maxScroll - messageScrollRef.scrollTop))
-    setDetachedLines(remaining)
-    setIsDetached(remaining > 0)
-  }
-
-  const scrollToBottom = () => {
-    if (!messageScrollRef) return
-    const maxScroll = Math.max(0, messageScrollRef.scrollHeight - messageScrollRef.viewport.height)
-    messageScrollRef.scrollTo({ y: maxScroll, x: 0 })
-  }
 
   createEffect(() => {
     if (!conversation()) {
@@ -107,24 +104,8 @@ export function DmChatView(props: DmChatViewProps) {
 
   createEffect(() => {
     conversation()
-    setIsDetached(false)
-    setDetachedLines(0)
     setTypingUsers([])
-    queueMicrotask(() => {
-      scrollToBottom()
-      updateScrollMetrics()
-    })
-  })
-
-  createEffect(() => {
-    messages().length
-    listHeight()
-    queueMicrotask(() => {
-      if (!isDetached()) {
-        scrollToBottom()
-      }
-      updateScrollMetrics()
-    })
+    base.resetScroll()
   })
 
   createEffect(() => {
@@ -167,10 +148,10 @@ export function DmChatView(props: DmChatViewProps) {
         }
         setMessages((prev) => [...prev, message])
 
-        if (!isDetached()) {
+        if (!base.isDetached()) {
           queueMicrotask(() => {
-            scrollToBottom()
-            updateScrollMetrics()
+            base.scrollToBottom()
+            base.updateScrollMetrics()
           })
         }
       }
@@ -199,17 +180,18 @@ export function DmChatView(props: DmChatViewProps) {
   })
 
   useKeyboard((key) => {
-    if (chat.connectionStatus() !== "connected") return
-    if (!messageScrollRef) return
-
-    if (["up", "down", "pageup", "pagedown", "home", "end"].includes(key.name)) {
-      if (messageScrollRef.handleKeyPress(key)) {
-        updateScrollMetrics()
-      }
-    }
+    if (base.handleClaudeKeys(key)) return
   })
 
-  const handleSendMessage = async (content: string) => {
+  const handleCommand = async (eventType: string, data: any) => {
+    try {
+      await base.handleClaudeCommand(eventType, data)
+    } catch (error) {
+      base.claude.appendError(`Command failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const handleSendMessage = base.wrapSendMessage(async (content: string) => {
     const manager = chat.channelManager()
     const dm = conversation()
     if (!manager || !dm) return
@@ -217,21 +199,21 @@ export function DmChatView(props: DmChatViewProps) {
     manager.sendDmMessage(dm.slug, content).catch(() => {
       setError("Failed to send message")
     })
-  }
+  })
 
-  const handleTypingStart = () => {
+  const handleTypingStart = base.wrapTypingStart(() => {
     const manager = chat.channelManager()
     const dm = conversation()
     if (!manager || !dm) return
     manager.startDmTyping(dm.slug)
-  }
+  })
 
-  const handleTypingStop = () => {
+  const handleTypingStop = base.wrapTypingStop(() => {
     const manager = chat.channelManager()
     const dm = conversation()
     if (!manager || !dm) return
     manager.stopDmTyping(dm.slug)
-  }
+  })
 
   onCleanup(() => {
     const manager = chat.channelManager()
@@ -244,7 +226,7 @@ export function DmChatView(props: DmChatViewProps) {
   return (
     <Layout width={props.width} height={props.height} topPadding={topPadding()}>
       <Layout.Content>
-        <box flexDirection="column" height={listHeight()}>
+        <box flexDirection="column" height={base.listHeight()}>
           <Show
             when={!loading() && !error()}
             fallback={
@@ -256,26 +238,40 @@ export function DmChatView(props: DmChatViewProps) {
             }
           >
             <MessageList
-              messages={messages()}
+              messages={base.combinedMessages()}
               currentUsername={chat.username()}
               typingUsers={typingUsers()}
-              height={listHeight()}
-              isDetached={isDetached()}
-              detachedLines={detachedLines()}
+              messagePaneWidth={messagePaneWidth()}
+              height={base.listHeight()}
+              isDetached={base.isDetached()}
+              detachedLines={base.detachedLines()}
               scrollRef={(ref) => {
-                messageScrollRef = ref
+                base.setScrollRef(ref)
               }}
+              permissionMessageId={base.permissionMessageId()}
+              permissionSelectedIndex={base.permissionSelectedIndex()}
             />
           </Show>
         </box>
       </Layout.Content>
       <Layout.Footer>
-        <InputBox
+        <CommandInputPanel
+          token={auth.token()}
+          currentChannel={conversation()?.slug || "dm"}
+          isPrivateChannel
+          connectionStatus={chat.connectionStatus()}
+          username={chat.username()}
+          users={[]}
+          subscribers={[]}
           onSend={handleSendMessage}
           onTypingStart={handleTypingStart}
           onTypingStop={handleTypingStop}
-          disabled={chat.connectionStatus() !== "connected"}
+          onCommandSend={handleCommand}
           placeholder={conversation() ? `Message @${conversation()!.other_username}...` : "Type a message..."}
+          commandFilter={(command) => runtimeCapabilities.hasClaude && isClaudeCommand(command)}
+          onTooltipHeightChange={base.handleTooltipHeightChange}
+          claudeMode={base.isClaudeMode()}
+          claudePendingPermission={base.claude.pendingPermission()}
         />
         <StatusBar
           connectionStatus={chat.connectionStatus()}

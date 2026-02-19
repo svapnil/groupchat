@@ -6,6 +6,56 @@
 export interface MessageAttributes {
   /** Extensible map for message metadata */
   [key: string]: unknown;
+  claude?: ClaudeMessageMetadata;
+  cc?: CcEventMetadata;
+}
+
+export interface CcEventMetadata {
+  turn_id: string;
+  session_id?: string;
+  event: "question" | "tool_call" | "text" | "result";
+  tool_name?: string;
+  is_error?: boolean;
+  events?: CcEventMetadata[];
+  contents?: string[];
+}
+
+export type ClaudeContentBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
+  | { type: "tool_result"; tool_use_id: string; content: string | ClaudeContentBlock[]; is_error?: boolean }
+  | { type: "thinking"; thinking: string; budget_tokens?: number };
+
+export interface ClaudeResultMetadata {
+  subtype: string;
+  isError: boolean;
+  numTurns?: number;
+  totalCostUsd?: number;
+  durationMs?: number;
+}
+
+export interface ClaudePermissionRequest {
+  requestId: string;
+  toolName: string;
+  toolUseId: string;
+  agentId?: string;
+  description?: string;
+  input: Record<string, unknown>;
+  /** Set once the user responds or the request is cancelled */
+  resolution?: "allowed" | "denied" | "cancelled";
+}
+
+export interface ClaudeMessageMetadata {
+  parentToolUseId: string | null;
+  contentBlocks: ClaudeContentBlock[];
+  model?: string;
+  stopReason?: string | null;
+  streaming?: boolean;
+  thinking?: boolean;
+  interrupted?: boolean;
+  eventType?: "assistant" | "stream_event" | "streamlined_text" | "streamlined_tool_use_summary" | "result";
+  result?: ClaudeResultMetadata;
+  permissionRequest?: ClaudePermissionRequest;
 }
 
 export interface Message {
@@ -15,7 +65,7 @@ export interface Message {
   timestamp: string;
 
   /** Message type - defaults to "user" for regular messages */
-  type?: "user" | "system";
+  type?: "user" | "system" | "claude-response" | "cc";
 
   /** Optional attributes - only present when message has attributes */
   attributes?: MessageAttributes;

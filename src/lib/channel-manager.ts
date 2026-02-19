@@ -1,5 +1,6 @@
 import { Socket, Channel as PhoenixChannel } from "phoenix";
 import type {
+  CcEventMetadata,
   Message,
   PresenceState,
   PresenceDiff,
@@ -10,6 +11,7 @@ import type {
   DmMessage,
 } from "./types.js";
 import { applyPresenceDiff } from "./presence-utils.js";
+import { debugLog } from "./debug.js";
 
 /**
  * Internal state for each channel subscription.
@@ -600,6 +602,40 @@ export class ChannelManager {
   }
 
   /**
+   * Send an ephemeral Claude Code event message to a specific channel.
+   * Fire-and-forget: errors are logged but not propagated to callers.
+   */
+  async sendCcMessage(channelSlug: string, content: string, ccMeta: CcEventMetadata): Promise<void> {
+    const channelState = this.channelStates.get(channelSlug);
+    if (!channelState) {
+      return;
+    }
+
+    if (!this.socket || this.connectionStatus !== "connected") {
+      return;
+    }
+
+    try {
+      channelState.channel
+        .push("new_message", {
+          content,
+          type: "cc",
+          attributes: {
+            cc: ccMeta,
+          },
+        })
+        .receive("error", (err: unknown) => {
+          console.error(`Failed to send cc message to ${channelSlug}:`, err);
+        })
+        .receive("timeout", () => {
+          console.error(`CC message send timeout for ${channelSlug}`);
+        });
+    } catch (error) {
+      console.error(`Failed to send cc message to ${channelSlug}:`, error);
+    }
+  }
+
+  /**
    * Send a custom command event to a specific channel.
    */
   async sendCommand(
@@ -774,7 +810,7 @@ export class ChannelManager {
     return new Promise((resolve, reject) => {
       channelState.channel.push("mark_as_read", {})
         .receive("ok", (response: unknown) => {
-          console.log(`Marked ${channelSlug} as read`, response);
+          debugLog("channel-manager", `Marked ${channelSlug} as read`, response);
           resolve();
         })
         .receive("error", (err: unknown) => {
@@ -819,7 +855,7 @@ export class ChannelManager {
     return new Promise((resolve, reject) => {
       channelState.channel.push("mark_all_read", {})
         .receive("ok", (response: unknown) => {
-          console.log(`Marked all in ${channelSlug} as read`, response);
+          debugLog("channel-manager", `Marked all in ${channelSlug} as read`, response);
           resolve();
         })
         .receive("error", (err: unknown) => {

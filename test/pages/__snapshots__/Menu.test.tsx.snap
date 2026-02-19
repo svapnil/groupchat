@@ -1,0 +1,71 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`Menu renders empty-state menu 1`] = `
+"                                                                                                    
+                                                                                                    
+  Private Channels                                                  ┌─────────────────────          
+                                                                    │ At A Glance                   
+    > + Create a new private channel                                │                               
+                                                                    │ ● 0 Online                    
+  Direct Messages                                                   │                               
+                                                                    │ No users online               
+      + Start a new conversation                                    │                               
+    No Direct Messages Yet.                                         │                               
+                                                                    │                               
+  No channels available                                             │                               
+                                                                    │                               
+                                                                    │                               
+                                                                    │                               
+  ┌───────────────────────┐                                         │                               
+  │ ↑/↓ Navigate channels │                                         │                               
+  │ Ctrl+O Logout         │                                         │                               
+  │ Ctrl+C Exit the app   │                                         └─────────────────────          
+  │                       │                                                                         
+  └───────────────────────┘                                                                         
+┌────────────────────────────────────────────────────────────────────────────────────────┐          
+│                                                                         ● | ↑/↓ scroll │          
+└────────────────────────────────────────────────────────────────────────────────────────┘          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+"
+`;
+
+exports[`Menu renders channel and dm sections with seeded data 1`] = `
+"                                                                                                                        
+                                                                                                                        
+  Global Channels                                                                     ┌───────────────────────          
+                                                                                      │ At A Glance                     
+    > #global                                                                         │                                 
+      #engineering (2)                                                                │ ● 0 Online                      
+                                                                                      │                                 
+  Private Channels                                                                    │ No users online                 
+                                                                                      │                                 
+      #maintainers (1)                                                                │                                 
+      + Create a new private channel                                                  │                                 
+  Direct Messages                                                                     │                                 
+                                                                                      │                                 
+      + Start a new conversation                                                      │                                 
+      ● bob (1)                                                                       │                                 
+        Ship it - Jan 2                                                               │                                 
+      ● charlie                                                                       │                                 
+        LGTM - Jan 1                                                                  │                                 
+                                                                                      │                                 
+                                                                                      │                                 
+  ┌───────────────────────┐                                                           │                                 
+  │ ↑/↓ Navigate channels │                                                           │                                 
+  │ Ctrl+O Logout         │                                                           │                                 
+  │ Ctrl+C Exit the app   │                                                           │                                 
+  │                       │                                                           └───────────────────────          
+  └───────────────────────┘                                                                                             
+                                                                                                                        
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────┐          
+│                                                                                             ● | ↑/↓ scroll │          
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘          
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+"
+`;

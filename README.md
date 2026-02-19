@@ -153,6 +153,30 @@ Groupchat transforms how you communicate while coding. Instead of alt-tabbing to
 
 ## For Developers
 
+### Claude SDK mode protocol coverage
+
+The TUI Claude mode uses the hidden `claude --sdk-url` NDJSON WebSocket protocol.
+
+Control request subtypes documented by the reverse-engineered protocol:
+- `initialize`
+- `can_use_tool`
+- `interrupt`
+- `set_permission_mode`
+- `set_model`
+- `set_max_thinking_tokens`
+- `mcp_status`
+- `mcp_message`
+- `mcp_reconnect`
+- `mcp_toggle`
+- `mcp_set_servers`
+- `rewind_files`
+- `hook_callback`
+
+Current TUI implementation:
+- Handles incoming `can_use_tool` permission requests.
+- Sends outgoing `interrupt` requests (Ctrl+C in Claude mode).
+- Does not yet implement the other control request subtypes.
+
 ### Technology Stack
 - **React for Terminals** - Ink provides a React-based TUI framework
 - **WebSocket** - Real-time bidirectional communication
@@ -171,11 +195,27 @@ Interested in improving Groupchat? We welcome contributions! Check out the main 
 cd tui
 npm install
 npm run dev        # Watch mode with hot reload
+npm run dev:debug  # Watch mode + writes debug logs to .logs/tui-debug.log
+npm run dev:debug:console # Watch mode + OpenTUI console overlay at startup
 npm run typecheck  # Check TypeScript types
 npm run build      # Build for production
 ```
 
+### Debug Logging
+
+The OpenTUI runtime captures `console.*` output while rendering. For easier development debugging:
+
+```bash
+cd tui
+npm run dev:debug
+tail -f .logs/tui-debug.log
+```
+
+Optional environment variables:
+- `GROUPCHAT_DEBUG_FILE` override the debug file path (default `.logs/tui-debug.log`)
+- `GROUPCHAT_DEBUG_STDERR=1` mirror debug lines to stderr
+- `SHOW_CONSOLE=true` show the OpenTUI console overlay when the app starts
+
 ## License
 
 MIT - See LICENSE file in the repository
-

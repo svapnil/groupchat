@@ -1,6 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import type { ScrollBoxRenderable } from "@opentui/core"
 import { Layout } from "../components/Layout"
 import { MessageList } from "../components/MessageList"
 import { StatusBar } from "../components/StatusBar"
@@ -11,13 +10,20 @@ import { useChannelsStore } from "../stores/channel-store"
 import { useDmStore } from "../stores/dm-store"
 import { useAuth } from "../stores/auth-store"
 import { calculateMiddleSectionHeight } from "../lib/layout"
+import { isClaudeCommand } from "../lib/commands"
+import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 import { createPresenceUsers } from "../primitives/presence"
+import { createChatViewBase } from "../primitives/create-chat-view-base"
 
 export type ChatViewProps = {
   width: number
   height: number
   topPadding?: number
 }
+
+const runtimeCapabilities = getRuntimeCapabilities()
+const USER_LIST_WIDTH = 24
+const MESSAGE_LIST_HORIZONTAL_PADDING = 2
 
 export function ChatView(props: ChatViewProps) {
   const chat = useChatStore()
@@ -26,14 +32,23 @@ export function ChatView(props: ChatViewProps) {
   const auth = useAuth()
   const renderer = useRenderer()
 
-  const [isDetached, setIsDetached] = createSignal(false)
-  const [detachedLines, setDetachedLines] = createSignal(0)
   const [showUserList, setShowUserList] = createSignal(true)
-  const [tooltipHeight, setTooltipHeight] = createSignal(0)
 
   const topPadding = () => props.topPadding ?? 0
   const middleHeight = createMemo(() => calculateMiddleSectionHeight(props.height, topPadding()))
-  const listHeight = createMemo(() => Math.max(1, middleHeight() - tooltipHeight()))
+  const messagePaneWidth = createMemo(() => {
+    const userListWidth = showUserList() ? USER_LIST_WIDTH : 0
+    return Math.max(20, props.width - userListWidth - MESSAGE_LIST_HORIZONTAL_PADDING)
+  })
+
+  const base = createChatViewBase({
+    baseMessages: chat.messages,
+    listHeight: middleHeight,
+    connectionStatus: chat.connectionStatus,
+    username: chat.username,
+    channelManager: chat.channelManager,
+    currentChannel: channels.currentChannel,
+  })
 
   const channelDetails = createMemo(() => {
     const slug = channels.currentChannel()
@@ -51,23 +66,9 @@ export function ChatView(props: ChatViewProps) {
     globalPresence: chat.globalPresence,
   })
 
-  let messageScrollRef: ScrollBoxRenderable | undefined
-
-  const updateScrollMetrics = () => {
-    if (!messageScrollRef) return
-    const maxScroll = Math.max(0, messageScrollRef.scrollHeight - messageScrollRef.viewport.height)
-    const remaining = Math.max(0, Math.round(maxScroll - messageScrollRef.scrollTop))
-    setDetachedLines(remaining)
-    setIsDetached(remaining > 0)
-  }
-
-  const scrollToBottom = () => {
-    if (!messageScrollRef) return
-    const maxScroll = Math.max(0, messageScrollRef.scrollHeight - messageScrollRef.viewport.height)
-    messageScrollRef.scrollTo({ y: maxScroll, x: 0 })
-  }
-
   const sendCommand = async (eventType: string, data: any) => {
+    if (await base.handleClaudeCommand(eventType, data)) return
+    if (base.isClaudeMode()) return
     const manager = chat.channelManager()
     if (!manager) {
       throw new Error("Not connected")
@@ -75,9 +76,20 @@ export function ChatView(props: ChatViewProps) {
     await manager.sendCommand(channels.currentChannel(), eventType, data)
   }
 
-  const handleTooltipHeightChange = (height: number) => {
-    setTooltipHeight((prev) => (prev === height ? prev : height))
+  const handleSendMessage = base.wrapSendMessage(async (message: string) => {
+    await chat.sendMessage(message)
+  })
+
+  const handleSendCommand = async (eventType: string, data: any) => {
+    try {
+      await sendCommand(eventType, data)
+    } catch (error) {
+      base.claude.appendError(`Command failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
+
+  const handleTypingStart = base.wrapTypingStart(() => chat.startTyping())
+  const handleTypingStop = base.wrapTypingStop(() => chat.stopTyping())
 
   createEffect(() => {
     const prefix = chat.connectionStatus() === "connected" ? "• " : ""
@@ -88,22 +100,7 @@ export function ChatView(props: ChatViewProps) {
 
   createEffect(() => {
     channels.currentChannel()
-    setIsDetached(false)
-    setDetachedLines(0)
-    queueMicrotask(() => {
-      scrollToBottom()
-      updateScrollMetrics()
-    })
-  })
-
-  createEffect(() => {
-    chat.messages().length
-    queueMicrotask(() => {
-      if (!isDetached()) {
-        scrollToBottom()
-      }
-      updateScrollMetrics()
-    })
+    base.resetScroll()
   })
 
   useKeyboard((key) => {
@@ -111,16 +108,7 @@ export function ChatView(props: ChatViewProps) {
       setShowUserList((prev) => !prev)
       return
     }
-
-    if (chat.connectionStatus() !== "connected") return
-
-    if (!messageScrollRef) return
-
-    if (["up", "down", "pageup", "pagedown", "home", "end"].includes(key.name)) {
-      if (messageScrollRef.handleKeyPress(key)) {
-        updateScrollMetrics()
-      }
-    }
+    if (base.handleClaudeKeys(key)) return
   })
 
   let prevChannel: string | null = null
@@ -176,25 +164,28 @@ export function ChatView(props: ChatViewProps) {
   return (
     <Layout width={props.width} height={props.height} topPadding={topPadding()}>
       <Layout.Content>
-        <box flexDirection="row" height={listHeight()} overflow="hidden">
+        <box flexDirection="row" height={base.listHeight()} overflow="hidden">
           <box flexGrow={1} flexDirection="column" overflow="hidden">
             <MessageList
-              messages={chat.messages()}
+              messages={base.combinedMessages()}
               currentUsername={chat.username()}
               typingUsers={chat.typingUsers()}
-              height={listHeight()}
-              isDetached={isDetached()}
-              detachedLines={detachedLines()}
+              messagePaneWidth={messagePaneWidth()}
+              height={base.listHeight()}
+              isDetached={base.isDetached()}
+              detachedLines={base.detachedLines()}
               scrollRef={(ref) => {
-                messageScrollRef = ref
+                base.setScrollRef(ref)
               }}
+              permissionMessageId={base.permissionMessageId()}
+              permissionSelectedIndex={base.permissionSelectedIndex()}
             />
           </box>
           {showUserList() ? (
             <UserList
               users={users()}
               currentUsername={chat.username()}
-              height={Math.max(1, listHeight() - 1)}
+              height={Math.max(1, base.listHeight() - 1)}
               isPrivateChannel={isPrivateChannel()}
             />
           ) : null}
@@ -208,11 +199,14 @@ export function ChatView(props: ChatViewProps) {
           username={chat.username()}
           users={users()}
           subscribers={chat.subscribers()}
-          onSend={chat.sendMessage}
-          onTypingStart={chat.startTyping}
-          onTypingStop={chat.stopTyping}
-          onCommandSend={sendCommand}
-          onTooltipHeightChange={handleTooltipHeightChange}
+          onSend={handleSendMessage}
+          onTypingStart={handleTypingStart}
+          onTypingStop={handleTypingStop}
+          onCommandSend={handleSendCommand}
+          commandFilter={(command) => runtimeCapabilities.hasClaude || !isClaudeCommand(command)}
+          onTooltipHeightChange={base.handleTooltipHeightChange}
+          claudeMode={base.isClaudeMode()}
+          claudePendingPermission={base.claude.pendingPermission()}
         />
       </Layout.Content>
 

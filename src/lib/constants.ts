@@ -8,7 +8,7 @@ export const AGENT_CONFIG = {
   claude: {
     type: "claude" as const,
     displayName: "Claude Code",
-    color: "redBright" as const,
+    color: "#FFA500" as const,
   },
   codex: {
     type: "codex" as const,
@@ -38,7 +38,7 @@ export function getAgentDisplayName(agent: AgentType): string {
 /**
  * Helper to get agent color
  */
-export function getAgentColor(agent: AgentType): "redBright" | "cyan" | "blueBright" | "magenta" | undefined {
+export function getAgentColor(agent: AgentType): "#FFA500" | "cyan" | "blueBright" | "magenta" | undefined {
   if (!agent) return undefined;
   return AGENT_CONFIG[agent].color;
 }

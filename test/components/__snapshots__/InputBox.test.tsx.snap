@@ -1,0 +1,25 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`InputBox renders default placeholder and helper text 1`] = `
+"┌──────────────────────────────────────────────────────────┐
+│ ❯ Type a message...                                 SEND │
+│ Enter to send                                            │
+└──────────────────────────────────────────────────────────┘
+                                                            
+                                                            
+                                                            
+                                                            
+"
+`;
+
+exports[`InputBox renders claude permission state 1`] = `
+"┌──────────────────────────────────────────────────────────────────────────────┐
+│ ❯ Awaiting permission decision...                                       SEND │
+│ ↑/↓ select Allow/Deny in message list • Enter to confirm                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+"
+`;

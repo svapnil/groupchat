@@ -2,8 +2,10 @@ import { Show, createEffect } from "solid-js"
 import { InputBox } from "./InputBox"
 import { ToolTip } from "./ToolTip"
 import { useCommandInput } from "../primitives/use-command-input"
+import { LOCAL_COMMAND_EVENTS, type Command } from "../lib/commands"
 import type { ConnectionStatus, Subscriber } from "../lib/types"
 import type { UserWithStatus } from "../primitives/presence"
+import type { ClaudePendingPermission } from "../primitives/create-claude-sdk-session"
 
 export type CommandInputPanelProps = {
   token: string | null
@@ -17,7 +19,11 @@ export type CommandInputPanelProps = {
   onTypingStart: () => void
   onTypingStop: () => void
   onCommandSend: (eventType: string, data: any) => Promise<void>
+  placeholder?: string
   onTooltipHeightChange?: (height: number) => void
+  commandFilter?: (command: Command) => boolean
+  claudeMode?: boolean
+  claudePendingPermission?: ClaudePendingPermission | null
 }
 
 export function CommandInputPanel(props: CommandInputPanelProps) {
@@ -25,6 +31,16 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
     token: () => props.token,
     currentChannel: () => props.currentChannel,
     isPrivateChannel: () => props.isPrivateChannel,
+    commandsEnabled: () => true,
+    commandFilter: (command) => {
+      if (props.claudeMode) {
+        if (command.eventType !== LOCAL_COMMAND_EVENTS.claudeExit) return false
+      } else if (command.eventType === LOCAL_COMMAND_EVENTS.claudeExit) {
+        return false
+      }
+      return props.commandFilter ? props.commandFilter(command) : true
+    },
+    inputEnabledOverride: () => Boolean(props.claudeMode),
     connectionStatus: () => props.connectionStatus,
     username: () => props.username,
     users: () => props.users,
@@ -50,8 +66,11 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
         onTypingStop={props.onTypingStop}
         onInputChange={commandInput.handleInputChange}
         commandNames={commandInput.availableCommandNames()}
+        placeholder={props.placeholder}
         disabled={commandInput.isInputDisabled()}
         sendDisabled={commandInput.isSendDisabled()}
+        claudeMode={Boolean(props.claudeMode)}
+        claudePendingPermission={props.claudePendingPermission || null}
       />
     </>
   )

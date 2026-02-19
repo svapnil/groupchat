@@ -1,9 +1,15 @@
 import type { Message } from "../lib/types"
+import { ClaudeMessageItem } from "./ClaudeMessageItem"
+import { OtherUserClaudeMessageItem } from "./OtherUserClaudeMessageItem"
 
 export type MessageItemProps = {
   message: Message
   isOwnMessage: boolean
+  messagePaneWidth?: number
   showHeader?: boolean
+  claudeDepth?: number
+  /** Index of the currently highlighted permission option (0=Allow, 1=Deny) */
+  permissionSelectedIndex?: number
 }
 
 const COLORS = ["cyan", "magenta", "brightGreen", "brightBlue", "brightYellow", "brightMagenta"] as const
@@ -31,6 +37,7 @@ function formatTime(timestamp: string): string {
 export function MessageItem(props: MessageItemProps) {
   const showHeader = () => props.showHeader ?? true
   const time = () => formatTime(props.message.timestamp)
+  const isClaudeSessionUserMessage = () => props.message.attributes?.claudeSessionUser === true
 
   if (props.message.type === "system") {
     return (
@@ -40,6 +47,20 @@ export function MessageItem(props: MessageItemProps) {
         </text>
       </box>
     )
+  }
+
+  if (props.message.type === "claude-response") {
+    return (
+      <ClaudeMessageItem
+        message={props.message}
+        claudeDepth={props.claudeDepth}
+        permissionSelectedIndex={props.permissionSelectedIndex}
+      />
+    )
+  }
+
+  if (props.message.type === "cc") {
+    return <OtherUserClaudeMessageItem message={props.message} messagePaneWidth={props.messagePaneWidth} />
   }
 
   const usernameColor = () => getUsernameColor(props.message.username)
@@ -58,7 +79,7 @@ export function MessageItem(props: MessageItemProps) {
             </box>
           )}
           <box paddingLeft={2}>
-            <text>{props.message.content}</text>
+            <text>{isClaudeSessionUserMessage() ? <em>{props.message.content}</em> : props.message.content}</text>
           </box>
         </box>
       </box>
@@ -78,7 +99,7 @@ export function MessageItem(props: MessageItemProps) {
           </box>
         )}
         <box paddingLeft={2}>
-          <text>{props.message.content}</text>
+          <text>{isClaudeSessionUserMessage() ? <em>{props.message.content}</em> : props.message.content}</text>
         </box>
       </box>
     </box>
