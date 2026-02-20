@@ -1,6 +1,6 @@
 {
   "name": "@groupchat-cli/darwin-arm64",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "groupchat binary for macOS ARM64",
   "os": [
     "darwin"
