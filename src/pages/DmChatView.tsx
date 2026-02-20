@@ -12,6 +12,7 @@ import { useChannelsStore } from "../stores/channel-store"
 import { isClaudeCommand } from "../lib/commands"
 import { useNavigation } from "../components/Router"
 import { fetchDmMessages } from "../lib/chat-client"
+import { condenseCcMessages, upsertCcMessage } from "../lib/cc-message-utils"
 import { getConfig } from "../lib/config"
 import { calculateMiddleSectionHeight } from "../lib/layout"
 import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
@@ -26,6 +27,12 @@ export type DmChatViewProps = {
 
 const runtimeCapabilities = getRuntimeCapabilities()
 const MESSAGE_LIST_HORIZONTAL_PADDING = 2
+
+function extractTimestampFromUUIDv7(uuid: string): string {
+  const hex = uuid.replace(/-/g, "").slice(0, 12)
+  const ms = parseInt(hex, 16)
+  return new Date(ms).toISOString()
+}
 
 export function DmChatView(props: DmChatViewProps) {
   const navigation = useNavigation()
@@ -51,8 +58,8 @@ export function DmChatView(props: DmChatViewProps) {
     listHeight: rawListHeight,
     connectionStatus: chat.connectionStatus,
     username: chat.username,
-    channelManager: () => null,
-    currentChannel: () => null,
+    channelManager: chat.channelManager,
+    currentChannel: () => conversation()?.slug || null,
   })
 
   const isOtherUserOnline = createMemo(() => {
@@ -91,7 +98,7 @@ export function DmChatView(props: DmChatViewProps) {
       try {
         const config = getConfig()
         const data = await fetchDmMessages(config.wsUrl, token, dm.slug)
-        setMessages(data.messages || [])
+        setMessages(condenseCcMessages(data.messages || [], chat.username()))
       } catch (err) {
         setError("Failed to load messages")
       } finally {
@@ -143,12 +150,18 @@ export function DmChatView(props: DmChatViewProps) {
           id: msg.id,
           username: msg.username,
           content: msg.content,
-          timestamp: new Date().toISOString(),
+          timestamp: extractTimestampFromUUIDv7(msg.id),
           attributes: msg.attributes,
         }
-        setMessages((prev) => [...prev, message])
 
-        if (!base.isDetached()) {
+        let changed = false
+        setMessages((prev) => {
+          const next = upsertCcMessage(prev, message, currentUsername)
+          changed = next !== prev
+          return next
+        })
+
+        if (changed && !base.isDetached()) {
           queueMicrotask(() => {
             base.scrollToBottom()
             base.updateScrollMetrics()

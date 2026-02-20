@@ -2,6 +2,7 @@ import { Socket, Channel as PhoenixChannel } from "phoenix";
 import type {
   CcEventMetadata,
   Message,
+  MessageAttributes,
   PresenceState,
   PresenceDiff,
   ConnectionStatus,
@@ -607,31 +608,38 @@ export class ChannelManager {
    */
   async sendCcMessage(channelSlug: string, content: string, ccMeta: CcEventMetadata): Promise<void> {
     const channelState = this.channelStates.get(channelSlug);
-    if (!channelState) {
-      return;
-    }
-
     if (!this.socket || this.connectionStatus !== "connected") {
       return;
     }
 
-    try {
-      channelState.channel
-        .push("new_message", {
-          content,
-          type: "cc",
-          attributes: {
-            cc: ccMeta,
-          },
-        })
-        .receive("error", (err: unknown) => {
-          console.error(`Failed to send cc message to ${channelSlug}:`, err);
-        })
-        .receive("timeout", () => {
-          console.error(`CC message send timeout for ${channelSlug}`);
-        });
-    } catch (error) {
-      console.error(`Failed to send cc message to ${channelSlug}:`, error);
+    if (channelState) {
+      try {
+        channelState.channel
+          .push("new_message", {
+            content,
+            type: "cc",
+            attributes: {
+              cc: ccMeta,
+            },
+          })
+          .receive("error", (err: unknown) => {
+            console.error(`Failed to send cc message to ${channelSlug}:`, err);
+          })
+          .receive("timeout", () => {
+            console.error(`CC message send timeout for ${channelSlug}`);
+          });
+      } catch (error) {
+        console.error(`Failed to send cc message to ${channelSlug}:`, error);
+      }
+      return;
+    }
+
+    if (channelSlug.startsWith("dm:")) {
+      this.sendDmMessage(channelSlug, content, {
+        cc: ccMeta,
+      }).catch((error) => {
+        console.error(`Failed to send cc message to DM ${channelSlug}:`, error);
+      });
     }
   }
 
@@ -876,7 +884,11 @@ export class ChannelManager {
   /**
    * Send a DM message via the user channel.
    */
-  async sendDmMessage(dmSlug: string, content: string): Promise<{ message_id: string }> {
+  async sendDmMessage(
+    dmSlug: string,
+    content: string,
+    attributes?: MessageAttributes
+  ): Promise<{ message_id: string }> {
     if (!this.userChannel) {
       throw new Error("User channel not connected");
     }
@@ -885,9 +897,18 @@ export class ChannelManager {
       throw new Error("Connection lost");
     }
 
+    const payload: { dm_slug: string; content: string; attributes?: MessageAttributes } = {
+      dm_slug: dmSlug,
+      content,
+    };
+
+    if (attributes && Object.keys(attributes).length > 0) {
+      payload.attributes = attributes;
+    }
+
     return new Promise((resolve, reject) => {
       this.userChannel!
-        .push("dm:send", { dm_slug: dmSlug, content })
+        .push("dm:send", payload)
         .receive("ok", (resp: unknown) => {
           const response = resp as { message_id: string };
           resolve(response);
