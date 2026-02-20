@@ -635,9 +635,14 @@ export class ChannelManager {
     }
 
     if (channelSlug.startsWith("dm:")) {
-      this.sendDmMessage(channelSlug, content, {
-        cc: ccMeta,
-      }).catch((error) => {
+      this.sendDmMessage(
+        channelSlug,
+        content,
+        {
+          cc: ccMeta,
+        },
+        "cc"
+      ).catch((error) => {
         console.error(`Failed to send cc message to DM ${channelSlug}:`, error);
       });
     }
@@ -887,7 +892,8 @@ export class ChannelManager {
   async sendDmMessage(
     dmSlug: string,
     content: string,
-    attributes?: MessageAttributes
+    attributes?: MessageAttributes,
+    type?: "cc"
   ): Promise<{ message_id: string }> {
     if (!this.userChannel) {
       throw new Error("User channel not connected");
@@ -897,13 +903,21 @@ export class ChannelManager {
       throw new Error("Connection lost");
     }
 
-    const payload: { dm_slug: string; content: string; attributes?: MessageAttributes } = {
+    const payload: {
+      dm_slug: string;
+      content: string;
+      attributes?: MessageAttributes;
+      type?: "cc";
+    } = {
       dm_slug: dmSlug,
       content,
     };
 
     if (attributes && Object.keys(attributes).length > 0) {
       payload.attributes = attributes;
+    }
+    if (type) {
+      payload.type = type;
     }
 
     return new Promise((resolve, reject) => {

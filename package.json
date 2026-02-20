@@ -1,6 +1,6 @@
 {
   "name": "groupchat",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "CLI chat client for Groupchat (OpenTUI)",
   "bin": {
     "groupchat": "bin/groupchat"
@@ -23,11 +23,11 @@
     "prepublishOnly": "bun run typecheck && bun run build"
   },
   "optionalDependencies": {
-    "@groupchat-cli/darwin-arm64": "0.1.5",
-    "@groupchat-cli/darwin-x64": "0.1.5",
-    "@groupchat-cli/linux-arm64": "0.1.5",
-    "@groupchat-cli/linux-x64": "0.1.5",
-    "@groupchat-cli/win32-x64": "0.1.5"
+    "@groupchat-cli/darwin-arm64": "0.1.6",
+    "@groupchat-cli/darwin-x64": "0.1.6",
+    "@groupchat-cli/linux-arm64": "0.1.6",
+    "@groupchat-cli/linux-x64": "0.1.6",
+    "@groupchat-cli/win32-x64": "0.1.6"
   },
   "dependencies": {},
   "devDependencies": {

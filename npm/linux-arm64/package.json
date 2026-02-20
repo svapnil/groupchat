@@ -1,6 +1,6 @@
 {
   "name": "@groupchat-cli/linux-arm64",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "groupchat binary for Linux ARM64",
   "os": [
     "linux"
