@@ -48,4 +48,39 @@ describe("ClaudeMessageItem", () => {
     expect(frame).toContain("│───────│")
     expect(frame).toContain("┴")
   })
+
+  test("renders GitHub links as visible safe markdown output", async () => {
+    const message: Message = {
+      id: "m2",
+      username: "claude",
+      content: "",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      type: "claude-response",
+      attributes: {
+        claude: {
+          parentToolUseId: null,
+          contentBlocks: [
+            {
+              type: "text",
+              text: "Use [OpenAI Node](https://GitHub.com/openai/openai-node) and <https://github.com/openai/openai-python>.",
+            },
+          ],
+        },
+      },
+    }
+
+    testSetup = await testRender(
+      () => <ClaudeMessageItem message={message} />,
+      { width: 120, height: 20 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("OpenAI Node")
+    expect(frame).toContain("github.com/openai/openai-node")
+    expect(frame).toContain("github.com/openai/openai-python")
+    expect(frame).not.toContain("GitHub.com")
+    expect(frame).not.toContain("https://github.com/openai/openai-python")
+  })
 })

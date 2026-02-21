@@ -2,6 +2,7 @@ import { RGBA, SyntaxStyle } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { CcEventMetadata, Message } from "../lib/types"
 import { truncate } from "../lib/utils"
+import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../lib/content-sanitizer"
 
 const COLORS = ["cyan", "magenta", "brightGreen", "brightBlue", "brightYellow", "brightMagenta"] as const
 type UsernameColor = (typeof COLORS)[number]
@@ -96,7 +97,7 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
   const timeline = createMemo(() => getCcEventTimeline(props.message))
   const events = createMemo(() => timeline().events)
   const contents = createMemo(() => timeline().contents)
-  const username = () => props.message.username
+  const username = () => sanitizePlainMessageText(props.message.username)
   const usernameColor = () => getUsernameColor(username())
   const time = () => formatTime(props.message.timestamp)
   const bubbleWidth = createMemo(() => {
@@ -117,6 +118,7 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
     return questionIndexes()
       .map((index) => contents()[index] || "")
       .filter((content) => content.trim().length > 0)
+      .map((content) => sanitizePlainMessageText(content))
   })
 
   const latestTurnId = createMemo(() => {
@@ -151,8 +153,8 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
 
     const latestIndex = indexes[indexes.length - 1]
     const latestEvent = events()[latestIndex]
-    const toolName = latestEvent.tool_name || "Tool"
-    const toolSummary = compactPreview(contents()[latestIndex] || "")
+    const toolName = sanitizePlainMessageText(latestEvent.tool_name || "Tool")
+    const toolSummary = sanitizePlainMessageText(compactPreview(contents()[latestIndex] || ""))
 
     if (!toolSummary) return toolName
     if (toolSummary.toLowerCase().startsWith(toolName.toLowerCase())) {
@@ -173,7 +175,9 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
   const textContent = createMemo(() => {
     const index = textIndex()
     if (index < 0) return ""
-    return contents()[index] || ""
+    return sanitizeMessageMarkdown(contents()[index] || "", {
+      hyperlinkPolicy: { enabled: true },
+    })
   })
 
   const resultIndex = createMemo(() => {
@@ -263,7 +267,9 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
           <Show when={latestToolDetail()}>
             <box flexDirection="row">
               <text fg="green">⏺ </text>
-              <text fg="#888888" truncate flexShrink={1} minWidth={0}>{latestToolDetail()}</text>
+              <text fg="#888888" truncate flexShrink={1} minWidth={0}>
+                {sanitizePlainMessageText(latestToolDetail())}
+              </text>
             </box>
           </Show>
 
@@ -295,7 +301,7 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
             <box flexDirection="row">
               <text fg={isError() ? "red" : "#888888"}>⏺ </text>
               <text fg={isError() ? "#AA6666" : "#888888"} truncate flexShrink={1} minWidth={0}>
-                {`${username()}'s Claude ${isError() ? "finished with error" : "finished"} (${turnCount()} turns, ${durationSeconds()}s)`}
+                {sanitizePlainMessageText(`${username()}'s Claude ${isError() ? "finished with error" : "finished"} (${turnCount()} turns, ${durationSeconds()}s)`)}
               </text>
             </box>
           </Show>

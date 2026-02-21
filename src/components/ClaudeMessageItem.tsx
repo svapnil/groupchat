@@ -4,6 +4,7 @@ import type { ClaudePermissionRequest, Message } from "../lib/types"
 import { getClaudeMetadata, getPermissionOneLiner, getToolOneLiner, groupClaudeBlocks, contentToLines } from "../lib/claude-helpers"
 import { compactJson } from "../lib/utils"
 import { debugLog } from "../lib/debug"
+import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../lib/content-sanitizer"
 
 export type ClaudeMessageItemProps = {
   message: Message
@@ -96,7 +97,7 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                 return (
                   <box flexDirection="row">
                     <text fg="green">⏺ </text>
-                    <text fg="#FFFFFF">{getToolOneLiner(grouped.name, grouped.items)}</text>
+                    <text fg="#FFFFFF">{sanitizePlainMessageText(getToolOneLiner(grouped.name, grouped.items))}</text>
                   </box>
                 )
               }
@@ -111,7 +112,7 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                     </Show>
                     <box flexDirection="column" flexGrow={1}>
                       <markdown
-                        content={block.text}
+                        content={sanitizeMessageMarkdown(block.text)}
                         syntaxStyle={markdownSyntaxStyle}
                         conceal
                         streaming={Boolean(claude()?.streaming)}
@@ -127,7 +128,7 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                 return (
                   <box flexDirection="column">
                     <text fg="#FFA500">[Thinking]</text>
-                    <For each={contentToLines(block.thinking)}>
+                    <For each={contentToLines(sanitizePlainMessageText(block.thinking))}>
                       {(line) => <text fg="#BBBBBB">{line}</text>}
                     </For>
                   </box>
@@ -149,7 +150,7 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                         {block.is_error ? "Error" : "Result"}
                       </text>
                     </box>
-                    <For each={contentToLines(resultContent)}>
+                    <For each={contentToLines(sanitizePlainMessageText(resultContent))}>
                       {(line) => <text fg={block.is_error ? "red" : "#AAAAAA"}>{line}</text>}
                     </For>
                   </box>
@@ -169,13 +170,13 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                 <box flexDirection="column">
                   <box flexDirection="row">
                     <text fg="yellow">⏺ </text>
-                    <text fg="#FFFFFF">{perm().toolName}</text>
+                    <text fg="#FFFFFF">{sanitizePlainMessageText(perm().toolName)}</text>
                     <Show when={perm().description}>
-                      <text fg="#888888"> — {perm().description}</text>
+                      <text fg="#888888"> — {sanitizePlainMessageText(perm().description!)}</text>
                     </Show>
                   </box>
                   <box paddingLeft={2}>
-                    <text fg="#BBBBBB">{oneLiner()}</text>
+                    <text fg="#BBBBBB">{sanitizePlainMessageText(oneLiner())}</text>
                   </box>
 
                   <Show when={!resolved()}>

@@ -1,6 +1,7 @@
 import type { Message } from "../lib/types"
 import { ClaudeMessageItem } from "./ClaudeMessageItem"
 import { OtherUserClaudeMessageItem } from "./OtherUserClaudeMessageItem"
+import { sanitizePlainMessageText } from "../lib/content-sanitizer"
 
 export type MessageItemProps = {
   message: Message
@@ -38,12 +39,14 @@ export function MessageItem(props: MessageItemProps) {
   const showHeader = () => props.showHeader ?? true
   const time = () => formatTime(props.message.timestamp)
   const isClaudeSessionUserMessage = () => props.message.attributes?.claudeSessionUser === true
+  const safeUsername = () => sanitizePlainMessageText(props.message.username)
+  const safeContent = () => sanitizePlainMessageText(props.message.content)
 
   if (props.message.type === "system") {
     return (
       <box justifyContent="center">
         <text fg="#888888">
-          <em>{props.message.content}</em>
+          <em>{safeContent()}</em>
         </text>
       </box>
     )
@@ -73,13 +76,13 @@ export function MessageItem(props: MessageItemProps) {
             <box flexDirection="row">
               <text fg="#888888">→ </text>
               <text fg={usernameColor()}>
-                <strong>{props.message.username}</strong>
+                <strong>{safeUsername()}</strong>
               </text>
               <text fg="#888888"> {time()}</text>
             </box>
           )}
           <box paddingLeft={2}>
-            <text>{isClaudeSessionUserMessage() ? <em>{props.message.content}</em> : props.message.content}</text>
+            <text>{isClaudeSessionUserMessage() ? <em>{safeContent()}</em> : safeContent()}</text>
           </box>
         </box>
       </box>
@@ -93,13 +96,13 @@ export function MessageItem(props: MessageItemProps) {
           <box flexDirection="row">
             <text fg="#888888">{time()} </text>
             <text fg={usernameColor()}>
-              <strong>{props.message.username}</strong>
+              <strong>{safeUsername()}</strong>
             </text>
             <text fg="#888888"> ←</text>
           </box>
         )}
         <box paddingLeft={2}>
-          <text>{isClaudeSessionUserMessage() ? <em>{props.message.content}</em> : props.message.content}</text>
+          <text>{isClaudeSessionUserMessage() ? <em>{safeContent()}</em> : safeContent()}</text>
         </box>
       </box>
     </box>
