@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { config as loadEnv } from "dotenv";
 
 // Only load .env file during local/dev-like runs (skip in production).

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import crypto from "node:crypto";
 import http from "node:http";
 import open from "open";

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "./types"
 import { compactJson, shortenPath, truncate } from "./utils"
 

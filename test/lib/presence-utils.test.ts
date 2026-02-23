@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { describe, expect, test } from "bun:test"
 import type { PresenceDiff, PresenceState } from "../../src/lib/types"
 import { applyPresenceDiff } from "../../src/lib/presence-utils"

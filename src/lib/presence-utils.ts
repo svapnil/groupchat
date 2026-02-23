@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import type { PresenceDiff, PresenceState } from "./types.js";
 
 type PresenceMeta = PresenceState[string]["metas"][number];

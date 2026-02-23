@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 const SERVICE_NAME = "groupchat";
 const CREDENTIAL_NAME = "auth-credentials";
 

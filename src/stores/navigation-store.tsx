@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { createContext, useContext, type ParentComponent } from "solid-js"
 import { createStore } from "solid-js/store"
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { createContext, createEffect, createMemo, createSignal, useContext, type ParentComponent } from "solid-js"
 import { fetchDmConversations } from "../lib/chat-client"
 import { getConfig } from "../lib/config"

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import type { WriteStream } from "tty";
 
 export type NotificationType = "bell" | "alert";

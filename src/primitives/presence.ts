@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { createMemo, type Accessor } from "solid-js"
 import type { AgentType, PresenceState, Subscriber, User } from "../lib/types"
 

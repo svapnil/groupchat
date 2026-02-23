@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { For, Show, createMemo, type Ref } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { MessageItem } from "./MessageItem"

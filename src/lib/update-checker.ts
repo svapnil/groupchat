@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 const PACKAGE_VERSION =
   process.env.__GROUPCHAT_VERSION__ ??
   process.env.npm_package_version ??

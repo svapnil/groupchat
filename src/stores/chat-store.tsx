@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { createContext, useContext, type ParentComponent } from "solid-js"
 import type { ChannelManager } from "../lib/channel-manager"
 import type { ConnectionStatus, Message, PresenceState, Subscriber } from "../lib/types"

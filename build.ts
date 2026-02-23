@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import solidPlugin from "@opentui/solid/bun-plugin"
 import { readFileSync, existsSync } from "fs"
 import { join } from "path"

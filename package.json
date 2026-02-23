@@ -5,9 +5,11 @@
   "bin": {
     "groupchat": "bin/groupchat"
   },
+  "license": "AGPL-3.0-or-later",
   "files": [
     "bin",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "dev": "bun --watch run src/index.tsx",

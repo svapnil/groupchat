@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import type { Message } from "../lib/types"
 import { ClaudeMessageItem } from "./ClaudeMessageItem"
 import { OtherUserClaudeMessageItem } from "./OtherUserClaudeMessageItem"

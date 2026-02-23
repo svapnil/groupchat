@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { Show, createMemo, onMount } from "solid-js"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { afterEach, describe, expect, test } from "bun:test"
 import { onMount, type JSX } from "solid-js"
 import { testRender } from "@opentui/solid"

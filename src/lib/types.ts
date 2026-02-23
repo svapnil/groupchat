@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 /**
  * Shared types for the TUI chat application.
  * Adapted from extension/webview/lib/types.ts

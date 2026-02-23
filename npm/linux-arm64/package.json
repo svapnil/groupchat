@@ -2,6 +2,7 @@
   "name": "@groupchat-cli/linux-arm64",
   "version": "0.1.6",
   "description": "groupchat binary for Linux ARM64",
+  "license": "AGPL-3.0-or-later",
   "os": [
     "linux"
   ],

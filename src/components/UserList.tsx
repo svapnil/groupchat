@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import type { UserWithStatus } from "../primitives/presence"
 import { getAgentColor, getAgentDisplayName } from "../lib/constants"
 import { PRESENCE } from "../lib/colors"

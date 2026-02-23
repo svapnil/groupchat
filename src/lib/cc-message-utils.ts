@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import type { CcEventMetadata, Message } from "./types"
 
 const CC_EVENT_TYPES = new Set(["question", "tool_call", "text", "result"])

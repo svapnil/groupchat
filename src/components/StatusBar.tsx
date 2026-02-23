@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { Show, createMemo } from "solid-js"
 import type { JSX } from "solid-js"
 import type { ConnectionStatus } from "../lib/types"

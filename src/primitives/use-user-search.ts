@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { createEffect, createMemo, createSignal } from "solid-js"
 import { searchUsers } from "../lib/chat-client"
 import { getConfig } from "../lib/config"

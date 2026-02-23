@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Svapnil Ankolkar
 import { createEffect, onCleanup, type Accessor } from "solid-js"
 import { execSync } from "child_process"
 import type { AgentType } from "../lib/types"
