@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
+import { rename, unlink, writeFile, chmod } from "fs/promises"
+
 const PACKAGE_VERSION =
   process.env.__GROUPCHAT_VERSION__ ??
   process.env.npm_package_version ??
   "0.0.0"
-const PACKAGE_NAME = "groupchat"
 
 export interface UpdateInfo {
   currentVersion: string;
@@ -12,32 +13,18 @@ export interface UpdateInfo {
   updateAvailable: boolean;
 }
 
-type InstallMethod = "homebrew" | "npm";
-
-function detectInstallMethod(): InstallMethod {
-  // Check if the groupchat binary itself lives in a Homebrew-managed path.
-  // process.execPath points to the compiled binary, so if groupchat was
-  // installed via Homebrew it will be under /opt/homebrew/Cellar/groupchat/...
-  const execPath = process.execPath;
-  if (execPath.includes("/Cellar/groupchat/") || execPath.includes("/homebrew/")) {
-    return "homebrew";
-  }
-
-  return "npm";
-}
-
 /**
- * Fetches the latest version from npm registry
+ * Fetches the latest version from GitHub Releases
  */
-async function fetchLatestVersion(packageName: string): Promise<string | null> {
+async function fetchLatestVersion(): Promise<string | null> {
   try {
     const response = await fetch(
-      `https://registry.npmjs.org/${packageName}/latest`,
+      "https://api.github.com/repos/svapnil/groupchat/releases/latest",
       {
         headers: {
-          Accept: "application/json",
+          Accept: "application/vnd.github+json",
         },
-        signal: AbortSignal.timeout(5000), // 5 second timeout
+        signal: AbortSignal.timeout(5000),
       }
     );
 
@@ -45,8 +32,10 @@ async function fetchLatestVersion(packageName: string): Promise<string | null> {
       return null;
     }
 
-    const data = (await response.json()) as { version?: unknown };
-    return typeof data.version === "string" ? data.version : null;
+    const data = (await response.json()) as { tag_name?: unknown };
+    if (typeof data.tag_name !== "string") return null;
+    // Strip leading "v" (e.g., "v0.1.7" → "0.1.7")
+    return data.tag_name.replace(/^v/, "");
   } catch {
     // Network error or timeout - fail silently
     return null;
@@ -79,7 +68,7 @@ function isNewerVersion(current: string, latest: string): boolean {
 export async function checkForUpdate(): Promise<UpdateInfo> {
   const currentVersion = PACKAGE_VERSION;
 
-  const latestVersion = await fetchLatestVersion(PACKAGE_NAME);
+  const latestVersion = await fetchLatestVersion();
 
   if (!latestVersion) {
     return {
@@ -97,12 +86,45 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
 }
 
 /**
- * Returns the npm install command for updating
+ * Returns the GitHub Release asset name for the current platform/arch
  */
-export function getUpdateCommand(): string {
-  if (detectInstallMethod() === "homebrew") {
-    return "brew upgrade groupchat";
-  }
+function getAssetName(): string {
+  const platform = process.platform;
+  const arch = process.arch;
+  const base = `groupchat-${platform}-${arch}`;
+  return platform === "win32" ? `${base}.exe` : base;
+}
 
-  return `npm install -g ${PACKAGE_NAME}`;
+/**
+ * Downloads the latest binary from GitHub Releases and replaces the current one
+ */
+export async function performUpdate(version: string): Promise<void> {
+  const binaryPath = process.execPath;
+  const tmpPath = `${binaryPath}.tmp`;
+  const assetName = getAssetName();
+  const url = `https://github.com/svapnil/groupchat/releases/download/v${version}/${assetName}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Download failed: HTTP ${response.status}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await writeFile(tmpPath, buffer);
+
+    if (process.platform !== "win32") {
+      await chmod(tmpPath, 0o755);
+    }
+
+    await rename(tmpPath, binaryPath);
+  } catch (err) {
+    // Clean up temp file on failure
+    try {
+      await unlink(tmpPath);
+    } catch {
+      // ignore cleanup errors
+    }
+    throw err;
+  }
 }

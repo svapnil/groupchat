@@ -96,8 +96,36 @@ cd "$ROOT_DIR"
 npm publish $DRY_RUN
 
 echo ""
+
+# Create GitHub Release with binaries
+echo "Creating GitHub Release v${VERSION}...${DRY_RUN_LABEL}"
+ASSETS=""
+for platform in $PLATFORMS; do
+  BINARY_NAME="groupchat"
+  case "$platform" in
+    win32-*) BINARY_NAME="groupchat.exe" ;;
+  esac
+  ASSETS="$ASSETS $ROOT_DIR/npm/${platform}/bin/${BINARY_NAME}#groupchat-${platform}$([ "$BINARY_NAME" = "groupchat.exe" ] && echo ".exe")"
+done
+
 if [ -n "$DRY_RUN" ]; then
-  echo "DRY RUN complete — no packages were published."
+  echo "  Would create release v${VERSION} with assets:"
+  for platform in $PLATFORMS; do
+    BINARY_NAME="groupchat"
+    case "$platform" in
+      win32-*) BINARY_NAME="groupchat.exe" ;;
+    esac
+    echo "    groupchat-${platform}$([ "$BINARY_NAME" = "groupchat.exe" ] && echo ".exe")"
+  done
+else
+  gh release create "v${VERSION}" --generate-notes $ASSETS
+  echo "  GitHub Release v${VERSION} created."
+fi
+
+echo ""
+if [ -n "$DRY_RUN" ]; then
+  echo "DRY RUN complete — nothing was published."
 else
   echo "Successfully published groupchat@${VERSION} and all platform packages!"
+  echo "GitHub Release: https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/v${VERSION}"
 fi
