@@ -22,11 +22,11 @@
         "typescript": "^5.7.2",
       },
       "optionalDependencies": {
-        "@groupchat-cli/darwin-arm64": "0.1.3",
-        "@groupchat-cli/darwin-x64": "0.1.3",
-        "@groupchat-cli/linux-arm64": "0.1.3",
-        "@groupchat-cli/linux-x64": "0.1.3",
-        "@groupchat-cli/win32-x64": "0.1.3",
+        "@groupchat-cli/darwin-arm64": "0.1.6",
+        "@groupchat-cli/darwin-x64": "0.1.6",
+        "@groupchat-cli/linux-arm64": "0.1.6",
+        "@groupchat-cli/linux-x64": "0.1.6",
+        "@groupchat-cli/win32-x64": "0.1.6",
       },
     },
   },
@@ -143,15 +143,15 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.3", "", { "os": "win32", "cpu": "x64" }, "sha512-4uJGhsxuptu3OcpVAzli+/gWusVGwZZHTlS63hh++ehExkVT8SgiEf7/uC/PclrPPkLhZqGgCTjd0VWLo6xMqA=="],
 
-    "@groupchat-cli/darwin-arm64": ["@groupchat-cli/darwin-arm64@0.1.3", "", { "os": "darwin", "cpu": "arm64", "bin": { "groupchat": "bin/groupchat" } }, "sha512-ECyV4cAujs4kRZx2TfAG3c8VDx0gjARMvIr8c3OWWZevcTRbxb7LMQlWZ8HcU2jfDeKM0VMItzQvmYy3UvtN7g=="],
+    "@groupchat-cli/darwin-arm64": ["@groupchat-cli/darwin-arm64@0.1.6", "", { "os": "darwin", "cpu": "arm64", "bin": { "groupchat": "bin/groupchat" } }, "sha512-VpcDUv2Pmc4f5JSEn6ZSWWRx2JDZm2EZpzsOvkQSxUlk3z+7RMMHVOtnNJOHkf0re/gDvfGIVcpsp8IvyL9DHQ=="],
 
-    "@groupchat-cli/darwin-x64": ["@groupchat-cli/darwin-x64@0.1.3", "", { "os": "darwin", "cpu": "x64", "bin": { "groupchat": "bin/groupchat" } }, "sha512-RM7IMLODlD73LoD4NYhYvuLAdhcLG41OnqQeEKDaxeZHft5yAOVsJYcP8y/051LGInTu93QfMHu0DncRJPVziQ=="],
+    "@groupchat-cli/darwin-x64": ["@groupchat-cli/darwin-x64@0.1.6", "", { "os": "darwin", "cpu": "x64", "bin": { "groupchat": "bin/groupchat" } }, "sha512-CIIK8P4mQjQ8H8lZOm8EmzY3Yq7yIuAzpvkwXNigSPoD0lQjl9iF99yz8qj0IOP8XpDaAUvDkqOSKxDKxBxR3A=="],
 
-    "@groupchat-cli/linux-arm64": ["@groupchat-cli/linux-arm64@0.1.3", "", { "os": "linux", "cpu": "arm64", "bin": { "groupchat": "bin/groupchat" } }, "sha512-CMEJdJiu+bg/nN+A3VDIK+R6mv0UyKPHzgb1qm2no2B4ApO1dlgRMEChNpemmbH4dwZq9N3Ff1low8Vgu2dPHw=="],
+    "@groupchat-cli/linux-arm64": ["@groupchat-cli/linux-arm64@0.1.6", "", { "os": "linux", "cpu": "arm64", "bin": { "groupchat": "bin/groupchat" } }, "sha512-LLExLzbkBWhXXjIcEyw3kWivZfIFvdE0RXP1E8XSeYQoV00f1PuZLSG1FOpj+Ue2MQAK4+um5PQCCJ9o+whEzg=="],
 
-    "@groupchat-cli/linux-x64": ["@groupchat-cli/linux-x64@0.1.3", "", { "os": "linux", "cpu": "x64", "bin": { "groupchat": "bin/groupchat" } }, "sha512-nf1qH913Hcf1HGRa5tT/+tfAZh5MTTAGNWy0Ue01VNnIL2jbibH7zOqLH4je4spWGrcOewnvHxNIyyRJayw7IQ=="],
+    "@groupchat-cli/linux-x64": ["@groupchat-cli/linux-x64@0.1.6", "", { "os": "linux", "cpu": "x64", "bin": { "groupchat": "bin/groupchat" } }, "sha512-jVJ/LctAfLmQavgjTx6wcjFwH5PxeqKP72S+MthtBi5dtez1El2IZ6onU5y86zm2ACgw45rfuhq83YkWIJXp/w=="],
 
-    "@groupchat-cli/win32-x64": ["@groupchat-cli/win32-x64@0.1.3", "", { "os": "win32", "cpu": "x64", "bin": { "groupchat": "bin/groupchat.exe" } }, "sha512-qBtoBcfDD4DHu0h6MBTlCsjdIe20pDFqaDWMydGKTe9hgnYY+2iD6Le/7BBBzetbVJ0olN4GCVH5Ww10EQXrSA=="],
+    "@groupchat-cli/win32-x64": ["@groupchat-cli/win32-x64@0.1.6", "", { "os": "win32", "cpu": "x64", "bin": { "groupchat": "bin/groupchat.exe" } }, "sha512-4wUVkuhn8d2swFmoeN+rn0sMtnyWu3Fbbji8g2bET65Hw3aDP0cHjJZ6lrmqCT8QMQsjY5cICi2ivhkHx8+UhQ=="],
 
     "@jimp/core": ["@jimp/core@1.6.0", "", { "dependencies": { "@jimp/file-ops": "1.6.0", "@jimp/types": "1.6.0", "@jimp/utils": "1.6.0", "await-to-js": "^3.0.0", "exif-parser": "^0.1.12", "file-type": "^16.0.0", "mime": "3" } }, "sha512-EQQlKU3s9QfdJqiSrZWNTxBs3rKXgO2W+GxNXDtwchF3a4IqxDheFX1ti+Env9hdJXDiYLp2jTRjlxhPthsk8w=="],
 
