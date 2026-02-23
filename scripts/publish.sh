@@ -99,26 +99,25 @@ echo ""
 
 # Create GitHub Release with binaries
 echo "Creating GitHub Release v${VERSION}...${DRY_RUN_LABEL}"
-ASSETS=""
+
+# Copy binaries to a staging directory with platform-specific names
+STAGING_DIR=$(mktemp -d)
+trap "rm -rf $STAGING_DIR" EXIT
+
 for platform in $PLATFORMS; do
   BINARY_NAME="groupchat"
+  ASSET_NAME="groupchat-${platform}"
   case "$platform" in
-    win32-*) BINARY_NAME="groupchat.exe" ;;
+    win32-*) BINARY_NAME="groupchat.exe"; ASSET_NAME="groupchat-${platform}.exe" ;;
   esac
-  ASSETS="$ASSETS $ROOT_DIR/npm/${platform}/bin/${BINARY_NAME}#groupchat-${platform}$([ "$BINARY_NAME" = "groupchat.exe" ] && echo ".exe")"
+  cp "$ROOT_DIR/npm/${platform}/bin/${BINARY_NAME}" "$STAGING_DIR/${ASSET_NAME}"
 done
 
 if [ -n "$DRY_RUN" ]; then
   echo "  Would create release v${VERSION} with assets:"
-  for platform in $PLATFORMS; do
-    BINARY_NAME="groupchat"
-    case "$platform" in
-      win32-*) BINARY_NAME="groupchat.exe" ;;
-    esac
-    echo "    groupchat-${platform}$([ "$BINARY_NAME" = "groupchat.exe" ] && echo ".exe")"
-  done
+  ls -1 "$STAGING_DIR" | while read f; do echo "    $f"; done
 else
-  gh release create "v${VERSION}" --generate-notes $ASSETS
+  gh release create "v${VERSION}" --generate-notes "$STAGING_DIR"/*
   echo "  GitHub Release v${VERSION} created."
 fi
 
