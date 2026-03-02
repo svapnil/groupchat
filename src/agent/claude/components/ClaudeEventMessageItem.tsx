@@ -4,7 +4,7 @@ import { RGBA, SyntaxStyle } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { CcEventMetadata, Message } from "../../../lib/types"
 import { getAgentColorById, getAgentDisplayNameById } from "../../../lib/constants"
-import { AGENT_TYPE } from "../claude-event-message-mutations"
+import { AGENT_ID } from "../claude-event-message-mutations"
 import { truncate } from "../../../lib/utils"
 import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
 
@@ -135,8 +135,8 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
     return Math.max(24, Math.floor(paneWidth * 0.75))
   })
   const questionMarkdownWidth = createMemo(() => Math.max(12, bubbleWidth() - 2))
-  const agentLabel = createMemo(() => sanitizePlainMessageText(getAgentDisplayNameById(AGENT_TYPE)))
-  const agentAccentColor = createMemo(() => getAgentColorById(AGENT_TYPE) ?? "#FFA500")
+  const agentLabel = createMemo(() => sanitizePlainMessageText(getAgentDisplayNameById(AGENT_ID)))
+  const agentAccentColor = createMemo(() => getAgentColorById(AGENT_ID) ?? "#FFA500")
 
   const questionIndexes = createMemo(() => {
     const indexes: number[] = []

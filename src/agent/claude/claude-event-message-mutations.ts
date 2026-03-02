@@ -2,8 +2,11 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import type { CcEventMetadata, Message } from "../../lib/types"
 
-/** Canonical agent type identifier for Claude Code. Future agents define their own constant. */
-export const AGENT_TYPE = "cc" as const
+/** Agent identity — used for command routing, session IDs, and display-name/color lookup. */
+export const AGENT_ID = "claude" as const
+
+/** Wire-format tag for Claude Code event messages (`message.type` and `message.attributes.cc`). */
+export const CC_WIRE_TYPE = "cc" as const
 
 const CC_EVENT_TYPES = new Set(["question", "tool_call", "text", "result"])
 
@@ -24,8 +27,8 @@ function toCcEvent(meta: CcEventMetadata): CcEventMetadata {
 }
 
 function getCcGroupingKey(username: string, cc: CcEventMetadata): string {
-  if (cc.session_id) return `${username}:agent:${AGENT_TYPE}:session:${cc.session_id}`
-  return `${username}:agent:${AGENT_TYPE}:turn:${cc.turn_id}`
+  if (cc.session_id) return `${username}:agent:${AGENT_ID}:session:${cc.session_id}`
+  return `${username}:agent:${AGENT_ID}:turn:${cc.turn_id}`
 }
 
 function getCcMetadata(message: Message): CcEventMetadata | null {
@@ -87,7 +90,7 @@ export function upsertClaudeEventMessage(messages: Message[], incoming: Message,
       ...messages,
       {
         ...incoming,
-        type: "cc",
+        type: CC_WIRE_TYPE,
         attributes: {
           ...(incoming.attributes ?? {}),
           cc: {

@@ -3,6 +3,7 @@
 import type { JSX } from "solid-js"
 import type { Message } from "../../lib/types"
 import { buildClaudeDepthMap } from "../claude/helpers"
+import { CC_WIRE_TYPE } from "../claude/claude-event-message-mutations"
 import { ClaudeMessageItem } from "../claude/components/ClaudeMessageItem"
 import { ClaudeEventMessageItem } from "../claude/components/ClaudeEventMessageItem"
 
@@ -30,7 +31,7 @@ const renderClaudeMessage: AgentMessageRenderer = (context) => {
 }
 
 const renderClaudeEventMessage: AgentMessageRenderer = (context) => {
-  if (context.message.type !== "cc") return null
+  if (context.message.type !== CC_WIRE_TYPE) return null
   return <ClaudeEventMessageItem message={context.message} isOwnMessage={context.isOwnMessage} messagePaneWidth={context.messagePaneWidth} />
 }
 

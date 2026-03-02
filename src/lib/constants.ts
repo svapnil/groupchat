@@ -8,7 +8,7 @@ import type { AgentType } from "./types.js";
  */
 export const AGENT_CONFIG = {
   claude: {
-    type: "cc" as const,
+    type: "claude" as const,
     displayName: "Claude Code",
     color: "#FFA500" as const,
   },

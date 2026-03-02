@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import type { RuntimeCapabilities } from "../../lib/runtime-capabilities"
 import { createClaudeSdkSession } from "../claude/session"
-import { AGENT_TYPE } from "../claude/claude-event-message-mutations"
+import { AGENT_ID } from "../claude/claude-event-message-mutations"
 import type { LocalAgentSessionEntry } from "./types"
 
 export function createLocalAgentSessions(
@@ -12,7 +12,7 @@ export function createLocalAgentSessions(
 
   const sessions: LocalAgentSessionEntry[] = [
     {
-      id: AGENT_TYPE,
+      id: AGENT_ID,
       isAvailable: () => runtimeCapabilities.hasClaude,
       session: {
         isActive: claude.isActive,

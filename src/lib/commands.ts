@@ -4,7 +4,7 @@
 // PARAMETER TYPES & VALIDATORS
 // ============================================
 
-import { AGENT_TYPE as CC_AGENT_TYPE } from "../agent/claude/claude-event-message-mutations"
+import { AGENT_ID as CC_AGENT_ID } from "../agent/claude/claude-event-message-mutations"
 
 export type ParameterType = "username" | "text" | "number" | "choice";
 
@@ -276,7 +276,7 @@ export const COMMANDS: Command[] = [
     privateOnly: false,
     adminOnly: false,
     parameters: [],
-    eventType: getAgentEnterCommandEvent(CC_AGENT_TYPE),
+    eventType: getAgentEnterCommandEvent(CC_AGENT_ID),
   },
   {
     name: "/exit",
