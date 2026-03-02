@@ -11,13 +11,12 @@ import { useChatStore } from "../stores/chat-store"
 import { useAuth } from "../stores/auth-store"
 import { PRESENCE } from "../lib/colors"
 import { useChannelsStore } from "../stores/channel-store"
-import { isClaudeCommand } from "../lib/commands"
+import { getCommandAgentId, isAgentCommand } from "../lib/commands"
 import { useNavigation } from "../components/Router"
 import { fetchDmMessages } from "../lib/chat-client"
-import { condenseCcMessages, upsertCcMessage } from "../lib/cc-message-utils"
+import { condenseAgentMessages, upsertAgentMessage } from "../agent/core/message-mutations"
 import { getConfig } from "../lib/config"
 import { calculateMiddleSectionHeight } from "../lib/layout"
-import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 import type { DmMessage, Message } from "../lib/types"
 import { createChatViewBase } from "../primitives/create-chat-view-base"
 
@@ -27,7 +26,6 @@ export type DmChatViewProps = {
   topPadding?: number
 }
 
-const runtimeCapabilities = getRuntimeCapabilities()
 const MESSAGE_LIST_HORIZONTAL_PADDING = 2
 
 function extractTimestampFromUUIDv7(uuid: string): string {
@@ -100,7 +98,7 @@ export function DmChatView(props: DmChatViewProps) {
       try {
         const config = getConfig()
         const data = await fetchDmMessages(config.wsUrl, token, dm.slug)
-        setMessages(condenseCcMessages(data.messages || [], chat.username()))
+        setMessages(condenseAgentMessages(data.messages || [], chat.username()))
       } catch (err) {
         setError("Failed to load messages")
       } finally {
@@ -158,7 +156,7 @@ export function DmChatView(props: DmChatViewProps) {
 
         let changed = false
         setMessages((prev) => {
-          const next = upsertCcMessage(prev, message, currentUsername)
+          const next = upsertAgentMessage(prev, message, currentUsername)
           changed = next !== prev
           return next
         })
@@ -195,14 +193,14 @@ export function DmChatView(props: DmChatViewProps) {
   })
 
   useKeyboard((key) => {
-    if (base.handleClaudeKeys(key)) return
+    if (base.handleAgentKeys(key)) return
   })
 
   const handleCommand = async (eventType: string, data: any) => {
     try {
-      await base.handleClaudeCommand(eventType, data)
+      await base.handleAgentCommand(eventType, data)
     } catch (error) {
-      base.claude.appendError(`Command failed: ${error instanceof Error ? error.message : String(error)}`)
+      base.appendAgentError(`Command failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -263,8 +261,8 @@ export function DmChatView(props: DmChatViewProps) {
               scrollRef={(ref) => {
                 base.setScrollRef(ref)
               }}
-              permissionMessageId={base.permissionMessageId()}
-              permissionSelectedIndex={base.permissionSelectedIndex()}
+              pendingActionMessageId={base.pendingActionMessageId()}
+              pendingActionSelectedIndex={base.pendingActionSelectedIndex()}
             />
           </Show>
         </box>
@@ -283,10 +281,15 @@ export function DmChatView(props: DmChatViewProps) {
           onTypingStop={handleTypingStop}
           onCommandSend={handleCommand}
           placeholder={conversation() ? `Message @${conversation()!.other_username}...` : "Type a message..."}
-          commandFilter={(command) => runtimeCapabilities.hasClaude && isClaudeCommand(command)}
+          commandFilter={(command) => {
+            if (command.channelOnly) return false
+            if (!isAgentCommand(command)) return true
+            const agentId = getCommandAgentId(command)
+            if (!agentId) return true
+            return base.isAgentAvailable(agentId)
+          }}
           onTooltipHeightChange={base.handleTooltipHeightChange}
-          claudeMode={base.isClaudeMode()}
-          claudePendingPermission={base.claude.pendingPermission()}
+          agentMode={base.activeInputMode()}
         />
         <StatusBar
           connectionStatus={chat.connectionStatus()}

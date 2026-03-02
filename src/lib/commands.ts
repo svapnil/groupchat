@@ -4,6 +4,8 @@
 // PARAMETER TYPES & VALIDATORS
 // ============================================
 
+import { AGENT_TYPE as CC_AGENT_TYPE } from "../agent/claude/claude-event-message-mutations"
+
 export type ParameterType = "username" | "text" | "number" | "choice";
 
 export interface ParameterBase {
@@ -223,20 +225,44 @@ export interface Command {
   description: string;
   privateOnly: boolean;
   adminOnly?: boolean;
+  /** When true, this command is only available in channel views, not DMs. */
+  channelOnly?: boolean;
   parameters: CommandParameter[];
   eventType: string;      // Phoenix event to send
+  /** Optional static payload merged into command data for local-only commands. */
+  localData?: Record<string, unknown>;
 }
 
+const AGENT_ENTER_EVENT_PREFIX = "local_agent_enter:";
+const AGENT_EXIT_EVENT = "local_agent_exit";
+
+export const getAgentEnterCommandEvent = (agentId: string) =>
+  `${AGENT_ENTER_EVENT_PREFIX}${agentId}`;
+
+export const parseAgentIdFromEnterEvent = (eventType: string): string | null => {
+  if (!eventType.startsWith(AGENT_ENTER_EVENT_PREFIX)) return null;
+  const agentId = eventType.slice(AGENT_ENTER_EVENT_PREFIX.length).trim();
+  return agentId.length > 0 ? agentId : null;
+};
+
+export const isAgentEnterCommandEvent = (eventType: string) =>
+  parseAgentIdFromEnterEvent(eventType) !== null;
+
+export const isAgentExitCommandEvent = (eventType: string) =>
+  eventType === AGENT_EXIT_EVENT;
+
+export const isAgentCommandEvent = (eventType: string) =>
+  isAgentEnterCommandEvent(eventType) || isAgentExitCommandEvent(eventType);
+
 export const LOCAL_COMMAND_EVENTS = {
-  claudeEnter: "local_claude_enter",
-  claudeExit: "local_claude_exit",
+  agentExit: AGENT_EXIT_EVENT,
 } as const
 
-export const isClaudeCommandEvent = (eventType: string) =>
-  eventType === LOCAL_COMMAND_EVENTS.claudeEnter || eventType === LOCAL_COMMAND_EVENTS.claudeExit
+export const isAgentCommand = (command: Pick<Command, "eventType">) =>
+  isAgentCommandEvent(command.eventType)
 
-export const isClaudeCommand = (command: Pick<Command, "eventType">) =>
-  isClaudeCommandEvent(command.eventType)
+export const getCommandAgentId = (command: Pick<Command, "eventType">): string | null =>
+  parseAgentIdFromEnterEvent(command.eventType)
 
 // ============================================
 // COMMAND REGISTRY
@@ -250,16 +276,16 @@ export const COMMANDS: Command[] = [
     privateOnly: false,
     adminOnly: false,
     parameters: [],
-    eventType: LOCAL_COMMAND_EVENTS.claudeEnter,
+    eventType: getAgentEnterCommandEvent(CC_AGENT_TYPE),
   },
   {
     name: "/exit",
     syntax: "/exit",
-    description: "Exit Claude Code mode",
+    description: "Exit current agent mode",
     privateOnly: false,
     adminOnly: false,
     parameters: [],
-    eventType: LOCAL_COMMAND_EVENTS.claudeExit,
+    eventType: LOCAL_COMMAND_EVENTS.agentExit,
   },
   {
     name: "/invite",
@@ -267,6 +293,7 @@ export const COMMANDS: Command[] = [
     description: "Invite a user to join the channel",
     privateOnly: true,
     adminOnly: true,
+    channelOnly: true,
     parameters: [
       { name: "user", type: "username", required: true, prefix: "", source: "search" },
     ],
@@ -278,6 +305,7 @@ export const COMMANDS: Command[] = [
     description: "Remove a user from the channel",
     privateOnly: true,
     adminOnly: true,
+    channelOnly: true,
     parameters: [
       { name: "user", type: "username", required: true, prefix: "", source: "subscribed_without_self" },
     ],
@@ -289,6 +317,7 @@ export const COMMANDS: Command[] = [
     description: "Create an invite link for this channel",
     privateOnly: true,
     adminOnly: false,
+    channelOnly: true,
     parameters: [],
     eventType: "create_invite_link",
   },

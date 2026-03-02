@@ -64,17 +64,18 @@ describe("InputBox", () => {
     expect(sent).toEqual(["hello world"])
   })
 
-  test("renders claude permission state", async () => {
+  test("renders pending mode action state", async () => {
     testSetup = await testRender(
       () =>
         <InputBox
           {...createProps({
-            claudeMode: true,
-            claudePendingPermission: {
-              requestId: "req-1",
-              toolName: "Bash",
-              toolUseId: "tool-1",
-              input: { command: "ls -la" },
+            mode: {
+              id: "claude",
+              label: "Claude Code",
+              accentColor: "#FFA500",
+              pendingAction: true,
+              pendingActionPlaceholder: "Awaiting permission decision...",
+              pendingActionHelperText: "↑/↓ select Allow/Deny in message list • Enter to confirm",
             },
           })}
         />,

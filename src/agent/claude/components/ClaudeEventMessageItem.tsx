@@ -2,9 +2,11 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { RGBA, SyntaxStyle } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
-import type { CcEventMetadata, Message } from "../lib/types"
-import { truncate } from "../lib/utils"
-import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../lib/content-sanitizer"
+import type { CcEventMetadata, Message } from "../../../lib/types"
+import { getAgentColorById, getAgentDisplayNameById } from "../../../lib/constants"
+import { AGENT_TYPE } from "../claude-event-message-mutations"
+import { truncate } from "../../../lib/utils"
+import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
 
 const COLORS = ["cyan", "magenta", "brightGreen", "brightBlue", "brightYellow", "brightMagenta"] as const
 type UsernameColor = (typeof COLORS)[number]
@@ -26,8 +28,9 @@ function formatTime(timestamp: string): string {
   })
 }
 
-export type OtherUserClaudeMessageItemProps = {
+export type ClaudeEventMessageItemProps = {
   message: Message
+  isOwnMessage?: boolean
   messagePaneWidth?: number
 }
 
@@ -95,7 +98,32 @@ const markdownSyntaxStyle = SyntaxStyle.fromStyles({
   "markup.list": { dim: true },
 })
 
-export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProps) {
+export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
+  const safeContent = () => sanitizePlainMessageText(props.message.content)
+
+  // Own "cc" messages are local agent prompts — render as italicized user messages.
+  if (props.isOwnMessage) {
+    const username = () => sanitizePlainMessageText(props.message.username)
+    const usernameColor = () => getUsernameColor(username())
+    const time = () => formatTime(props.message.timestamp)
+    return (
+      <box justifyContent="flex-start">
+        <box flexDirection="column">
+          <box flexDirection="row">
+            <text fg="#888888">→ </text>
+            <text fg={usernameColor()}>
+              <strong>{username()}</strong>
+            </text>
+            <text fg="#888888"> {time()}</text>
+          </box>
+          <box paddingLeft={2}>
+            <text><em>{safeContent()}</em></text>
+          </box>
+        </box>
+      </box>
+    )
+  }
+
   const timeline = createMemo(() => getCcEventTimeline(props.message))
   const events = createMemo(() => timeline().events)
   const contents = createMemo(() => timeline().contents)
@@ -107,6 +135,8 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
     return Math.max(24, Math.floor(paneWidth * 0.75))
   })
   const questionMarkdownWidth = createMemo(() => Math.max(12, bubbleWidth() - 2))
+  const agentLabel = createMemo(() => sanitizePlainMessageText(getAgentDisplayNameById(AGENT_TYPE)))
+  const agentAccentColor = createMemo(() => getAgentColorById(AGENT_TYPE) ?? "#FFA500")
 
   const questionIndexes = createMemo(() => {
     const indexes: number[] = []
@@ -294,7 +324,7 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
 
           <Show when={isWorking()}>
             <box flexDirection="row">
-              <text fg="#FFA500">{`${thinkingFrames[thinkingFrame()]} Thinking... `}</text>
+              <text fg={agentAccentColor()}>{`${thinkingFrames[thinkingFrame()]} Thinking... `}</text>
               <text fg="#888888">{`(${elapsed()}s)`}</text>
             </box>
           </Show>
@@ -303,7 +333,7 @@ export function OtherUserClaudeMessageItem(props: OtherUserClaudeMessageItemProp
             <box flexDirection="row">
               <text fg={isError() ? "red" : "#888888"}>⏺ </text>
               <text fg={isError() ? "#AA6666" : "#888888"} truncate flexShrink={1} minWidth={0}>
-                {sanitizePlainMessageText(`${username()}'s Claude ${isError() ? "finished with error" : "finished"} (${turnCount()} turns, ${durationSeconds()}s)`)}
+                {sanitizePlainMessageText(`${username()}'s ${agentLabel()} ${isError() ? "finished with error" : "finished"} (${turnCount()} turns, ${durationSeconds()}s)`)}
               </text>
             </box>
           </Show>

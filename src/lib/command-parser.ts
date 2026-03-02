@@ -239,6 +239,9 @@ export function extractCommandPayload(
 
   return {
     eventType: parsed.command.eventType,
-    data,
+    data: {
+      ...(parsed.command.localData ?? {}),
+      ...data,
+    },
   };
 }

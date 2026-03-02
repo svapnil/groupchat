@@ -8,7 +8,7 @@ import type { AgentType } from "./types.js";
  */
 export const AGENT_CONFIG = {
   claude: {
-    type: "claude" as const,
+    type: "cc" as const,
     displayName: "Claude Code",
     color: "#FFA500" as const,
   },
@@ -29,6 +29,8 @@ export const AGENT_CONFIG = {
   },
 } as const;
 
+export type KnownAgentType = keyof typeof AGENT_CONFIG
+
 /**
  * Helper to get agent display name
  */
@@ -37,10 +39,31 @@ export function getAgentDisplayName(agent: AgentType): string {
   return AGENT_CONFIG[agent].displayName;
 }
 
+export function isKnownAgentType(agent: string): agent is KnownAgentType {
+  return Object.prototype.hasOwnProperty.call(AGENT_CONFIG, agent);
+}
+
+function findAgentConfig(id: string) {
+  if (isKnownAgentType(id)) return AGENT_CONFIG[id];
+  return Object.values(AGENT_CONFIG).find((cfg) => cfg.type === id) ?? null;
+}
+
+export function getAgentDisplayNameById(agentId: string): string {
+  const cfg = findAgentConfig(agentId);
+  if (cfg) return cfg.displayName;
+  const normalized = agentId.trim();
+  if (!normalized) return "Agent";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 /**
  * Helper to get agent color
  */
 export function getAgentColor(agent: AgentType): "#FFA500" | "cyan" | "blueBright" | "magenta" | undefined {
   if (!agent) return undefined;
   return AGENT_CONFIG[agent].color;
+}
+
+export function getAgentColorById(agentId: string): string | undefined {
+  return findAgentConfig(agentId)?.color;
 }

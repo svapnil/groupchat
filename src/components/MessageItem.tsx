@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
 import type { Message } from "../lib/types"
-import { ClaudeMessageItem } from "./ClaudeMessageItem"
-import { OtherUserClaudeMessageItem } from "./OtherUserClaudeMessageItem"
+import { renderAgentMessage } from "../agent/core/message-renderers"
 import { sanitizePlainMessageText } from "../lib/content-sanitizer"
 
 export type MessageItemProps = {
@@ -10,9 +9,8 @@ export type MessageItemProps = {
   isOwnMessage: boolean
   messagePaneWidth?: number
   showHeader?: boolean
-  claudeDepth?: number
-  /** Index of the currently highlighted permission option (0=Allow, 1=Deny) */
-  permissionSelectedIndex?: number
+  agentDepth?: number
+  pendingActionSelectedIndex?: number
 }
 
 const COLORS = ["cyan", "magenta", "brightGreen", "brightBlue", "brightYellow", "brightMagenta"] as const
@@ -40,7 +38,6 @@ function formatTime(timestamp: string): string {
 export function MessageItem(props: MessageItemProps) {
   const showHeader = () => props.showHeader ?? true
   const time = () => formatTime(props.message.timestamp)
-  const isClaudeSessionUserMessage = () => props.message.attributes?.claudeSessionUser === true
   const safeUsername = () => sanitizePlainMessageText(props.message.username)
   const safeContent = () => sanitizePlainMessageText(props.message.content)
 
@@ -54,18 +51,15 @@ export function MessageItem(props: MessageItemProps) {
     )
   }
 
-  if (props.message.type === "claude-response") {
-    return (
-      <ClaudeMessageItem
-        message={props.message}
-        claudeDepth={props.claudeDepth}
-        permissionSelectedIndex={props.permissionSelectedIndex}
-      />
-    )
-  }
-
-  if (props.message.type === "cc") {
-    return <OtherUserClaudeMessageItem message={props.message} messagePaneWidth={props.messagePaneWidth} />
+  const renderedAgentMessage = renderAgentMessage({
+    message: props.message,
+    messagePaneWidth: props.messagePaneWidth,
+    isOwnMessage: props.isOwnMessage,
+    agentDepth: props.agentDepth,
+    pendingActionSelectedIndex: props.pendingActionSelectedIndex,
+  })
+  if (renderedAgentMessage) {
+    return renderedAgentMessage
   }
 
   const usernameColor = () => getUsernameColor(props.message.username)
@@ -84,7 +78,7 @@ export function MessageItem(props: MessageItemProps) {
             </box>
           )}
           <box paddingLeft={2}>
-            <text>{isClaudeSessionUserMessage() ? <em>{safeContent()}</em> : safeContent()}</text>
+            <text>{safeContent()}</text>
           </box>
         </box>
       </box>
@@ -104,7 +98,7 @@ export function MessageItem(props: MessageItemProps) {
           </box>
         )}
         <box paddingLeft={2}>
-          <text>{isClaudeSessionUserMessage() ? <em>{safeContent()}</em> : safeContent()}</text>
+          <text>{safeContent()}</text>
         </box>
       </box>
     </box>

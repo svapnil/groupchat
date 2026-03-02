@@ -2,9 +2,9 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
+import { condenseAgentMessages, upsertAgentMessage } from "../agent/core/message-mutations"
 import { ChannelManager } from "../lib/channel-manager"
 import { fetchChannels } from "../lib/chat-client"
-import { condenseCcMessages, upsertCcMessage } from "../lib/cc-message-utils"
 import { getConfig } from "../lib/config"
 import { getNotificationManager } from "../lib/notification-manager"
 import { applyPresenceDiff } from "../lib/presence-utils"
@@ -79,7 +79,7 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
 
     const manager = new ChannelManager(config.wsUrl, token, {
       onMessage: (channelSlug, message) => {
-        setMessageCache(channelSlug, (prev) => upsertCcMessage(prev || [], message, myUsername))
+        setMessageCache(channelSlug, (prev) => upsertAgentMessage(prev || [], message, myUsername))
 
         if (myUsername && message.username !== myUsername) {
           getNotificationManager().notify("bell")
@@ -283,7 +283,7 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
         })
 
         deduplicated.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
-        const condensed = condenseCcMessages(deduplicated, myUsername)
+        const condensed = condenseAgentMessages(deduplicated, myUsername)
 
         setMessageCache((prev) => ({
           ...prev,

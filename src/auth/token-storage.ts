@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
 const SERVICE_NAME = "groupchat";
-const CREDENTIAL_NAME = "auth-credentials";
+const PROFILE = process.env.GROUPCHAT_PROFILE;
+const CREDENTIAL_NAME = PROFILE ? `auth-credentials-${PROFILE}` : "auth-credentials";
 
 export interface StoredToken {
   token: string;

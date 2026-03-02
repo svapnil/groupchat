@@ -2,11 +2,11 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { RGBA, SyntaxStyle } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
-import type { ClaudePermissionRequest, Message } from "../lib/types"
-import { getClaudeMetadata, getPermissionOneLiner, getToolOneLiner, groupClaudeBlocks, contentToLines } from "../lib/claude-helpers"
-import { compactJson } from "../lib/utils"
-import { debugLog } from "../lib/debug"
-import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../lib/content-sanitizer"
+import type { ClaudePermissionRequest, Message } from "../../../lib/types"
+import { getClaudeMetadata, getPermissionOneLiner, getToolOneLiner, groupClaudeBlocks, contentToLines } from "../helpers"
+import { compactJson } from "../../../lib/utils"
+import { debugLog } from "../../../lib/debug"
+import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
 
 export type ClaudeMessageItemProps = {
   message: Message

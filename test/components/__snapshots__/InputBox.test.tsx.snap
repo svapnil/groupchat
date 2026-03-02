@@ -12,7 +12,7 @@ exports[`InputBox renders default placeholder and helper text 1`] = `
 "
 `;
 
-exports[`InputBox renders claude permission state 1`] = `
+exports[`InputBox renders pending mode action state 1`] = `
 "┌──────────────────────────────────────────────────────────────────────────────┐
 │ ❯ Awaiting permission decision...                                       SEND │
 │ ↑/↓ select Allow/Deny in message list • Enter to confirm                     │

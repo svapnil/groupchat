@@ -3,7 +3,7 @@
 import { createMemo, createSignal, onCleanup } from "solid-js"
 import { isCommandLikeInput, startsWithKnownCommand } from "../lib/command-input"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
-import type { ClaudePendingPermission } from "../primitives/create-claude-sdk-session"
+import type { InputMode } from "../lib/input-mode"
 
 export type InputBoxProps = {
   onSend: (message: string) => Promise<void>
@@ -14,8 +14,7 @@ export type InputBoxProps = {
   onInputChange?: (value: string) => void
   commandNames?: string[]
   placeholder?: string
-  claudeMode?: boolean
-  claudePendingPermission?: ClaudePendingPermission | null
+  mode?: InputMode | null
 }
 
 export function InputBox(props: InputBoxProps) {
@@ -73,7 +72,7 @@ export function InputBox(props: InputBoxProps) {
     const trimmed = candidate.trim()
     if (!trimmed || props.disabled || props.sendDisabled || isSending()) return
 
-    if (props.claudeMode && props.claudePendingPermission) {
+    if (props.mode?.pendingAction) {
       return
     }
 
@@ -109,25 +108,29 @@ export function InputBox(props: InputBoxProps) {
   const canSend = () =>
     !props.disabled &&
     !props.sendDisabled &&
-    !props.claudePendingPermission &&
+    !props.mode?.pendingAction &&
     value().trim().length > 0
   const isKnownCommandPrefix = createMemo(() => startsWithKnownCommand(value(), props.commandNames || []))
   const inputTextColor = () => {
-    if (props.claudeMode) return "#FFA500"
+    if (props.mode) return props.mode.accentColor
     return isKnownCommandPrefix() ? "cyan" : "#FFFFFF"
   }
   const placeholder = () => {
     if (props.disabled) return "Connecting..."
-    if (props.claudeMode && props.claudePendingPermission) return "Awaiting permission decision..."
-    if (props.claudeMode) return "Claude Code mode..."
+    if (props.mode?.pendingAction) {
+      return props.mode.pendingActionPlaceholder || "Awaiting action..."
+    }
+    if (props.mode) {
+      return props.mode.placeholder || `${props.mode.label} mode...`
+    }
     return props.placeholder || "Type a message..."
   }
   const helperText = () => {
-    if (props.claudeMode && props.claudePendingPermission) {
-      return "↑/↓ select Allow/Deny in message list • Enter to confirm"
+    if (props.mode?.pendingAction) {
+      return props.mode.pendingActionHelperText || "Complete the pending action in the message list."
     }
-    if (props.claudeMode) {
-      return "Claude mode: /exit to leave, Ctrl+C to interrupt"
+    if (props.mode) {
+      return props.mode.helperText || `${props.mode.label} mode`
     }
     return "Enter to send"
   }
@@ -136,7 +139,7 @@ export function InputBox(props: InputBoxProps) {
     <box
       border
       borderStyle="single"
-      borderColor={props.claudeMode ? "#FFA500" : "gray"}
+      borderColor={props.mode ? props.mode.accentColor : "gray"}
       paddingLeft={1}
       paddingRight={1}
       flexDirection="column"
@@ -146,7 +149,7 @@ export function InputBox(props: InputBoxProps) {
       flexShrink={0}
     >
       <box flexDirection="row" height={1} alignItems="center">
-        <text fg={props.claudeMode ? "#FFA500" : "cyan"}>{"❯ "}</text>
+        <text fg={props.mode ? props.mode.accentColor : "cyan"}>{"❯ "}</text>
         <box flexGrow={1} minWidth={0} overflow="hidden">
           <input
             value={value()}
@@ -156,7 +159,7 @@ export function InputBox(props: InputBoxProps) {
               void handleSubmit(nextValue)
             }}
             placeholder={placeholder()}
-            focused={!props.disabled && !props.claudePendingPermission}
+            focused={!props.disabled && !props.mode?.pendingAction}
             width="100%"
             textColor={inputTextColor()}
             focusedTextColor={inputTextColor()}

@@ -3,10 +3,11 @@
 import { randomBytes, randomUUID } from "node:crypto"
 import { createSignal, onCleanup } from "solid-js"
 import type { ServerWebSocket } from "bun"
-import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../lib/types"
-import { debugLog } from "../lib/debug.js"
-import { getToolOneLiner } from "../lib/claude-helpers"
-import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
+import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../../lib/types"
+import { debugLog } from "../../lib/debug.js"
+import { getToolOneLiner } from "./helpers"
+import { AGENT_TYPE } from "./claude-event-message-mutations"
+import { getRuntimeCapabilities } from "../../lib/runtime-capabilities"
 
 /**
  * Claude Code control_request subtypes from companion/WEBSOCKET_PROTOCOL_REVERSED.md (section 7).
@@ -144,6 +145,7 @@ export type ClaudePendingPermission = {
 }
 
 export type CcBroadcast = {
+  agentId: typeof AGENT_TYPE
   turnId: string
   sessionId?: string
   event: "question" | "tool_call" | "text" | "result"
@@ -454,7 +456,8 @@ export const createClaudeSdkSession = () => {
   const ccEventCallbacks = new Set<(event: CcBroadcast) => void>()
 
   const log = (...args: unknown[]) => {
-    debugLog("claude-sdk-session", ...args)
+    // disable logging for now
+    // debugLog("claude-sdk-session", ...args)
   }
 
   const resetStreamCounters = () => {
@@ -466,9 +469,10 @@ export const createClaudeSdkSession = () => {
     incomingStreamlinedTextLogCount = 0
   }
 
-  const emitCcEvent = (event: Omit<CcBroadcast, "turnId">) => {
+  const emitCcEvent = (event: Omit<CcBroadcast, "turnId" | "agentId">) => {
     if (!currentTurnId) return
     const payload: CcBroadcast = {
+      agentId: AGENT_TYPE,
       turnId: currentTurnId,
       sessionId: ccSessionId || undefined,
       ...event,
@@ -1325,10 +1329,7 @@ export const createClaudeSdkSession = () => {
         username,
         content: trimmed,
         timestamp: nowIso(),
-        type: "user",
-        attributes: {
-          claudeSessionUser: true,
-        },
+        type: "cc",
       })
 
       appendThinkingMessage()

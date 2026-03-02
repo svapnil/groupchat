@@ -226,6 +226,13 @@ export class ChannelManager {
     // Handle DM messages
     this.userChannel.on("dm:new_message", (payload: unknown) => {
       const msg = payload as DmMessage;
+      debugLog("incoming-message", {
+        source: "dm:new_message",
+        dmSlug: msg.dm_slug,
+        messageId: msg.id,
+        username: msg.username,
+        rawPayload: payload,
+      });
       this.callbacks.onDmMessage?.(msg);
     });
 
@@ -333,9 +340,20 @@ export class ChannelManager {
         timestamp: extractTimestampFromUUIDv7(msg.id),
         type: (msg as any).type || "user",  // Preserve type, default to "user"
       };
+      const isActiveChannel = channelSlug === this.currentActiveChannel;
+      debugLog("incoming-message", {
+        source: "channel:new_message",
+        channelSlug,
+        routing: isActiveChannel ? "active" : "buffered",
+        messageId: message.id,
+        messageType: message.type,
+        username: message.username,
+        rawPayload: payload,
+        normalizedMessage: message,
+      });
 
       // Route message based on whether this is the active channel
-      if (channelSlug === this.currentActiveChannel) {
+      if (isActiveChannel) {
         // Active channel - notify callback immediately
         this.callbacks.onMessage?.(channelSlug, message);
       } else {
@@ -605,10 +623,10 @@ export class ChannelManager {
   }
 
   /**
-   * Send an ephemeral Claude Code event message to a specific channel.
+   * Send an ephemeral agent event message to a specific channel.
    * Fire-and-forget: errors are logged but not propagated to callers.
    */
-  async sendCcMessage(channelSlug: string, content: string, ccMeta: CcEventMetadata): Promise<void> {
+  async sendAgentEvent(channelSlug: string, content: string, ccMeta: CcEventMetadata): Promise<void> {
     const channelState = this.channelStates.get(channelSlug);
     if (!this.socket || this.connectionStatus !== "connected") {
       return;

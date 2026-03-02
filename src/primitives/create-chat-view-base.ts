@@ -3,8 +3,15 @@
 import { createEffect, createMemo, createSignal } from "solid-js"
 import type { Accessor } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
-import { createClaudeSdkSession } from "./create-claude-sdk-session"
-import { LOCAL_COMMAND_EVENTS } from "../lib/commands"
+import { createLocalAgentSessions } from "../agent/core/local-agent-sessions"
+import type { LocalAgentSessionEntry } from "../agent/core/types"
+import {
+  isAgentExitCommandEvent,
+  parseAgentIdFromEnterEvent,
+} from "../lib/commands"
+import { getAgentColorById, getAgentDisplayNameById } from "../lib/constants"
+import type { InputMode } from "../lib/input-mode"
+import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 import type { ConnectionStatus, Message } from "../lib/types"
 import type { ChannelManager } from "../lib/channel-manager"
 
@@ -18,72 +25,151 @@ export type CreateChatViewBaseOptions = {
 }
 
 export function createChatViewBase(options: CreateChatViewBaseOptions) {
+  const runtimeCapabilities = getRuntimeCapabilities()
   const [isDetached, setIsDetached] = createSignal(false)
   const [detachedLines, setDetachedLines] = createSignal(0)
   const [tooltipHeight, setTooltipHeight] = createSignal(0)
-  const [permissionSelectedIndex, setPermissionSelectedIndex] = createSignal(0)
-  const claude = createClaudeSdkSession()
-  const ccChannelByTurnId = new Map<string, string>()
+  const [pendingActionSelectedIndex, setPendingActionSelectedIndex] = createSignal(0)
+  const [activeAgentId, setActiveAgentId] = createSignal<string | null>(null)
 
-  claude.onCcEvent((event) => {
-    const manager = options.channelManager()
-    if (!manager) return
+  const agentSessions = createLocalAgentSessions(runtimeCapabilities)
+  const defaultAgentSession = agentSessions[0]?.session ?? null
+  const agentEventChannelByTurnKey = new Map<string, string>()
 
-    let channel = ccChannelByTurnId.get(event.turnId)
+  const getAgentSession = (agentId: string | null): LocalAgentSessionEntry | null => {
+    if (!agentId) return null
+    const session = agentSessions.find((entry) => entry.id === agentId)
+    return session ?? null
+  }
 
-    // Bind each turn to the channel active when that turn starts.
-    if (event.event === "question") {
-      const activeChannel = options.currentChannel()
-      if (!activeChannel) return
-      channel = activeChannel
-      ccChannelByTurnId.set(event.turnId, activeChannel)
-    }
+  const getTurnKey = (agentId: string, turnId: string) => `${agentId}:${turnId}`
+  const isAgentAvailable = (agentId: string) =>
+    agentSessions.some((entry) => entry.id === agentId && entry.isAvailable())
 
-    if (!channel) {
-      const activeChannel = options.currentChannel()
-      if (!activeChannel) return
-      channel = activeChannel
-    }
+  const bindAgentEventBridge = (entry: LocalAgentSessionEntry) => {
+    if (!entry.session.onEvent) return
 
-    void manager.sendCcMessage(channel, event.content, {
-      turn_id: event.turnId,
-      session_id: event.sessionId,
-      event: event.event,
-      tool_name: event.toolName,
-      is_error: event.isError,
+    entry.session.onEvent((event) => {
+      const manager = options.channelManager()
+      if (!manager) return
+
+      const eventAgentId = event.agentId || entry.id
+      const turnKey = getTurnKey(eventAgentId, event.turnId)
+      let channel = agentEventChannelByTurnKey.get(turnKey)
+
+      // Bind each turn to the channel active when that turn starts.
+      if (event.event === "question") {
+        const activeChannel = options.currentChannel()
+        if (!activeChannel) return
+        channel = activeChannel
+        agentEventChannelByTurnKey.set(turnKey, activeChannel)
+      }
+
+      if (!channel) {
+        const activeChannel = options.currentChannel()
+        if (!activeChannel) return
+        channel = activeChannel
+      }
+
+      void manager.sendAgentEvent(channel, event.content, {
+        turn_id: event.turnId,
+        session_id: event.sessionId,
+        event: event.event,
+        tool_name: event.toolName,
+        is_error: event.isError,
+      })
+
+      if (event.event === "result") {
+        agentEventChannelByTurnKey.delete(turnKey)
+      }
     })
+  }
 
-    if (event.event === "result") {
-      ccChannelByTurnId.delete(event.turnId)
+  agentSessions.forEach(bindAgentEventBridge)
+
+  const activeAgent = createMemo(() => {
+    const explicit = getAgentSession(activeAgentId())
+    if (explicit && (explicit.session.isActive() || explicit.session.isConnecting())) {
+      return explicit
     }
+
+    return (
+      agentSessions.find((entry) => entry.session.isActive() || entry.session.isConnecting()) ??
+      null
+    )
   })
 
-  const isClaudeMode = createMemo(() => claude.isActive() || claude.isConnecting())
   createEffect(() => {
-    if (!isClaudeMode()) {
-      ccChannelByTurnId.clear()
+    const active = activeAgent()
+    const current = activeAgentId()
+    if (active && current !== active.id) {
+      setActiveAgentId(active.id)
+      return
+    }
+    if (!active && current !== null) {
+      setActiveAgentId(null)
     }
   })
+
+  const isAgentMode = createMemo(() => Boolean(activeAgent()))
+
+  const activePendingActionSession = createMemo(() => {
+    const active = activeAgent()
+    if (active?.session.pendingAction?.()) return active
+    return (
+      agentSessions.find((entry) => Boolean(entry.session.pendingAction?.())) ?? null
+    )
+  })
+
+  const pendingAction = createMemo(() => activePendingActionSession()?.session.pendingAction?.() ?? null)
+
+  const activeInputMode = createMemo<InputMode | null>(() => {
+    const active = activeAgent()
+    if (!active) return null
+
+    const displayName = getAgentDisplayNameById(active.id)
+    const accentColor = getAgentColorById(active.id) ?? "#FFA500"
+
+    return {
+      id: active.id,
+      label: displayName,
+      accentColor,
+      placeholder: `${displayName} mode...`,
+      helperText: `${displayName} mode: /exit to leave, Ctrl+C to interrupt`,
+      pendingAction: Boolean(active.session.pendingAction?.()),
+      pendingActionPlaceholder: "Awaiting permission decision...",
+      pendingActionHelperText: "↑/↓ select Allow/Deny in message list • Enter to confirm",
+    }
+  })
+
+  createEffect(() => {
+    if (!isAgentMode()) {
+      agentEventChannelByTurnKey.clear()
+    }
+  })
+
   const listHeight = createMemo(() => Math.max(1, options.listHeight() - tooltipHeight()))
   const combinedMessages = createMemo(() =>
-    [...options.baseMessages(), ...claude.messages()].sort((a, b) => {
-      const aThinking = Boolean(a.attributes?.claude?.thinking)
-      const bThinking = Boolean(b.attributes?.claude?.thinking)
-      // Keep the temporary Claude thinking indicator pinned to the bottom.
+    [
+      ...options.baseMessages(),
+      ...agentSessions.flatMap((entry) => entry.session.messages()),
+    ].sort((a, b) => {
+      const aThinking = agentSessions.some((entry) => entry.session.isThinkingMessage?.(a))
+      const bThinking = agentSessions.some((entry) => entry.session.isThinkingMessage?.(b))
+      // Keep temporary agent thinking indicators pinned to the bottom.
       if (aThinking !== bThinking) return aThinking ? 1 : -1
       return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0
     })
   )
-  const permissionMessageId = createMemo(() => {
-    const stack = claude.pendingPermissions()
+
+  const pendingActionMessageId = createMemo(() => {
+    const session = activePendingActionSession()
+    if (!session) return null
+
+    const stack = session.session.pendingActions?.() ?? []
     if (stack.length === 0) return null
     const top = stack[stack.length - 1]
-    const msgs = claude.messages()
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      const perm = msgs[i].attributes?.claude?.permissionRequest
-      if (perm && perm.requestId === top.requestId) return msgs[i].id
-    }
-    return null
+    return session.session.findPendingActionMessageId?.(top.requestId) ?? null
   })
 
   // Scroll management
@@ -126,28 +212,32 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
 
   // Reset permission index on new permission
   createEffect(() => {
-    claude.pendingPermission()?.requestId
-    setPermissionSelectedIndex(0)
+    pendingAction()?.requestId
+    setPendingActionSelectedIndex(0)
   })
 
   // Keyboard handler — returns true if key was consumed
-  const handleClaudeKeys = (key: { ctrl?: boolean; name: string }): boolean => {
-    if (key.ctrl && key.name === "c" && isClaudeMode()) {
-      claude.interrupt()
+  const handleAgentKeys = (key: { ctrl?: boolean; name: string }): boolean => {
+    const active = activeAgent()
+    if (key.ctrl && key.name === "c" && active?.session.interrupt) {
+      active.session.interrupt()
       return true
     }
 
-    if (claude.pendingPermission()) {
+    const pendingSession = activePendingActionSession()
+    if (pendingSession?.session.pendingAction?.()) {
       if (key.name === "up" || key.name === "k") {
-        setPermissionSelectedIndex(0)
+        setPendingActionSelectedIndex(0)
         return true
       }
       if (key.name === "down" || key.name === "j") {
-        setPermissionSelectedIndex(1)
+        setPendingActionSelectedIndex(1)
         return true
       }
       if (key.name === "return") {
-        void claude.respondToPendingPermission(permissionSelectedIndex() === 0 ? "allow" : "deny")
+        void pendingSession.session.respondToPendingAction?.(
+          pendingActionSelectedIndex() === 0 ? "allow" : "deny"
+        )
         return true
       }
       return true
@@ -167,25 +257,48 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   }
 
   // Command handler — returns true if consumed
-  const handleClaudeCommand = async (eventType: string, _data: any): Promise<boolean> => {
-    if (eventType === LOCAL_COMMAND_EVENTS.claudeEnter) {
-      await claude.start()
+  const handleAgentCommand = async (eventType: string, data: any): Promise<boolean> => {
+    const enterAgentId = parseAgentIdFromEnterEvent(eventType)
+    if (enterAgentId) {
+      const entry = getAgentSession(enterAgentId)
+      if (!entry || !entry.isAvailable()) {
+        const active = activeAgent()
+        const target = active?.session ?? defaultAgentSession
+        target?.appendError(`${enterAgentId} is not available in this runtime.`)
+        return true
+      }
+
+      const active = activeAgent()
+      if (active && active.id !== entry.id) {
+        active.session.appendError(
+          `Exit ${getAgentDisplayNameById(active.id)} mode before entering ${getAgentDisplayNameById(entry.id)} mode.`
+        )
+        return true
+      }
+
+      await entry.session.start()
+      setActiveAgentId(entry.id)
       return true
     }
-    if (eventType === LOCAL_COMMAND_EVENTS.claudeExit) {
-      claude.stop("Claude Code mode disabled.")
+
+    if (isAgentExitCommandEvent(eventType)) {
+      const target = activeAgent()
+      if (!target) return true
+      target.session.stop(`${getAgentDisplayNameById(target.id)} mode disabled.`)
       return true
     }
+
     return false
   }
 
-  // Wraps a normal send function to route to claude when in claude mode
+  // Wraps a normal send function to route to the active local agent mode.
   const wrapSendMessage = (normalSend: (msg: string) => Promise<void>) => {
     return async (message: string) => {
       const trimmed = message.trim()
       if (!trimmed) return
-      if (isClaudeMode()) {
-        await claude.sendMessage(trimmed, options.username() || "you")
+      const active = activeAgent()
+      if (active) {
+        await active.session.sendMessage(trimmed, options.username() || "you")
         return
       }
       await normalSend(trimmed)
@@ -194,14 +307,14 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
 
   const wrapTypingStart = (normalStart: () => void) => {
     return () => {
-      if (isClaudeMode()) return
+      if (isAgentMode()) return
       normalStart()
     }
   }
 
   const wrapTypingStop = (normalStop: () => void) => {
     return () => {
-      if (isClaudeMode()) return
+      if (isAgentMode()) return
       normalStop()
     }
   }
@@ -220,13 +333,33 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     })
   }
 
+  const appendAgentError = (message: string, agentId?: string) => {
+    if (agentId) {
+      const session = getAgentSession(agentId)
+      if (session) {
+        session.session.appendError(message)
+        return
+      }
+    }
+
+    const active = activeAgent()
+    if (active) {
+      active.session.appendError(message)
+      return
+    }
+
+    defaultAgentSession?.appendError(message)
+  }
+
   return {
-    // Claude
-    claude,
-    isClaudeMode,
+    activeAgentId,
+    activeAgent,
+    activeInputMode,
+    pendingAction,
+    isAgentMode,
     combinedMessages,
-    permissionMessageId,
-    permissionSelectedIndex,
+    pendingActionMessageId,
+    pendingActionSelectedIndex,
 
     // Scroll
     isDetached,
@@ -240,12 +373,16 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     tooltipHeight,
 
     // Handlers
-    handleClaudeKeys,
-    handleClaudeCommand,
+    handleAgentKeys,
+    handleAgentCommand,
     wrapSendMessage,
     wrapTypingStart,
     wrapTypingStop,
     handleTooltipHeightChange,
     resetScroll,
+    appendAgentError,
+
+    // Availability
+    isAgentAvailable,
   }
 }
