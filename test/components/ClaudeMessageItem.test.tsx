@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
 import type { Message } from "../../src/lib/types"
-import { ClaudeMessageItem } from "../../src/components/ClaudeMessageItem"
+import { ClaudeMessageItem } from "../../src/agent/claude/components/ClaudeMessageItem"
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null
 

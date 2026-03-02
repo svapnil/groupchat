@@ -4,10 +4,10 @@ import { Show, createEffect } from "solid-js"
 import { InputBox } from "./InputBox"
 import { ToolTip } from "./ToolTip"
 import { useCommandInput } from "../primitives/use-command-input"
-import { LOCAL_COMMAND_EVENTS, type Command } from "../lib/commands"
+import { isAgentExitCommandEvent, type Command } from "../lib/commands"
+import type { InputMode } from "../lib/input-mode"
 import type { ConnectionStatus, Subscriber } from "../lib/types"
 import type { UserWithStatus } from "../primitives/presence"
-import type { ClaudePendingPermission } from "../primitives/create-claude-sdk-session"
 
 export type CommandInputPanelProps = {
   token: string | null
@@ -24,8 +24,7 @@ export type CommandInputPanelProps = {
   placeholder?: string
   onTooltipHeightChange?: (height: number) => void
   commandFilter?: (command: Command) => boolean
-  claudeMode?: boolean
-  claudePendingPermission?: ClaudePendingPermission | null
+  agentMode?: InputMode | null
 }
 
 export function CommandInputPanel(props: CommandInputPanelProps) {
@@ -35,14 +34,14 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
     isPrivateChannel: () => props.isPrivateChannel,
     commandsEnabled: () => true,
     commandFilter: (command) => {
-      if (props.claudeMode) {
-        if (command.eventType !== LOCAL_COMMAND_EVENTS.claudeExit) return false
-      } else if (command.eventType === LOCAL_COMMAND_EVENTS.claudeExit) {
+      if (props.agentMode) {
+        if (!isAgentExitCommandEvent(command.eventType)) return false
+      } else if (isAgentExitCommandEvent(command.eventType)) {
         return false
       }
       return props.commandFilter ? props.commandFilter(command) : true
     },
-    inputEnabledOverride: () => Boolean(props.claudeMode),
+    inputEnabledOverride: () => Boolean(props.agentMode),
     connectionStatus: () => props.connectionStatus,
     username: () => props.username,
     users: () => props.users,
@@ -71,8 +70,7 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
         placeholder={props.placeholder}
         disabled={commandInput.isInputDisabled()}
         sendDisabled={commandInput.isSendDisabled()}
-        claudeMode={Boolean(props.claudeMode)}
-        claudePendingPermission={props.claudePendingPermission || null}
+        mode={props.agentMode || null}
       />
     </>
   )

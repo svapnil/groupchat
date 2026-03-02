@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "dev": "bun --watch run src/index.tsx",
+    "dev:user2": "GROUPCHAT_PROFILE=user2 bun --watch run src/index.tsx",
     "dev:debug": "GROUPCHAT_DEBUG=1 bun run src/index.tsx",
     "dev:debug:watch": "GROUPCHAT_DEBUG=1 bun --watch run src/index.tsx",
     "dev:debug:console": "GROUPCHAT_DEBUG=1 SHOW_CONSOLE=true bun --watch run src/index.tsx",

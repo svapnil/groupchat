@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
 import type { Message } from "../../src/lib/types"
-import { OtherUserClaudeMessageItem } from "../../src/components/OtherUserClaudeMessageItem"
+import { ClaudeEventMessageItem } from "../../src/agent/claude/components/ClaudeEventMessageItem"
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null
 
@@ -14,7 +14,7 @@ afterEach(() => {
   }
 })
 
-describe("OtherUserClaudeMessageItem", () => {
+describe("ClaudeEventMessageItem", () => {
   test("renders markdown tables from cc text events", async () => {
     const message: Message = {
       id: "cc1",
@@ -39,7 +39,7 @@ describe("OtherUserClaudeMessageItem", () => {
     }
 
     testSetup = await testRender(
-      () => <OtherUserClaudeMessageItem message={message} messagePaneWidth={100} />,
+      () => <ClaudeEventMessageItem message={message} messagePaneWidth={100} />,
       { width: 120, height: 22 },
     )
 
@@ -77,7 +77,7 @@ describe("OtherUserClaudeMessageItem", () => {
     }
 
     testSetup = await testRender(
-      () => <OtherUserClaudeMessageItem message={message} messagePaneWidth={110} />,
+      () => <ClaudeEventMessageItem message={message} messagePaneWidth={110} />,
       { width: 130, height: 22 },
     )
 

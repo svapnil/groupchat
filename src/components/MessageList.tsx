@@ -4,7 +4,7 @@ import { For, Show, createMemo, type Ref } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { MessageItem } from "./MessageItem"
 import type { Message } from "../lib/types"
-import { buildClaudeDepthMap } from "../lib/claude-helpers"
+import { buildAgentDepthMap } from "../agent/core/message-renderers"
 import { sanitizePlainMessageText } from "../lib/content-sanitizer"
 
 export type MessageListProps = {
@@ -16,10 +16,10 @@ export type MessageListProps = {
   isDetached: boolean
   detachedLines?: number
   scrollRef?: Ref<ScrollBoxRenderable>
-  /** ID of the message that has an active (unresolved) permission request */
-  permissionMessageId?: string | null
-  /** Currently highlighted option index for the permission selector (0=Allow, 1=Deny) */
-  permissionSelectedIndex?: number
+  /** ID of the message that has an active (unresolved) pending action request. */
+  pendingActionMessageId?: string | null
+  /** Currently highlighted option index for the pending action selector. */
+  pendingActionSelectedIndex?: number
 }
 
 export function MessageList(props: MessageListProps) {
@@ -27,7 +27,7 @@ export function MessageList(props: MessageListProps) {
     props.typingUsers.filter((user) => user !== props.currentUsername)
   )
   const safeTypingUsers = createMemo(() => othersTyping().map((user) => sanitizePlainMessageText(user)))
-  const claudeDepthByMessageId = createMemo(() => buildClaudeDepthMap(props.messages))
+  const agentDepthByMessageId = createMemo(() => buildAgentDepthMap(props.messages))
 
   const footerLines = createMemo(() => {
     if (props.isDetached) return 1
@@ -66,9 +66,9 @@ export function MessageList(props: MessageListProps) {
                   isOwnMessage={message.username === props.currentUsername}
                   messagePaneWidth={props.messagePaneWidth}
                   showHeader={showHeader()}
-                  claudeDepth={claudeDepthByMessageId().get(message.id) ?? 0}
-                  permissionSelectedIndex={
-                    props.permissionMessageId === message.id ? props.permissionSelectedIndex : undefined
+                  agentDepth={agentDepthByMessageId().get(message.id) ?? 0}
+                  pendingActionSelectedIndex={
+                    props.pendingActionMessageId === message.id ? props.pendingActionSelectedIndex : undefined
                   }
                 />
               )

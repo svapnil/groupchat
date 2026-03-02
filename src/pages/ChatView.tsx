@@ -12,8 +12,7 @@ import { useChannelsStore } from "../stores/channel-store"
 import { useDmStore } from "../stores/dm-store"
 import { useAuth } from "../stores/auth-store"
 import { calculateMiddleSectionHeight } from "../lib/layout"
-import { isClaudeCommand } from "../lib/commands"
-import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
+import { getCommandAgentId, isAgentCommand } from "../lib/commands"
 import { createPresenceUsers } from "../primitives/presence"
 import { createChatViewBase } from "../primitives/create-chat-view-base"
 
@@ -23,7 +22,6 @@ export type ChatViewProps = {
   topPadding?: number
 }
 
-const runtimeCapabilities = getRuntimeCapabilities()
 const USER_LIST_WIDTH = 24
 const MESSAGE_LIST_HORIZONTAL_PADDING = 2
 
@@ -69,8 +67,8 @@ export function ChatView(props: ChatViewProps) {
   })
 
   const sendCommand = async (eventType: string, data: any) => {
-    if (await base.handleClaudeCommand(eventType, data)) return
-    if (base.isClaudeMode()) return
+    if (await base.handleAgentCommand(eventType, data)) return
+    if (base.isAgentMode()) return
     const manager = chat.channelManager()
     if (!manager) {
       throw new Error("Not connected")
@@ -86,7 +84,7 @@ export function ChatView(props: ChatViewProps) {
     try {
       await sendCommand(eventType, data)
     } catch (error) {
-      base.claude.appendError(`Command failed: ${error instanceof Error ? error.message : String(error)}`)
+      base.appendAgentError(`Command failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -110,7 +108,7 @@ export function ChatView(props: ChatViewProps) {
       setShowUserList((prev) => !prev)
       return
     }
-    if (base.handleClaudeKeys(key)) return
+    if (base.handleAgentKeys(key)) return
   })
 
   let prevChannel: string | null = null
@@ -179,8 +177,8 @@ export function ChatView(props: ChatViewProps) {
               scrollRef={(ref) => {
                 base.setScrollRef(ref)
               }}
-              permissionMessageId={base.permissionMessageId()}
-              permissionSelectedIndex={base.permissionSelectedIndex()}
+              pendingActionMessageId={base.pendingActionMessageId()}
+              pendingActionSelectedIndex={base.pendingActionSelectedIndex()}
             />
           </box>
           {showUserList() ? (
@@ -205,10 +203,14 @@ export function ChatView(props: ChatViewProps) {
           onTypingStart={handleTypingStart}
           onTypingStop={handleTypingStop}
           onCommandSend={handleSendCommand}
-          commandFilter={(command) => runtimeCapabilities.hasClaude || !isClaudeCommand(command)}
+          commandFilter={(command) => {
+            if (!isAgentCommand(command)) return true
+            const agentId = getCommandAgentId(command)
+            if (!agentId) return true
+            return base.isAgentAvailable(agentId)
+          }}
           onTooltipHeightChange={base.handleTooltipHeightChange}
-          claudeMode={base.isClaudeMode()}
-          claudePendingPermission={base.claude.pendingPermission()}
+          agentMode={base.activeInputMode()}
         />
       </Layout.Content>
 

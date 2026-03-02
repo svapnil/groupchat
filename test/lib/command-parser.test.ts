@@ -60,6 +60,16 @@ const limitCommand: Command = {
   eventType: "set_limit",
 }
 
+const localCommandWithData: Command = {
+  name: "/agent",
+  syntax: "/agent",
+  description: "Agent command",
+  privateOnly: false,
+  parameters: [],
+  eventType: "local_agent_enter:test",
+  localData: { agent_type: "test" },
+}
+
 describe("parseCommandInput", () => {
   test("returns phase none for non-command input", () => {
     const parsed = parseCommandInput("hello", [noopCommand], baseCtx)
@@ -131,6 +141,16 @@ describe("extractCommandPayload", () => {
     expect(payload).toEqual({
       eventType: "set_limit",
       data: { limit: 3 },
+    })
+  })
+
+  test("merges local command data into payload", () => {
+    const parsed = parseCommandInput("/agent", [localCommandWithData], baseCtx)
+    const payload = extractCommandPayload(parsed, baseCtx)
+
+    expect(payload).toEqual({
+      eventType: "local_agent_enter:test",
+      data: { agent_type: "test" },
     })
   })
 })

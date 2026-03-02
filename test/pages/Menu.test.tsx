@@ -122,7 +122,7 @@ describe("Menu", () => {
     await testSetup.renderOnce()
     const frame = testSetup.captureCharFrame()
 
-    expect(frame).toContain("Global Channels")
+    expect(frame).toContain("Public Channels")
     expect(frame).toContain("Private Channels")
     expect(frame).toContain("Direct Messages")
     expect(frame).toContain("#engineering")

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
-import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "./types"
-import { compactJson, shortenPath, truncate } from "./utils"
+import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../../lib/types"
+import { compactJson, shortenPath, truncate } from "../../lib/utils"
 
 export function getClaudeMetadata(message: Message): ClaudeMessageMetadata | null {
   if (message.type !== "claude-response") return null

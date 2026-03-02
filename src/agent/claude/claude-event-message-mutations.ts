@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
-import type { CcEventMetadata, Message } from "./types"
+import type { CcEventMetadata, Message } from "../../lib/types"
+
+/** Agent identity — used for command routing, session IDs, and display-name/color lookup. */
+export const AGENT_ID = "claude" as const
+
+/** Wire-format tag for Claude Code event messages (`message.type` and `message.attributes.cc`). */
+export const CC_WIRE_TYPE = "cc" as const
 
 const CC_EVENT_TYPES = new Set(["question", "tool_call", "text", "result"])
 
@@ -21,8 +27,8 @@ function toCcEvent(meta: CcEventMetadata): CcEventMetadata {
 }
 
 function getCcGroupingKey(username: string, cc: CcEventMetadata): string {
-  if (cc.session_id) return `${username}:session:${cc.session_id}`
-  return `${username}:turn:${cc.turn_id}`
+  if (cc.session_id) return `${username}:agent:${AGENT_ID}:session:${cc.session_id}`
+  return `${username}:agent:${AGENT_ID}:turn:${cc.turn_id}`
 }
 
 function getCcMetadata(message: Message): CcEventMetadata | null {
@@ -32,6 +38,10 @@ function getCcMetadata(message: Message): CcEventMetadata | null {
   if (typeof cc.turn_id !== "string") return null
   if (!CC_EVENT_TYPES.has(cc.event)) return null
   return cc
+}
+
+export function isClaudeEventMessage(message: Message): boolean {
+  return getCcMetadata(message) !== null
 }
 
 function getCcEventsAndContents(cc: CcEventMetadata, fallbackContent: string): {
@@ -54,7 +64,7 @@ function getCcEventsAndContents(cc: CcEventMetadata, fallbackContent: string): {
   return { events, contents }
 }
 
-export function upsertCcMessage(messages: Message[], incoming: Message, myUsername: string | null): Message[] {
+export function upsertClaudeEventMessage(messages: Message[], incoming: Message, myUsername: string | null): Message[] {
   const incomingCc = getCcMetadata(incoming)
   if (!incomingCc) {
     return [...messages, incoming]
@@ -80,7 +90,7 @@ export function upsertCcMessage(messages: Message[], incoming: Message, myUserna
       ...messages,
       {
         ...incoming,
-        type: "cc",
+        type: CC_WIRE_TYPE,
         attributes: {
           ...(incoming.attributes ?? {}),
           cc: {
@@ -119,8 +129,4 @@ export function upsertCcMessage(messages: Message[], incoming: Message, myUserna
       },
     }
   })
-}
-
-export function condenseCcMessages(messages: Message[], myUsername: string | null): Message[] {
-  return messages.reduce((acc, message) => upsertCcMessage(acc, message, myUsername), [] as Message[])
 }
