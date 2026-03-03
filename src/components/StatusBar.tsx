@@ -5,6 +5,7 @@ import type { JSX } from "solid-js"
 import type { ConnectionStatus } from "../lib/types"
 import { useStatusMessage } from "../stores/status-message-store"
 import { PRESENCE } from "../lib/colors"
+import packageJson from "../../package.json"
 
 export type StatusBarProps = {
   connectionStatus: ConnectionStatus
@@ -86,6 +87,7 @@ export function StatusBar(props: StatusBarProps) {
           when={currentMessage()}
           fallback={
             <box flexDirection="row">
+              <text fg="#888888">{packageJson.version} | </text>
               <text fg={statusColor()}>●</text>
               <text fg="#888888">
                 {" | ↑/↓ scroll"}
