@@ -426,6 +426,23 @@ export class ChannelManager {
       }
     });
 
+    // Handle invite link creation - copy URL to clipboard
+    channel.on("create_invite_link", (payload: unknown) => {
+      const { url } = payload as { url: string };
+      const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" });
+      proc.stdin.write(url);
+      proc.stdin.end();
+
+      const id = Bun.randomUUIDv7();
+      this.callbacks.onMessage?.(channelSlug, {
+        id,
+        username: "System",
+        content: `Invite link created: ${url}. Copied to clipboard!`,
+        timestamp: extractTimestampFromUUIDv7(id),
+        type: "system",
+      });
+    });
+
     // Handle user invitation to channel
     // TODO: Let's create realtime system messages to render this
     channel.on("user_invited", (payload: unknown) => {
