@@ -20,8 +20,10 @@
     "build": "bun run build.ts",
     "start": "bun run dist/index.js",
     "test": "bun test test --preload @opentui/solid/preload",
+    "test:claude": "bun test test/claude --preload @opentui/solid/preload",
     "test:watch": "bun test test --watch --preload @opentui/solid/preload",
     "test:update-snapshots": "bun test test --update-snapshots --preload @opentui/solid/preload",
+    "claude:capture-ndjson": "bun run scripts/claude/capture-ndjson.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run typecheck && bun run build"
   },
