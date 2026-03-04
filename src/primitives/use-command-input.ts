@@ -132,11 +132,30 @@ export const useCommandInput = (options: UseCommandInputOptions) => {
 
   const availableCommandNames = createMemo(() => availableCommands().map((command) => command.name))
 
+  const tabCompletion = createMemo<string | null>(() => {
+    const tip = tooltip()
+    if (!tip.show || tip.tips.length === 0) return null
+
+    if (tip.type === "Command") {
+      const cmd = tip.tips[0] as Command
+      const hasParams = cmd.parameters.length > 0
+      return cmd.name + (hasParams ? " " : "")
+    }
+
+    if (tip.type === "User" && parsed().command) {
+      const suggestion = tip.tips[0] as string
+      return `${parsed().command!.name} ${suggestion}`
+    }
+
+    return null
+  })
+
   return {
     inputValue,
     parsed,
     availableCommandNames,
     tooltip,
+    tabCompletion,
     isInputDisabled,
     isSendDisabled,
     handleInputChange,

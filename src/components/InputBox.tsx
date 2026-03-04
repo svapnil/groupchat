@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
 import { createMemo, createSignal, onCleanup } from "solid-js"
+import { useKeyboard } from "@opentui/solid"
 import { isCommandLikeInput, startsWithKnownCommand } from "../lib/command-input"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
 import type { InputMode } from "../lib/input-mode"
@@ -15,6 +16,7 @@ export type InputBoxProps = {
   commandNames?: string[]
   placeholder?: string
   mode?: InputMode | null
+  tabCompletion?: string | null
 }
 
 export function InputBox(props: InputBoxProps) {
@@ -102,6 +104,12 @@ export function InputBox(props: InputBoxProps) {
     if (typingTimeout) {
       clearTimeout(typingTimeout)
       typingTimeout = null
+    }
+  })
+
+  useKeyboard((key) => {
+    if (key.name === "tab" && props.tabCompletion) {
+      handleChange(props.tabCompletion)
     }
   })
 

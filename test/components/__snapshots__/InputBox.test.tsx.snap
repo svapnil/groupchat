@@ -23,3 +23,15 @@ exports[`InputBox renders pending mode action state 1`] = `
                                                                                 
 "
 `;
+
+exports[`InputBox command mode display renders mode placeholder and helper text for claude mode 1`] = `
+"┌──────────────────────────────────────────────────────────────────────────────┐
+│ ❯ Message Claude Code...                                                SEND │
+│ Type /exit to leave Claude Code mode                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+"
+`;

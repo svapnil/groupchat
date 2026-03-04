@@ -7,6 +7,10 @@ import {
   getSuggestions,
   parseCommandInput,
 } from "../../src/lib/command-parser"
+import {
+  buildTooltipState,
+  dispatchTooltipSuggestion,
+} from "../../src/lib/command-tooltip"
 
 const baseCtx: ValidationContext = {
   presentUsers: [
@@ -152,5 +156,92 @@ describe("extractCommandPayload", () => {
       eventType: "local_agent_enter:test",
       data: { agent_type: "test" },
     })
+  })
+})
+
+// Helper to compute tab completion from tooltip state, matching use-command-input logic
+const getTabCompletion = (input: string, commands: Command[], ctx: ValidationContext = baseCtx, asyncParameterSuggestions: string[] = []): string | null => {
+  const parsed = parseCommandInput(input, commands, ctx)
+  const suggestion = dispatchTooltipSuggestion({ input, commands, parsed, asyncParameterSuggestions })
+  const tip = buildTooltipState(suggestion)
+  if (!tip.show || tip.tips.length === 0) return null
+
+  if (tip.type === "Command") {
+    const cmd = tip.tips[0] as Command
+    const hasParams = cmd.parameters.length > 0
+    return cmd.name + (hasParams ? " " : "")
+  }
+
+  if (tip.type === "User" && parsed.command) {
+    const paramSuggestion = tip.tips[0] as string
+    return `${parsed.command.name} ${paramSuggestion}`
+  }
+
+  return null
+}
+
+describe("tab completion", () => {
+  const claudeCommand: Command = {
+    name: "/claude",
+    syntax: "/claude",
+    description: "Enter Claude Code mode",
+    privateOnly: false,
+    parameters: [],
+    eventType: "local_agent_enter:claude",
+  }
+
+  const inviteLinkCommand: Command = {
+    name: "/invite_link",
+    syntax: "/invite_link",
+    description: "Create an invite link",
+    privateOnly: true,
+    parameters: [],
+    eventType: "create_invite_link",
+  }
+
+  const allCommands = [claudeCommand, noopCommand, inviteSearchCommand, inviteLinkCommand, modeCommand]
+
+  test("completes partial command to first matching command", () => {
+    expect(getTabCompletion("/cl", allCommands)).toBe("/claude")
+  })
+
+  test("completes /inv to first match in command list order", () => {
+    // /invite comes before /invite_link in the array, and has params
+    expect(getTabCompletion("/inv", allCommands)).toBe("/invite ")
+  })
+
+  test("completes /invite_ to /invite_link (no params, no trailing space)", () => {
+    expect(getTabCompletion("/invite_", allCommands)).toBe("/invite_link")
+  })
+
+  test("returns null for non-command input", () => {
+    expect(getTabCompletion("hello", allCommands)).toBeNull()
+  })
+
+  test("returns null for empty input", () => {
+    expect(getTabCompletion("", allCommands)).toBeNull()
+  })
+
+  test("shows all commands for bare slash", () => {
+    const result = getTabCompletion("/", allCommands)
+    // First command alphabetically from the list
+    expect(result).not.toBeNull()
+  })
+
+  test("completes no-param command without trailing space", () => {
+    expect(getTabCompletion("/no", [noopCommand])).toBe("/noop")
+  })
+
+  test("completes command with params and adds trailing space", () => {
+    expect(getTabCompletion("/mo", [modeCommand])).toBe("/mode ")
+  })
+
+  test("completes parameter suggestion for choice params", () => {
+    const result = getTabCompletion("/mode o", [modeCommand])
+    expect(result).toBe("/mode on")
+  })
+
+  test("returns null when no commands match prefix", () => {
+    expect(getTabCompletion("/zzz", allCommands)).toBeNull()
   })
 })

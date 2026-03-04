@@ -71,6 +71,7 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
         disabled={commandInput.isInputDisabled()}
         sendDisabled={commandInput.isSendDisabled()}
         mode={props.agentMode || null}
+        tabCompletion={commandInput.tabCompletion()}
       />
     </>
   )

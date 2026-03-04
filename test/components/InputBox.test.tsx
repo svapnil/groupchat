@@ -21,6 +21,21 @@ const createProps = (overrides: Partial<InputBoxProps> = {}): InputBoxProps => (
   ...overrides,
 })
 
+const pressTab = (setup: NonNullable<typeof testSetup>) => {
+  setup.renderer.keyInput.emit("keypress", {
+    name: "tab",
+    sequence: "\t",
+    ctrl: false,
+    shift: false,
+    meta: false,
+    option: false,
+    eventType: "press",
+    repeated: false,
+  })
+}
+
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
 describe("InputBox", () => {
   test("renders default placeholder and helper text", async () => {
     testSetup = await testRender(
@@ -56,9 +71,7 @@ describe("InputBox", () => {
     await testSetup.mockInput.typeText("  hello world  ")
     testSetup.mockInput.pressEnter()
 
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 0)
-    })
+    await tick()
     await testSetup.renderOnce()
 
     expect(sent).toEqual(["hello world"])
@@ -88,5 +101,127 @@ describe("InputBox", () => {
     expect(frame).toContain("Awaiting permission decision...")
     expect(frame).toContain("Allow/Deny")
     expect(frame).toMatchSnapshot()
+  })
+})
+
+describe("InputBox tab completion", () => {
+  test("tab applies tabCompletion value to input", async () => {
+    const changes: string[] = []
+
+    testSetup = await testRender(
+      () =>
+        <InputBox
+          {...createProps({
+            onInputChange: (value) => changes.push(value),
+            commandNames: ["/invite"],
+            tabCompletion: "/invite ",
+          })}
+        />,
+      { width: 60, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    await testSetup.mockInput.typeText("/inv")
+    pressTab(testSetup)
+
+    await tick()
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("/invite")
+    expect(changes).toContain("/invite ")
+  })
+
+  test("tab does nothing when tabCompletion is null", async () => {
+    const changes: string[] = []
+
+    testSetup = await testRender(
+      () =>
+        <InputBox
+          {...createProps({
+            onInputChange: (value) => changes.push(value),
+            commandNames: ["/invite"],
+            tabCompletion: null,
+          })}
+        />,
+      { width: 60, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    await testSetup.mockInput.typeText("/inv")
+    pressTab(testSetup)
+
+    await tick()
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("/inv")
+    expect(changes.filter((c) => c === "/invite ")).toHaveLength(0)
+  })
+
+  test("tab completes a no-parameter command without trailing space", async () => {
+    const changes: string[] = []
+
+    testSetup = await testRender(
+      () =>
+        <InputBox
+          {...createProps({
+            onInputChange: (value) => changes.push(value),
+            commandNames: ["/claude"],
+            tabCompletion: "/claude",
+          })}
+        />,
+      { width: 60, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    await testSetup.mockInput.typeText("/cl")
+    pressTab(testSetup)
+
+    await tick()
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("/claude")
+    expect(changes).toContain("/claude")
+  })
+})
+
+describe("InputBox command mode display", () => {
+  test("renders mode placeholder and helper text for claude mode", async () => {
+    testSetup = await testRender(
+      () =>
+        <InputBox
+          {...createProps({
+            mode: {
+              id: "claude",
+              label: "Claude Code",
+              accentColor: "#FFA500",
+              placeholder: "Message Claude Code...",
+              helperText: "Type /exit to leave Claude Code mode",
+            },
+          })}
+        />,
+      { width: 80, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("Message Claude Code...")
+    expect(frame).toContain("Type /exit to leave Claude Code mode")
+    expect(frame).toMatchSnapshot()
+  })
+
+  test("shows disabled placeholder when disconnected", async () => {
+    testSetup = await testRender(
+      () => <InputBox {...createProps({ disabled: true })} />,
+      { width: 60, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("Connecting...")
   })
 })

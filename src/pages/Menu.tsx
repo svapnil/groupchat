@@ -322,7 +322,7 @@ export function Menu(props: MenuProps) {
       </Layout.Content>
 
       <Layout.Footer>
-        <StatusBar connectionStatus={chat.connectionStatus()} error={null} showUserToggle={false} />
+        <StatusBar connectionStatus={chat.connectionStatus()} error={null} showUserToggle={false} showVersion />
       </Layout.Footer>
     </Layout>
   )

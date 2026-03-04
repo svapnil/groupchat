@@ -11,6 +11,7 @@ export type StatusBarProps = {
   connectionStatus: ConnectionStatus
   error?: string | null
   showUserToggle?: boolean
+  showVersion?: boolean
   backLabel?: string
   backShortcut?: string
   title?: JSX.Element
@@ -87,7 +88,7 @@ export function StatusBar(props: StatusBarProps) {
           when={currentMessage()}
           fallback={
             <box flexDirection="row">
-              <text fg="#888888">{packageJson.version} | </text>
+              <Show when={props.showVersion}><text fg="#888888">{packageJson.version} | </text></Show>
               <text fg={statusColor()}>●</text>
               <text fg="#888888">
                 {" | ↑/↓ scroll"}
