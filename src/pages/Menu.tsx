@@ -146,7 +146,7 @@ export function Menu(props: MenuProps) {
     }
   })
 
-  const contentHeight = createMemo(() => props.height - (props.topPadding ?? 0) - LAYOUT_HEIGHTS.statusBar)
+  const contentHeight = createMemo(() => props.height - (props.topPadding ?? 0) - LAYOUT_HEIGHTS.footer)
 
   const publicStartIndex = () => 0
   const privateStartIndex = () => publicStartIndex() + sortedPublicChannels().length

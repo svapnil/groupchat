@@ -3,6 +3,7 @@
 export const LAYOUT_HEIGHTS = {
   inputBox: 3,
   inputBoxWithHelper: 4,
+  footer: 2,
   statusBar: 1,
   linesPerMessage: 1,
   linesPerMessageWithHeader: 2,
@@ -13,8 +14,8 @@ export function calculateMiddleSectionHeight(
   topPadding: number,
   inputBoxHeight: number = LAYOUT_HEIGHTS.inputBox
 ): number {
-  const { statusBar } = LAYOUT_HEIGHTS;
-  return Math.max(5, terminalRows - topPadding - inputBoxHeight - statusBar);
+  const { footer } = LAYOUT_HEIGHTS;
+  return Math.max(5, terminalRows - topPadding - inputBoxHeight - footer);
 }
 
 export function calculateMaxVisibleMessages(middleSectionHeight: number): number {

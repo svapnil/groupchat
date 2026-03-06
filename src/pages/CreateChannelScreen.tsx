@@ -120,7 +120,7 @@ export function CreateChannelScreen(props: CreateChannelScreenProps) {
     }
   })
 
-  const contentHeight = () => props.height - (props.topPadding ?? 0) - LAYOUT_HEIGHTS.statusBar
+  const contentHeight = () => props.height - (props.topPadding ?? 0) - LAYOUT_HEIGHTS.footer
 
   return (
     <Layout width={props.width} height={props.height} topPadding={props.topPadding ?? 0}>
