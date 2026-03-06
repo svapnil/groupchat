@@ -47,7 +47,6 @@ describe("InputBox", () => {
     const frame = testSetup.captureCharFrame()
 
     expect(frame).toContain("Type a message...")
-    expect(frame).toContain("SEND")
     expect(frame).toMatchSnapshot()
   })
 

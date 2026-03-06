@@ -115,11 +115,6 @@ export function InputBox(props: InputBoxProps) {
     }
   })
 
-  const canSend = () =>
-    !props.disabled &&
-    !props.sendDisabled &&
-    !props.mode?.pendingAction &&
-    value().trim().length > 0
   const isKnownCommandPrefix = createMemo(() => startsWithKnownCommand(value(), props.commandNames || []))
   const inputTextColor = () => {
     if (props.mode) return props.mode.accentColor
@@ -173,9 +168,6 @@ export function InputBox(props: InputBoxProps) {
               focusedTextColor={inputTextColor()}
             />
           </box>
-          <text fg={canSend() ? "#00FF00" : "gray"}>
-            {" SEND"}
-          </text>
         </box>
         <text fg={frameColor()} width="100%" height={1} truncate>{FRAME_RULE}</text>
         <Show when={helperText()}>
