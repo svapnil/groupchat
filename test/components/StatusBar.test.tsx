@@ -17,7 +17,7 @@ describe("StatusBar", () => {
   test("renders default controls with user toggle", async () => {
     testSetup = await testRender(
       () => <StatusBar connectionStatus="connected" />,
-      { width: 90, height: 3 },
+      { width: 90, height: 1 },
     )
 
     await testSetup.renderOnce()
@@ -38,7 +38,7 @@ describe("StatusBar", () => {
           error="Connection lost"
         />
       ),
-      { width: 90, height: 3 },
+      { width: 90, height: 1 },
     )
 
     await testSetup.renderOnce()

@@ -1,15 +1,11 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`StatusBar renders default controls with user toggle 1`] = `
-"┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                          ● | ↑/↓ scroll | Ctrl+E users │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+"                                                            ● | ↑/↓ scroll | Ctrl+E users 
 "
 `;
 
 exports[`StatusBar renders back navigation, title, and error message 1`] = `
-"┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ ← Back [Esc] | Channel Settings                                        Connection lost │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+" ← Back [Esc] | Channel Settings                                          Connection lost 
 "
 `;

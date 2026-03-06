@@ -55,16 +55,13 @@ export function StatusBar(props: StatusBarProps) {
 
   return (
     <box
-      border
-      borderStyle="single"
-      borderColor="gray"
       paddingLeft={1}
       paddingRight={1}
       flexDirection="row"
       alignItems="center"
       justifyContent="space-between"
       width="100%"
-      height={3}
+      height={1}
       overflow="hidden"
       flexShrink={0}
     >

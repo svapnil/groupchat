@@ -12,6 +12,7 @@ exports[`Menu renders channel and dm sections with seeded data 1`] = `
                                                                                       │                                 
       #maintainers (1)                                                                │                                 
       + Create a new private channel                                                  │                                 
+                                                                                      │                                 
   Direct Messages                                                                     │                                 
                                                                                       │                                 
       + Start a new conversation                                                      │                                 
@@ -21,6 +22,7 @@ exports[`Menu renders channel and dm sections with seeded data 1`] = `
         LGTM - Jan 1                                                                  │                                 
                                                                                       │                                 
                                                                                       │                                 
+                                                                                      │                                 
   ┌───────────────────────┐                                                           │                                 
   │ ↑/↓ Navigate channels │                                                           │                                 
   │ Ctrl+O Logout         │                                                           │                                 
@@ -28,9 +30,7 @@ exports[`Menu renders channel and dm sections with seeded data 1`] = `
   │                       │                                                           └───────────────────────          
   └───────────────────────┘                                                                                             
                                                                                                                         
-┌────────────────────────────────────────────────────────────────────────────────────────────────────────────┐          
-│                                                                                     0.1.7 | ● | ↑/↓ scroll │          
-└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘          
+                                                                                       0.1.7 | ● | ↑/↓ scroll           
                                                                                                                         
                                                                                                                         
                                                                                                                         
@@ -54,15 +54,15 @@ exports[`Menu renders empty-state menu 1`] = `
                                                                     │                               
                                                                     │                               
                                                                     │                               
+                                                                    │                               
+                                                                    │                               
   ┌───────────────────────┐                                         │                               
   │ ↑/↓ Navigate channels │                                         │                               
   │ Ctrl+O Logout         │                                         │                               
   │ Ctrl+C Exit the app   │                                         └─────────────────────          
   │                       │                                                                         
   └───────────────────────┘                                                                         
-┌────────────────────────────────────────────────────────────────────────────────────────┐          
-│                                                                 0.1.7 | ● | ↑/↓ scroll │          
-└────────────────────────────────────────────────────────────────────────────────────────┘          
+                                                                   0.1.7 | ● | ↑/↓ scroll           
                                                                                                     
                                                                                                     
                                                                                                     
