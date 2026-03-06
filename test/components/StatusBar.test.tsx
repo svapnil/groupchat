@@ -48,4 +48,17 @@ describe("StatusBar", () => {
     expect(frame).toContain("Connection lost")
     expect(frame).toMatchSnapshot()
   })
+
+  test("renders custom hint text", async () => {
+    testSetup = await testRender(
+      () => <StatusBar connectionStatus="connected" hintText="Ctrl+O Logout | Ctrl+C Exit the App" showVersion />,
+      { width: 90, height: 1 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("0.1.7 | ● | Ctrl+O Logout | Ctrl+C Exit the App")
+    expect(frame).toMatchSnapshot()
+  })
 })

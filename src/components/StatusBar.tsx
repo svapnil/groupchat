@@ -12,6 +12,7 @@ export type StatusBarProps = {
   error?: string | null
   showUserToggle?: boolean
   showVersion?: boolean
+  hintText?: string
   backLabel?: string
   backShortcut?: string
   title?: JSX.Element
@@ -52,6 +53,7 @@ export function StatusBar(props: StatusBarProps) {
   const showUserToggle = () => props.showUserToggle ?? true
   const hasBack = () => Boolean(props.backLabel && props.backShortcut)
   const hasTitle = () => Boolean(props.title)
+  const hintText = () => props.hintText ?? `↑/↓ scroll${showUserToggle() ? " | Ctrl+E users" : ""}`
 
   return (
     <box
@@ -87,10 +89,7 @@ export function StatusBar(props: StatusBarProps) {
             <box flexDirection="row">
               <Show when={props.showVersion}><text fg="#888888">{packageJson.version} | </text></Show>
               <text fg={statusColor()}>●</text>
-              <text fg="#888888">
-                {" | ↑/↓ scroll"}
-                {showUserToggle() ? " | Ctrl+E users" : ""}
-              </text>
+              <text fg="#888888">{" | "}{hintText()}</text>
             </box>
           }
         >

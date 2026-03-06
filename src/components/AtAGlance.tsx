@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
-import { createMemo } from "solid-js"
+import { For, createMemo } from "solid-js"
 import type { PresenceState } from "../lib/types"
 import { AGENT_CONFIG } from "../lib/constants"
 import { PRESENCE } from "../lib/colors"
 
 export type AtAGlanceProps = {
   presenceState: PresenceState
-  height: number
 }
 
 const normalizeColor = (color: string) => {
@@ -37,63 +36,58 @@ export function AtAGlance(props: AtAGlanceProps) {
     )
   )
 
+  const rows = createMemo(() => {
+    const stats = userStats()
+    const items: Array<{ label: string; color?: string; muted?: boolean }> = [
+      { label: `${stats.total} Online`, color: PRESENCE.online },
+    ]
+
+    if (stats.claude > 0) {
+      items.push({ label: `${stats.claude} Using ${AGENT_CONFIG.claude.displayName}`, color: normalizeColor(AGENT_CONFIG.claude.color) })
+    }
+    if (stats.codex > 0) {
+      items.push({ label: `${stats.codex} Using ${AGENT_CONFIG.codex.displayName}`, color: normalizeColor(AGENT_CONFIG.codex.color) })
+    }
+    if (stats.cursor > 0) {
+      items.push({ label: `${stats.cursor} Using ${AGENT_CONFIG.cursor.displayName}`, color: normalizeColor(AGENT_CONFIG.cursor.color) })
+    }
+    if (stats.windsurf > 0) {
+      items.push({ label: `${stats.windsurf} Using ${AGENT_CONFIG.windsurf.displayName}`, color: normalizeColor(AGENT_CONFIG.windsurf.color) })
+    }
+    if (stats.total === 0) {
+      items.push({ label: "No users online", muted: true })
+    }
+
+    return items
+  })
+
   return (
     <box
       flexDirection="column"
-      flexShrink={0}
-      border
-      borderStyle="single"
-      borderColor="gray"
-      width={28}
-      height={props.height}
-      paddingLeft={1}
-      paddingRight={1}
+      width="100%"
       overflow="hidden"
     >
       <box marginBottom={1}>
-        <text>At A Glance</text>
+        <text>
+          <strong>At a Glance</strong>
+        </text>
       </box>
 
-      <box flexDirection="column" gap={1}>
-        <box flexDirection="row">
-          <text fg={PRESENCE.online}>● </text>
-          <text>{userStats().total} Online</text>
-        </box>
-
-        {userStats().claude > 0 ? (
-          <box flexDirection="row">
-            <text fg={normalizeColor(AGENT_CONFIG.claude.color)}>● </text>
-            <text>{userStats().claude} Using {AGENT_CONFIG.claude.displayName}</text>
+      <For each={rows()}>
+        {(row) => (
+          <box marginLeft={2} flexDirection="row" height={1} alignItems="center">
+            {row.color ? (
+              <>
+                <text flexShrink={0}>{"  "}</text>
+                <text fg={row.color} flexShrink={0}>● </text>
+              </>
+            ) : null}
+            <text fg={row.muted ? "#888888" : "white"} truncate width="100%" height={1}>
+              {row.label}
+            </text>
           </box>
-        ) : null}
-
-        {userStats().codex > 0 ? (
-          <box flexDirection="row">
-            <text fg={normalizeColor(AGENT_CONFIG.codex.color)}>● </text>
-            <text>{userStats().codex} Using {AGENT_CONFIG.codex.displayName}</text>
-          </box>
-        ) : null}
-
-        {userStats().cursor > 0 ? (
-          <box flexDirection="row">
-            <text fg={normalizeColor(AGENT_CONFIG.cursor.color)}>● </text>
-            <text>{userStats().cursor} Using {AGENT_CONFIG.cursor.displayName}</text>
-          </box>
-        ) : null}
-
-        {userStats().windsurf > 0 ? (
-          <box flexDirection="row">
-            <text fg={normalizeColor(AGENT_CONFIG.windsurf.color)}>● </text>
-            <text>{userStats().windsurf} Using {AGENT_CONFIG.windsurf.displayName}</text>
-          </box>
-        ) : null}
-
-        {userStats().total === 0 ? (
-          <box>
-            <text fg="#888888">No users online</text>
-          </box>
-        ) : null}
-      </box>
+        )}
+      </For>
     </box>
   )
 }

@@ -155,174 +155,144 @@ export function Menu(props: MenuProps) {
   const dmStartIndex = () => newDmIndex() + 1
   const dmCount = () => Math.min(5, dms.conversations().length)
   const dmSeeMoreIndex = () => (dms.conversations().length > 5 ? dmStartIndex() + dmCount() : -1)
-  const helpLines = [
-    "↑/↓ Navigate channels",
-    "Ctrl+O Logout",
-    "Ctrl+C Exit the app",
-  ]
-  const helpContentWidth = () => Math.max(...helpLines.map((line) => line.length))
-  const helpBoxWidth = () => helpContentWidth() + 4
 
   return (
     <Layout width={props.width} height={props.height} topPadding={props.topPadding ?? 0}>
       <Layout.Content>
         <box flexDirection="column" height={contentHeight()}>
-          <box flexDirection="row" flexGrow={1}>
-            <box flexDirection="column" flexGrow={1} padding={2} overflow="hidden">
-              <Show when={sortedPublicChannels().length > 0}>
-                <box flexDirection="column" marginBottom={1}>
-                  <box marginBottom={1}>
-                    <text>
-                      <strong>Public Channels</strong>
-                    </text>
-                  </box>
-                  <For each={sortedPublicChannels()}>
-                    {(channel, idx) => {
-                      const absoluteIndex = () => publicStartIndex() + idx()
-                      const unreadCount = () => channels.unreadCounts()[channel.slug] || 0
-                      return (
-                        <ChannelItem
-                          channel={channel}
-                          isSelected={selectedIndex() === absoluteIndex()}
-                          unreadCount={unreadCount()}
-                        />
-                      )
-                    }}
-                  </For>
-                </box>
-              </Show>
+          <box flexDirection="column" flexGrow={1} padding={2} overflow="hidden">
+            <box flexDirection="column" marginBottom={1}>
+              <AtAGlance presenceState={chat.globalPresence()} />
+            </box>
 
+            <Show when={sortedPublicChannels().length > 0}>
               <box flexDirection="column" marginBottom={1}>
                 <box marginBottom={1}>
                   <text>
-                    <strong>Private Channels</strong>
+                    <strong>Public Channels</strong>
                   </text>
                 </box>
-                {/* Append null sentinel so the "Create" action is part of the same <For> list.
-                   This guarantees render order — a sibling after <For> can shift above
-                   dynamically-inserted items when the reactive list updates. */}
-                <For each={[...channels.privateChannels(), null]}>
+                <For each={sortedPublicChannels()}>
                   {(channel, idx) => {
-                    if (channel === null) {
-                      return (
-                        <ActionItem
-                          label="+ Create a new private channel"
-                          isSelected={selectedIndex() === createChannelIndex()}
-                        />
-                      )
-                    }
-                    const absoluteIndex = () => privateStartIndex() + idx()
+                    const absoluteIndex = () => publicStartIndex() + idx()
                     const unreadCount = () => channels.unreadCounts()[channel.slug] || 0
                     return (
                       <ChannelItem
                         channel={channel}
                         isSelected={selectedIndex() === absoluteIndex()}
                         unreadCount={unreadCount()}
-                        isPrivate
                       />
                     )
                   }}
                 </For>
               </box>
+            </Show>
 
-              <box flexDirection="column" marginBottom={1}>
-                <box marginBottom={1}>
-                  <text>
-                    <strong>Direct Messages</strong>
-                  </text>
-                </box>
+            <box flexDirection="column" marginBottom={1}>
+              <box marginBottom={1}>
+                <text>
+                  <strong>Private Channels</strong>
+                </text>
+              </box>
+              {/* Append null sentinel so the "Create" action is part of the same <For> list.
+                 This guarantees render order — a sibling after <For> can shift above
+                 dynamically-inserted items when the reactive list updates. */}
+              <For each={[...channels.privateChannels(), null]}>
+                {(channel, idx) => {
+                  if (channel === null) {
+                    return (
+                      <ActionItem
+                        label="+ Create a new private channel"
+                        isSelected={selectedIndex() === createChannelIndex()}
+                      />
+                    )
+                  }
+                  const absoluteIndex = () => privateStartIndex() + idx()
+                  const unreadCount = () => channels.unreadCounts()[channel.slug] || 0
+                  return (
+                    <ChannelItem
+                      channel={channel}
+                      isSelected={selectedIndex() === absoluteIndex()}
+                      unreadCount={unreadCount()}
+                      isPrivate
+                    />
+                  )
+                }}
+              </For>
+            </box>
 
-                <ActionItem
-                  label="+ Start a new conversation"
-                  isSelected={selectedIndex() === newDmIndex()}
-                />
+            <box flexDirection="column" marginBottom={1}>
+              <box marginBottom={1}>
+                <text>
+                  <strong>Direct Messages</strong>
+                </text>
+              </box>
 
+              <ActionItem
+                label="+ Start a new conversation"
+                isSelected={selectedIndex() === newDmIndex()}
+              />
+
+              <Show
+                when={!dms.loading() || dms.conversations().length > 0}
+                fallback={
+                  <box marginLeft={2}>
+                    <text fg="cyan">Loading conversations...</text>
+                  </box>
+                }
+              >
                 <Show
-                  when={!dms.loading() || dms.conversations().length > 0}
+                  when={dms.conversations().length > 0}
                   fallback={
                     <box marginLeft={2}>
-                      <text fg="cyan">Loading conversations...</text>
+                      <text fg="#888888">No Direct Messages Yet.</text>
                     </box>
                   }
                 >
-                  <Show
-                    when={dms.conversations().length > 0}
-                    fallback={
-                      <box marginLeft={2}>
-                        <text fg="#888888">No Direct Messages Yet.</text>
-                      </box>
-                    }
-                  >
-                    <For each={dms.conversations().slice(0, 5)}>
-                      {(conversation, idx) => {
-                        const absoluteIndex = () => dmStartIndex() + idx()
-                        const isOnline = () => Boolean(chat.globalPresence()[conversation.other_username])
-                        return (
-                          <DmItem
-                            conversation={conversation}
-                            isSelected={selectedIndex() === absoluteIndex()}
-                            isOnline={isOnline()}
-                          />
-                        )
-                      }}
-                    </For>
-                    <Show when={dms.conversations().length > 5}>
-                      <ActionItem
-                        label="See More..."
-                        isSelected={selectedIndex() === dmSeeMoreIndex()}
-                      />
-                    </Show>
+                  <For each={dms.conversations().slice(0, 5)}>
+                    {(conversation, idx) => {
+                      const absoluteIndex = () => dmStartIndex() + idx()
+                      const isOnline = () => Boolean(chat.globalPresence()[conversation.other_username])
+                      return (
+                        <DmItem
+                          conversation={conversation}
+                          isSelected={selectedIndex() === absoluteIndex()}
+                          isOnline={isOnline()}
+                        />
+                      )
+                    }}
+                  </For>
+                  <Show when={dms.conversations().length > 5}>
+                    <ActionItem
+                      label="See More..."
+                      isSelected={selectedIndex() === dmSeeMoreIndex()}
+                    />
                   </Show>
                 </Show>
-              </box>
-
-              <Show when={allChannels().length === 0}>
-                <box>
-                  {channels.loading() ? (
-                    <text fg="cyan">Loading channels...</text>
-                  ) : (
-                    <text fg="#888888">No channels available</text>
-                  )}
-                </box>
               </Show>
             </box>
 
-            <box paddingRight={2} paddingTop={2}>
-              <AtAGlance presenceState={chat.globalPresence()} height={contentHeight() - 4} />
-            </box>
-          </box>
-
-          <box paddingLeft={2} paddingRight={2} paddingBottom={2}>
-            <box
-              border
-              borderStyle="single"
-              borderColor="gray"
-              paddingLeft={1}
-              paddingRight={1}
-              flexDirection="column"
-              overflow="hidden"
-              width={helpBoxWidth()}
-              alignSelf="flex-start"
-            >
-              <text fg="cyan" truncate width={helpContentWidth()} height={1}>
-                {helpLines[0]}
-              </text>
-              <text fg="cyan" truncate width={helpContentWidth()} height={1}>
-                {helpLines[1]}
-              </text>
-              <text fg="cyan" truncate width={helpContentWidth()} height={1}>
-                {helpLines[2]}
-              </text>
-              <text fg="cyan" truncate width={helpContentWidth()} height={1}>
-                {helpLines[3]}
-              </text>
-            </box>
+            <Show when={allChannels().length === 0}>
+              <box>
+                {channels.loading() ? (
+                  <text fg="cyan">Loading channels...</text>
+                ) : (
+                  <text fg="#888888">No channels available</text>
+                )}
+              </box>
+            </Show>
           </box>
         </box>
       </Layout.Content>
 
       <Layout.Footer>
-        <StatusBar connectionStatus={chat.connectionStatus()} error={null} showUserToggle={false} showVersion />
+        <StatusBar
+          connectionStatus={chat.connectionStatus()}
+          error={null}
+          showUserToggle={false}
+          showVersion
+          hintText="Ctrl+O Logout | Ctrl+C Exit | ↑/↓ scroll"
+        />
       </Layout.Footer>
     </Layout>
   )

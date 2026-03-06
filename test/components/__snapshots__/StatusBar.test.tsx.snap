@@ -9,3 +9,8 @@ exports[`StatusBar renders back navigation, title, and error message 1`] = `
 " ← Back [Esc] | Channel Settings                                          Connection lost 
 "
 `;
+
+exports[`StatusBar renders custom hint text 1`] = `
+"                                          0.1.7 | ● | Ctrl+O Logout | Ctrl+C Exit the App 
+"
+`;
