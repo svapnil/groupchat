@@ -11,7 +11,7 @@ import { useChatStore } from "../stores/chat-store"
 import { useChannelsStore } from "../stores/channel-store"
 import { useDmStore } from "../stores/dm-store"
 import { useAuth } from "../stores/auth-store"
-import { calculateMiddleSectionHeight } from "../lib/layout"
+import { calculateMiddleSectionHeight, LAYOUT_HEIGHTS } from "../lib/layout"
 import { getCommandAgentId, isAgentCommand } from "../lib/commands"
 import { createPresenceUsers } from "../primitives/presence"
 import { createChatViewBase } from "../primitives/create-chat-view-base"
@@ -35,7 +35,9 @@ export function ChatView(props: ChatViewProps) {
   const [showUserList, setShowUserList] = createSignal(true)
 
   const topPadding = () => props.topPadding ?? 0
-  const middleHeight = createMemo(() => calculateMiddleSectionHeight(props.height, topPadding()))
+  const [listHeight, setListHeight] = createSignal(
+    calculateMiddleSectionHeight(props.height, topPadding(), LAYOUT_HEIGHTS.inputBox)
+  )
   const messagePaneWidth = createMemo(() => {
     const userListWidth = showUserList() ? USER_LIST_WIDTH : 0
     return Math.max(20, props.width - userListWidth - MESSAGE_LIST_HORIZONTAL_PADDING)
@@ -43,11 +45,16 @@ export function ChatView(props: ChatViewProps) {
 
   const base = createChatViewBase({
     baseMessages: chat.messages,
-    listHeight: middleHeight,
+    listHeight,
     connectionStatus: chat.connectionStatus,
     username: chat.username,
     channelManager: chat.channelManager,
     currentChannel: channels.currentChannel,
+  })
+
+  createEffect(() => {
+    const inputBoxHeight = base.activeInputMode() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox
+    setListHeight(calculateMiddleSectionHeight(props.height, topPadding(), inputBoxHeight))
   })
 
   const channelDetails = createMemo(() => {

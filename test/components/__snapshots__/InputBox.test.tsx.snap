@@ -1,10 +1,10 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`InputBox renders default placeholder and helper text 1`] = `
-"┌──────────────────────────────────────────────────────────┐
-│ ❯ Type a message...                                 SEND │
-│ Enter to send                                            │
-└──────────────────────────────────────────────────────────┘
+" ────────────────────────────────────────────────────────── 
+  ❯ Type a message...                                 SEND  
+ ────────────────────────────────────────────────────────── 
+                                                            
                                                             
                                                             
                                                             
@@ -13,10 +13,10 @@ exports[`InputBox renders default placeholder and helper text 1`] = `
 `;
 
 exports[`InputBox renders pending mode action state 1`] = `
-"┌──────────────────────────────────────────────────────────────────────────────┐
-│ ❯ Awaiting permission decision...                                       SEND │
-│ ↑/↓ select Allow/Deny in message list • Enter to confirm                     │
-└──────────────────────────────────────────────────────────────────────────────┘
+" ────────────────────────────────────────────────────────────────────────────── 
+  ❯ Awaiting permission decision...                                       SEND  
+ ────────────────────────────────────────────────────────────────────────────── 
+  ↑/↓ select Allow/Deny in message list • Enter to confirm                      
                                                                                 
                                                                                 
                                                                                 
@@ -25,10 +25,10 @@ exports[`InputBox renders pending mode action state 1`] = `
 `;
 
 exports[`InputBox command mode display renders mode placeholder and helper text for claude mode 1`] = `
-"┌──────────────────────────────────────────────────────────────────────────────┐
-│ ❯ Message Claude Code...                                                SEND │
-│ Type /exit to leave Claude Code mode                                         │
-└──────────────────────────────────────────────────────────────────────────────┘
+" ────────────────────────────────────────────────────────────────────────────── 
+  ❯ Message Claude Code...                                                SEND  
+ ────────────────────────────────────────────────────────────────────────────── 
+  Type /exit to leave Claude Code mode                                          
                                                                                 
                                                                                 
                                                                                 

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
 export const LAYOUT_HEIGHTS = {
-  inputBox: 4,
+  inputBox: 3,
+  inputBoxWithHelper: 4,
   statusBar: 1,
   linesPerMessage: 1,
   linesPerMessageWithHeader: 2,
@@ -9,10 +10,11 @@ export const LAYOUT_HEIGHTS = {
 
 export function calculateMiddleSectionHeight(
   terminalRows: number,
-  topPadding: number
+  topPadding: number,
+  inputBoxHeight: number = LAYOUT_HEIGHTS.inputBox
 ): number {
-  const { inputBox, statusBar } = LAYOUT_HEIGHTS;
-  return Math.max(5, terminalRows - topPadding - inputBox - statusBar);
+  const { statusBar } = LAYOUT_HEIGHTS;
+  return Math.max(5, terminalRows - topPadding - inputBoxHeight - statusBar);
 }
 
 export function calculateMaxVisibleMessages(middleSectionHeight: number): number {

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
-import { createMemo, createSignal, onCleanup } from "solid-js"
+import { Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import { isCommandLikeInput, startsWithKnownCommand } from "../lib/command-input"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
 import type { InputMode } from "../lib/input-mode"
+
+const FRAME_RULE = "─".repeat(512)
 
 export type InputBoxProps = {
   onSend: (message: string) => Promise<void>
@@ -123,6 +125,7 @@ export function InputBox(props: InputBoxProps) {
     if (props.mode) return props.mode.accentColor
     return isKnownCommandPrefix() ? "cyan" : "#FFFFFF"
   }
+  const frameColor = () => props.mode ? props.mode.accentColor : "gray"
   const placeholder = () => {
     if (props.disabled) return "Connecting..."
     if (props.mode?.pendingAction) {
@@ -140,47 +143,48 @@ export function InputBox(props: InputBoxProps) {
     if (props.mode) {
       return props.mode.helperText || `${props.mode.label} mode`
     }
-    return "Enter to send"
+    return ""
   }
 
   return (
     <box
-      border
-      borderStyle="single"
-      borderColor={props.mode ? props.mode.accentColor : "gray"}
-      paddingLeft={1}
-      paddingRight={1}
       flexDirection="column"
       width="100%"
-      height={LAYOUT_HEIGHTS.inputBox}
+      height={helperText() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox}
       overflow="hidden"
       flexShrink={0}
     >
-      <box flexDirection="row" height={1} alignItems="center">
-        <text fg={props.mode ? props.mode.accentColor : "cyan"}>{"❯ "}</text>
-        <box flexGrow={1} minWidth={0} overflow="hidden">
-          <input
-            value={value()}
-            onInput={handleChange}
-            onSubmit={(submitted) => {
-              const nextValue = typeof submitted === "string" ? submitted : undefined
-              void handleSubmit(nextValue)
-            }}
-            placeholder={placeholder()}
-            focused={!props.disabled && !props.mode?.pendingAction}
-            width="100%"
-            textColor={inputTextColor()}
-            focusedTextColor={inputTextColor()}
-          />
+      <box paddingLeft={1} paddingRight={1} width="100%" height="100%" flexDirection="column">
+        <text fg={frameColor()} width="100%" height={1} truncate>{FRAME_RULE}</text>
+        <box flexDirection="row" height={1} alignItems="center" paddingLeft={1} paddingRight={1}>
+          <text fg={props.mode ? props.mode.accentColor : "#FFFFFF"}>{"❯ "}</text>
+          <box flexGrow={1} minWidth={0} overflow="hidden">
+            <input
+              value={value()}
+              onInput={handleChange}
+              onSubmit={(submitted) => {
+                const nextValue = typeof submitted === "string" ? submitted : undefined
+                void handleSubmit(nextValue)
+              }}
+              placeholder={placeholder()}
+              focused={!props.disabled && !props.mode?.pendingAction}
+              width="100%"
+              textColor={inputTextColor()}
+              focusedTextColor={inputTextColor()}
+            />
+          </box>
+          <text fg={canSend() ? "#00FF00" : "gray"}>
+            {" SEND"}
+          </text>
         </box>
-        <text fg={canSend() ? "#00FF00" : "gray"}>
-          {" SEND"}
-        </text>
-      </box>
-      <box height={1} alignItems="center">
-        <text fg="#888888" width="100%" height={1} truncate>
-          {helperText()}
-        </text>
+        <text fg={frameColor()} width="100%" height={1} truncate>{FRAME_RULE}</text>
+        <Show when={helperText()}>
+          <box height={1} alignItems="center" paddingLeft={1} paddingRight={1}>
+            <text fg="#888888" width="100%" height={1} truncate>
+              {helperText()}
+            </text>
+          </box>
+        </Show>
       </box>
     </box>
   )

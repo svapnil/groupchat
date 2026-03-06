@@ -16,7 +16,7 @@ import { useNavigation } from "../components/Router"
 import { fetchDmMessages } from "../lib/chat-client"
 import { condenseAgentMessages, upsertAgentMessage } from "../agent/core/message-mutations"
 import { getConfig } from "../lib/config"
-import { calculateMiddleSectionHeight } from "../lib/layout"
+import { calculateMiddleSectionHeight, LAYOUT_HEIGHTS } from "../lib/layout"
 import type { DmMessage, Message } from "../lib/types"
 import { createChatViewBase } from "../primitives/create-chat-view-base"
 
@@ -50,16 +50,23 @@ export function DmChatView(props: DmChatViewProps) {
   const conversation = () => dms.currentDm()
   const title = () => conversation()?.other_username || "DM"
   const topPadding = () => props.topPadding ?? 0
-  const rawListHeight = createMemo(() => calculateMiddleSectionHeight(props.height, topPadding()))
+  const [listHeight, setListHeight] = createSignal(
+    calculateMiddleSectionHeight(props.height, topPadding(), LAYOUT_HEIGHTS.inputBox)
+  )
   const messagePaneWidth = createMemo(() => Math.max(20, props.width - MESSAGE_LIST_HORIZONTAL_PADDING))
 
   const base = createChatViewBase({
     baseMessages: messages,
-    listHeight: rawListHeight,
+    listHeight,
     connectionStatus: chat.connectionStatus,
     username: chat.username,
     channelManager: chat.channelManager,
     currentChannel: () => conversation()?.slug || null,
+  })
+
+  createEffect(() => {
+    const inputBoxHeight = base.activeInputMode() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox
+    setListHeight(calculateMiddleSectionHeight(props.height, topPadding(), inputBoxHeight))
   })
 
   const isOtherUserOnline = createMemo(() => {
