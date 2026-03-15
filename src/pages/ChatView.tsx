@@ -72,6 +72,10 @@ export function ChatView(props: ChatViewProps) {
     currentChannel: channels.currentChannel,
     globalPresence: chat.globalPresence,
   })
+  const onlineOthersCount = createMemo(() => {
+    const currentUsername = chat.username()
+    return users().filter((user) => user.isOnline && user.username !== currentUsername).length
+  })
 
   const sendCommand = async (eventType: string, data: any) => {
     if (await base.handleAgentCommand(eventType, data)) return
@@ -223,7 +227,6 @@ export function ChatView(props: ChatViewProps) {
 
       <Layout.Footer>
         <StatusBar
-          connectionStatus={chat.connectionStatus()}
           error={chat.error()}
           backLabel="Menu"
           backShortcut="ESC"
@@ -232,6 +235,7 @@ export function ChatView(props: ChatViewProps) {
               <strong>#{displayName()}</strong>
             </text>
           }
+          onlineCount={onlineOthersCount()}
         />
       </Layout.Footer>
     </Layout>

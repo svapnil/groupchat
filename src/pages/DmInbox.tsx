@@ -289,7 +289,6 @@ export function DmInbox(props: DmInboxProps) {
       </Layout.Content>
       <Layout.Footer>
         <StatusBar
-          connectionStatus={chat.connectionStatus()}
           error={dms.error() ?? searchError()}
           backLabel="Menu"
           backShortcut="ESC"

@@ -16,14 +16,14 @@ afterEach(() => {
 describe("StatusBar", () => {
   test("renders default controls with user toggle", async () => {
     testSetup = await testRender(
-      () => <StatusBar connectionStatus="connected" />,
+      () => <StatusBar />,
       { width: 90, height: 1 },
     )
 
     await testSetup.renderOnce()
     const frame = testSetup.captureCharFrame()
 
-    expect(frame).toContain("● | ↑/↓ scroll | Ctrl+E users")
+    expect(frame).toContain("↑/↓ scroll | Ctrl+E users")
     expect(frame).toMatchSnapshot()
   })
 
@@ -31,7 +31,6 @@ describe("StatusBar", () => {
     testSetup = await testRender(
       () => (
         <StatusBar
-          connectionStatus="disconnected"
           backLabel="Back"
           backShortcut="Esc"
           title={<text>Channel Settings</text>}
@@ -51,14 +50,67 @@ describe("StatusBar", () => {
 
   test("renders custom hint text", async () => {
     testSetup = await testRender(
-      () => <StatusBar connectionStatus="connected" hintText="Ctrl+O Logout | Ctrl+C Exit the App" showVersion />,
+      () => <StatusBar hintText="Ctrl+O Logout | Ctrl+C Exit the App" showVersion />,
       { width: 90, height: 1 },
     )
 
     await testSetup.renderOnce()
     const frame = testSetup.captureCharFrame()
 
-    expect(frame).toContain("0.1.7 | ● | Ctrl+O Logout | Ctrl+C Exit the App")
+    expect(frame).toContain("0.1.7 | Ctrl+O Logout | Ctrl+C Exit the App")
+    expect(frame).toMatchSnapshot()
+  })
+
+  test("renders online count before the hint", async () => {
+    testSetup = await testRender(
+      () => <StatusBar onlineCount={3} />,
+      { width: 90, height: 1 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("● 3 Online | ↑/↓ scroll | Ctrl+E users")
+    expect(frame).toMatchSnapshot()
+  })
+
+  test("keeps online count visible on narrow layouts", async () => {
+    testSetup = await testRender(
+      () => (
+        <StatusBar
+          backLabel="Menu"
+          backShortcut="ESC"
+          title={<text truncate flexShrink={1} minWidth={0}>#very-long-channel-name-that-needs-truncation</text>}
+          onlineCount={12}
+        />
+      ),
+      { width: 52, height: 1 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("● 12 Online")
+    expect(frame).toMatchSnapshot()
+  })
+
+  test("keeps online count right-aligned when title is present", async () => {
+    testSetup = await testRender(
+      () => (
+        <StatusBar
+          backLabel="Menu"
+          backShortcut="ESC"
+          title={<text>#general</text>}
+          onlineCount={1}
+        />
+      ),
+      { width: 80, height: 1 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toMatch(/#general\s{5,}● 1 Online \| ↑\/↓ scroll \| Ctrl\+E users\s*\n$/)
     expect(frame).toMatchSnapshot()
   })
 })

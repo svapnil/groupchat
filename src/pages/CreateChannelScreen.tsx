@@ -218,7 +218,6 @@ export function CreateChannelScreen(props: CreateChannelScreenProps) {
       </Layout.Content>
       <Layout.Footer>
         <StatusBar
-          connectionStatus={chat.connectionStatus()}
           error={error()}
           backLabel="Menu"
           backShortcut="ESC"

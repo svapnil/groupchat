@@ -29,7 +29,7 @@ exports[`Menu renders channel and dm sections with seeded data 1`] = `
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                         0.1.7 | ● | Ctrl+O Logout | Ctrl+C Exit | ↑/↓ scroll           
+                                                             0.1.7 | Ctrl+O Logout | Ctrl+C Exit | ↑/↓ scroll           
                                                                                                                         
                                                                                                                         
                                                                                                                         
@@ -61,7 +61,7 @@ exports[`Menu renders empty-state menu 1`] = `
                                                                                                     
                                                                                                     
                                                                                                     
-                                     0.1.7 | ● | Ctrl+O Logout | Ctrl+C Exit | ↑/↓ scroll           
+                                         0.1.7 | Ctrl+O Logout | Ctrl+C Exit | ↑/↓ scroll           
                                                                                                     
                                                                                                     
                                                                                                     

@@ -1,16 +1,31 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`StatusBar renders default controls with user toggle 1`] = `
-"                                                            ● | ↑/↓ scroll | Ctrl+E users 
+"                                                                ↑/↓ scroll | Ctrl+E users 
 "
 `;
 
 exports[`StatusBar renders back navigation, title, and error message 1`] = `
-" ← Back [Esc] | Channel Settings                                          Connection lost 
+" ← Back [Esc] | Channel Settings                     Connection lost                      
 "
 `;
 
 exports[`StatusBar renders custom hint text 1`] = `
-"                                          0.1.7 | ● | Ctrl+O Logout | Ctrl+C Exit the App 
+"                                              0.1.7 | Ctrl+O Logout | Ctrl+C Exit the App 
+"
+`;
+
+exports[`StatusBar renders online count before the hint 1`] = `
+"                                                   ● 3 Online | ↑/↓ scroll | Ctrl+E users 
+"
+`;
+
+exports[`StatusBar keeps online count visible on narrow layouts 1`] = `
+" ← Menu [ESC] | channel-name-  ● 12 Online | ↑/↓    
+"
+`;
+
+exports[`StatusBar keeps online count right-aligned when title is present 1`] = `
+" ← Menu [ESC] | #general                 ● 1 Online | ↑/↓ scroll | Ctrl+E users 
 "
 `;

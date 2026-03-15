@@ -273,8 +273,6 @@ export function DmChatView(props: DmChatViewProps) {
             />
           </Show>
         </box>
-      </Layout.Content>
-      <Layout.Footer>
         <CommandInputPanel
           token={auth.token()}
           currentChannel={conversation()?.slug || "dm"}
@@ -298,8 +296,9 @@ export function DmChatView(props: DmChatViewProps) {
           onTooltipHeightChange={base.handleTooltipHeightChange}
           agentMode={base.activeInputMode()}
         />
+      </Layout.Content>
+      <Layout.Footer>
         <StatusBar
-          connectionStatus={chat.connectionStatus()}
           error={error()}
           backLabel="Menu"
           backShortcut="ESC"

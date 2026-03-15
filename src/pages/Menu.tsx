@@ -287,7 +287,6 @@ export function Menu(props: MenuProps) {
 
       <Layout.Footer>
         <StatusBar
-          connectionStatus={chat.connectionStatus()}
           error={null}
           showUserToggle={false}
           showVersion
