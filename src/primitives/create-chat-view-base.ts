@@ -24,6 +24,13 @@ export type CreateChatViewBaseOptions = {
   currentChannel: Accessor<string | null>
 }
 
+type AgentKeyEvent = {
+  ctrl?: boolean
+  name: string
+  preventDefault?: () => void
+  stopPropagation?: () => void
+}
+
 export function createChatViewBase(options: CreateChatViewBaseOptions) {
   const runtimeCapabilities = getRuntimeCapabilities()
   const [isDetached, setIsDetached] = createSignal(false)
@@ -221,40 +228,46 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   })
 
   // Keyboard handler — returns true if key was consumed
-  const handleAgentKeys = (key: { ctrl?: boolean; name: string }): boolean => {
+  const handleAgentKeys = (key: AgentKeyEvent): boolean => {
+    const consumeKey = () => {
+      key.preventDefault?.()
+      key.stopPropagation?.()
+      return true
+    }
+
     const active = activeAgent()
     if (key.ctrl && key.name === "c" && active?.session.interrupt) {
       active.session.interrupt()
-      return true
+      return consumeKey()
     }
 
     const pendingSession = activePendingActionSession()
     if (pendingSession?.session.pendingAction?.()) {
       if (key.name === "up" || key.name === "k") {
         setPendingActionSelectedIndex(0)
-        return true
+        return consumeKey()
       }
       if (key.name === "down" || key.name === "j") {
         setPendingActionSelectedIndex(1)
-        return true
+        return consumeKey()
       }
       if (key.name === "return") {
         void pendingSession.session.respondToPendingAction?.(
           pendingActionSelectedIndex() === 0 ? "allow" : "deny"
         )
-        return true
+        return consumeKey()
       }
-      return true
+      return consumeKey()
     }
 
-    if (options.connectionStatus() !== "connected") return true
+    if (options.connectionStatus() !== "connected") return consumeKey()
     if (!messageScrollRef) return false
 
     if (["up", "down", "pageup", "pagedown", "home", "end"].includes(key.name)) {
       if (messageScrollRef.handleKeyPress(key as any)) {
         updateScrollMetrics()
       }
-      return true
+      return consumeKey()
     }
 
     return false

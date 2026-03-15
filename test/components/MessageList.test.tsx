@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
 import { afterEach, describe, expect, test } from "bun:test"
+import { createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import type { Message } from "../../src/lib/types"
 import { MessageList } from "../../src/components/MessageList"
@@ -103,5 +104,56 @@ describe("MessageList", () => {
     expect(frame).toContain("5 lines below")
     expect(frame).toContain("Down to scroll")
     expect(frame).toMatchSnapshot()
+  })
+
+  test("updates the visible active permission option when selection changes", async () => {
+    const message: Message = {
+      id: "m-perm",
+      username: "claude",
+      content: "",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      type: "claude-response",
+      attributes: {
+        claude: {
+          parentToolUseId: null,
+          contentBlocks: [],
+          permissionRequest: {
+            requestId: "req-1",
+            toolName: "Read",
+            toolUseId: "tool-1",
+            input: { file_path: "/repo/file.ts" },
+          },
+        },
+      },
+    }
+
+    const [selectedIndex, setSelectedIndex] = createSignal(0)
+
+    testSetup = await testRender(
+      () =>
+        <MessageList
+          messages={[message]}
+          currentUsername="alice"
+          typingUsers={[]}
+          messagePaneWidth={80}
+          height={10}
+          isDetached={false}
+          pendingActionMessageId="m-perm"
+          pendingActionSelectedIndex={selectedIndex()}
+        />,
+      { width: 100, height: 14 },
+    )
+
+    await testSetup.renderOnce()
+    let frame = testSetup.captureCharFrame()
+    expect(frame).toContain("> Allow")
+
+    setSelectedIndex(1)
+    await Promise.resolve()
+    await testSetup.renderOnce()
+
+    frame = testSetup.captureCharFrame()
+    expect(frame).toContain("> Deny")
+    expect(frame).not.toContain("> Allow")
   })
 })

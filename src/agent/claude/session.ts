@@ -1159,8 +1159,9 @@ export const createClaudeSdkSession = () => {
       }
 
       if (msg.event.type === "message_delta") {
-        if (typeof msg.event.delta === "object" && msg.event.delta !== null && typeof msg.event.delta.stop_reason === "string") {
-          streamingStopReason = msg.event.delta.stop_reason
+        const eventDelta = isRecord(msg.event.delta) ? msg.event.delta : null
+        if (eventDelta && typeof eventDelta.stop_reason === "string") {
+          streamingStopReason = eventDelta.stop_reason
         }
         const nextOutputTokens = getOutputTokensFromUsage(msg.event.usage)
         if (nextOutputTokens !== undefined) {

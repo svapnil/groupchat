@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
+import { createMemo } from "solid-js"
 import type { Message } from "../lib/types"
 import { renderAgentMessage } from "../agent/core/message-renderers"
 import { sanitizePlainMessageText } from "../lib/content-sanitizer"
@@ -40,41 +41,58 @@ export function MessageItem(props: MessageItemProps) {
   const time = () => formatTime(props.message.timestamp)
   const safeUsername = () => sanitizePlainMessageText(props.message.username)
   const safeContent = () => sanitizePlainMessageText(props.message.content)
-
-  if (props.message.type === "system") {
-    return (
-      <box justifyContent="center">
-        <text fg="#888888">
-          <em>{safeContent()}</em>
-        </text>
-      </box>
-    )
-  }
-
-  const renderedAgentMessage = renderAgentMessage({
-    message: props.message,
-    messagePaneWidth: props.messagePaneWidth,
-    isOwnMessage: props.isOwnMessage,
-    agentDepth: props.agentDepth,
-    pendingActionSelectedIndex: props.pendingActionSelectedIndex,
-  })
-  if (renderedAgentMessage) {
-    return renderedAgentMessage
-  }
-
   const usernameColor = () => getUsernameColor(props.message.username)
+  const content = createMemo(() => {
+    if (props.message.type === "system") {
+      return (
+        <box justifyContent="center">
+          <text fg="#888888">
+            <em>{safeContent()}</em>
+          </text>
+        </box>
+      )
+    }
 
-  if (props.isOwnMessage) {
+    const renderedAgentMessage = renderAgentMessage({
+      message: props.message,
+      messagePaneWidth: props.messagePaneWidth,
+      isOwnMessage: props.isOwnMessage,
+      agentDepth: props.agentDepth,
+      pendingActionSelectedIndex: props.pendingActionSelectedIndex,
+    })
+    if (renderedAgentMessage) return renderedAgentMessage
+
+    if (props.isOwnMessage) {
+      return (
+        <box justifyContent="flex-start">
+          <box flexDirection="column">
+            {showHeader() && (
+              <box flexDirection="row">
+                <text fg="#888888">→ </text>
+                <text fg={usernameColor()}>
+                  <strong>{safeUsername()}</strong>
+                </text>
+                <text fg="#888888"> {time()}</text>
+              </box>
+            )}
+            <box paddingLeft={2}>
+              <text>{safeContent()}</text>
+            </box>
+          </box>
+        </box>
+      )
+    }
+
     return (
-      <box justifyContent="flex-start">
-        <box flexDirection="column">
+      <box justifyContent="flex-end">
+        <box flexDirection="column" alignItems="flex-end">
           {showHeader() && (
             <box flexDirection="row">
-              <text fg="#888888">→ </text>
+              <text fg="#888888">{time()} </text>
               <text fg={usernameColor()}>
                 <strong>{safeUsername()}</strong>
               </text>
-              <text fg="#888888"> {time()}</text>
+              <text fg="#888888"> ←</text>
             </box>
           )}
           <box paddingLeft={2}>
@@ -83,24 +101,7 @@ export function MessageItem(props: MessageItemProps) {
         </box>
       </box>
     )
-  }
+  })
 
-  return (
-    <box justifyContent="flex-end">
-      <box flexDirection="column" alignItems="flex-end">
-        {showHeader() && (
-          <box flexDirection="row">
-            <text fg="#888888">{time()} </text>
-            <text fg={usernameColor()}>
-              <strong>{safeUsername()}</strong>
-            </text>
-            <text fg="#888888"> ←</text>
-          </box>
-        )}
-        <box paddingLeft={2}>
-          <text>{safeContent()}</text>
-        </box>
-      </box>
-    </box>
-  )
+  return <>{content()}</>
 }

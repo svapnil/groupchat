@@ -29,6 +29,10 @@ export function MessageList(props: MessageListProps) {
   const safeTypingUsers = createMemo(() => othersTyping().map((user) => sanitizePlainMessageText(user)))
   const agentDepthByMessageId = createMemo(() => buildAgentDepthMap(props.messages))
 
+  // Precompute which messages need headers in a single pass to avoid
+  // repeated Date parsing inside each <For> iteration's reactive callback.
+  const showHeaderSet = createMemo(() => buildShowHeaderSet(props.messages))
+
   const footerLines = createMemo(() => {
     if (props.isDetached) return 1
     if (safeTypingUsers().length > 0) return 1
@@ -57,15 +61,12 @@ export function MessageList(props: MessageListProps) {
         >
           <For each={props.messages}>
             {(message, index) => {
-              const prev = () => (index() === 0 ? null : props.messages[index() - 1])
-              const showHeader = () => !prev() || prev()!.username !== message.username
-
               return (
                 <MessageItem
                   message={message}
                   isOwnMessage={message.username === props.currentUsername}
                   messagePaneWidth={props.messagePaneWidth}
-                  showHeader={showHeader()}
+                  showHeader={showHeaderSet().has(index())}
                   agentDepth={agentDepthByMessageId().get(message.id) ?? 0}
                   pendingActionSelectedIndex={
                     props.pendingActionMessageId === message.id ? props.pendingActionSelectedIndex : undefined
@@ -98,4 +99,20 @@ export function MessageList(props: MessageListProps) {
       </Show>
     </box>
   )
+}
+
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+
+export function buildShowHeaderSet(messages: Pick<Message, "username" | "timestamp">[]): Set<number> {
+  const set = new Set<number>()
+  for (let i = 0; i < messages.length; i++) {
+    if (i === 0 || messages[i].username !== messages[i - 1].username) {
+      set.add(i)
+    } else if (
+      new Date(messages[i].timestamp).getTime() - new Date(messages[i - 1].timestamp).getTime() > TWO_HOURS_MS
+    ) {
+      set.add(i)
+    }
+  }
+  return set
 }
