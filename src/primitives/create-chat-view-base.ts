@@ -146,7 +146,6 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
       label: displayName,
       accentColor,
       placeholder: `${displayName} mode...`,
-      helperText: `${displayName} mode: /exit to leave, Ctrl+C to interrupt`,
       pendingAction: Boolean(active.session.pendingAction?.()),
       pendingActionPlaceholder: "Awaiting permission decision...",
       pendingActionHelperText: "↑/↓ select Allow/Deny in message list • Enter to confirm",

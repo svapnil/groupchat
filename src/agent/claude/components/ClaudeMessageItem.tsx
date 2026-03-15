@@ -115,7 +115,9 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                 return (
                   <box flexDirection="row">
                     <Show when={shouldShowResultMarker(groupedIndex())}>
-                      <text fg="#FFFFFF">⏺ </text>
+                      <box width={3}>
+                        <text fg="#FFFFFF">⏺</text>
+                      </box>
                     </Show>
                     <box flexDirection="column" flexGrow={1}>
                       <markdown

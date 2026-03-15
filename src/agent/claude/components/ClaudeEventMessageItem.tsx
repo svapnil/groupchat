@@ -335,7 +335,11 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
   })
 
   const turnCount = createMemo(() => questionIndexes().length)
-  const isWorking = createMemo(() => !hasResult() && currentTurnIndexes().length > 0)
+
+  // Expire the "working" indicator if no new events arrive within this window.
+  const STALE_TIMEOUT_MS = 120_000
+  const [lastEventTime, setLastEventTime] = createSignal(Date.now())
+  const isWorking = createMemo(() => !hasResult() && currentTurnIndexes().length > 0 && Date.now() - lastEventTime() < STALE_TIMEOUT_MS)
   const latestToolStatusDetail = createMemo(() => {
     const toolResult = latestToolResultDetail()
     if (toolResult) return toolResult
@@ -370,7 +374,13 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
   let thinkingTimer: ReturnType<typeof setInterval> | null = null
   let animTimer: ReturnType<typeof setInterval> | null = null
   onMount(() => {
+    let prevEventCount = events().length
     thinkingTimer = setInterval(() => {
+      const currentCount = events().length
+      if (currentCount !== prevEventCount) {
+        prevEventCount = currentCount
+        setLastEventTime(Date.now())
+      }
       if (isWorking()) {
         const since = new Date(props.message.timestamp).getTime()
         setElapsed(Math.max(0, Math.floor((Date.now() - since) / 1000)))

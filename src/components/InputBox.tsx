@@ -136,7 +136,7 @@ export function InputBox(props: InputBoxProps) {
       return props.mode.pendingActionHelperText || "Complete the pending action in the message list."
     }
     if (props.mode) {
-      return props.mode.helperText || `${props.mode.label} mode`
+      return props.mode.helperText || ""
     }
     return ""
   }

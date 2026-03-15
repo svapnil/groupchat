@@ -1434,7 +1434,7 @@ export const createClaudeSdkSession = () => {
             setIsActive(true)
             setIsConnecting(false)
             log("websocket:open", `routeId=${aRandomUUID}`)
-            appendSystemMessage("Claude Code mode enabled. Type /exit to return to normal mode.")
+            appendSystemMessage("Claude Code mode enabled. Type /exit to return to normal mode. Ctrl+C to interrupt.")
             flushQueuedMessages()
           },
           message(_ws, raw) {

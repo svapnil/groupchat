@@ -53,7 +53,7 @@ export function ChatView(props: ChatViewProps) {
   })
 
   createEffect(() => {
-    const inputBoxHeight = base.activeInputMode() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox
+    const inputBoxHeight = base.activeInputMode()?.pendingAction ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox
     setListHeight(calculateMiddleSectionHeight(props.height, topPadding(), inputBoxHeight))
   })
 
