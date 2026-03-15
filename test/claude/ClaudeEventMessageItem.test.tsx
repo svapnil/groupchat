@@ -134,7 +134,7 @@ describe("ClaudeEventMessageItem", () => {
     expect(normalized).toContain("Read(/repo/README.md)")
     expect(normalized).toContain("Summary line one.")
     expect(normalized).toContain("finished")
-    expect(normalized).toContain("(1 turns, 15.0s)")
+    expect(normalized).toContain("(1 turns • 15.0s)")
     expect(normalized).toMatchSnapshot()
   })
 
@@ -193,7 +193,7 @@ describe("ClaudeEventMessageItem", () => {
     expect(normalized).toContain("Edit(/repo/file-2.ts)")
     expect(normalized).toContain("Second answer is visible")
     expect(normalized).not.toContain("First answer should stay hidden from latest output pane")
-    expect(normalized).toContain("(2 turns, 20.0s)")
+    expect(normalized).toContain("(2 turns • 20.0s)")
 
     expect(normalized).toMatchSnapshot()
   })

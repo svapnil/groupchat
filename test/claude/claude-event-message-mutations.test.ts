@@ -243,6 +243,95 @@ describe("claude-event-message-mutations", () => {
     ])
   })
 
+  test("replaces live text snapshots and upgrades the tail to final text", () => {
+    const question = makeCcMessage({
+      id: "m1",
+      username: "alice",
+      content: "Summarize README",
+      cc: {
+        turn_id: "turn-1",
+        session_id: "session-1",
+        event: "question",
+      },
+    })
+    const streamOne = makeCcMessage({
+      id: "m2",
+      username: "alice",
+      content: "Hello",
+      cc: {
+        turn_id: "turn-1",
+        session_id: "session-1",
+        event: "text_stream",
+      },
+    })
+    const streamTwo = makeCcMessage({
+      id: "m3",
+      username: "alice",
+      content: "Hello world",
+      cc: {
+        turn_id: "turn-1",
+        session_id: "session-1",
+        event: "text_stream",
+      },
+    })
+    const finalText = makeCcMessage({
+      id: "m4",
+      username: "alice",
+      content: "Hello world",
+      cc: {
+        turn_id: "turn-1",
+        session_id: "session-1",
+        event: "text",
+      },
+    })
+
+    const one = upsertClaudeEventMessage([], question, null)
+    const two = upsertClaudeEventMessage(one, streamOne, null)
+    const three = upsertClaudeEventMessage(two, streamTwo, null)
+    const four = upsertClaudeEventMessage(three, finalText, null)
+
+    const cc = getCc(four[0])
+    expect(cc.events?.map((event) => event.event)).toEqual(["question", "text"])
+    expect(cc.contents).toEqual(["Summarize README", "Hello world"])
+  })
+
+  test("replaces consecutive tool progress events for the same tool use", () => {
+    const progressOne = makeCcMessage({
+      id: "m1",
+      username: "alice",
+      content: "Read running (1.2s)",
+      cc: {
+        turn_id: "turn-1",
+        session_id: "session-1",
+        event: "tool_progress",
+        tool_name: "Read",
+        tool_use_id: "tool-1",
+        elapsed_seconds: 1.2,
+      },
+    })
+    const progressTwo = makeCcMessage({
+      id: "m2",
+      username: "alice",
+      content: "Read running (2.4s)",
+      cc: {
+        turn_id: "turn-1",
+        session_id: "session-1",
+        event: "tool_progress",
+        tool_name: "Read",
+        tool_use_id: "tool-1",
+        elapsed_seconds: 2.4,
+      },
+    })
+
+    const one = upsertClaudeEventMessage([], progressOne, null)
+    const two = upsertClaudeEventMessage(one, progressTwo, null)
+
+    const cc = getCc(two[0])
+    expect(cc.events?.map((event) => event.event)).toEqual(["tool_progress"])
+    expect(cc.events?.[0].elapsed_seconds).toBe(2.4)
+    expect(cc.contents).toEqual(["Read running (2.4s)"])
+  })
+
   test("drops echoed inbound cc messages for current username", () => {
     const existing = makeCcMessage({
       id: "m1",

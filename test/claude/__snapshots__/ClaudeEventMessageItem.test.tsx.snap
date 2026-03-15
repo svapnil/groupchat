@@ -9,7 +9,7 @@ exports[`ClaudeEventMessageItem renders a full aggregated cc turn timeline snaps
                                                                                                                  - item A         
                                                                                                                  - item B         
                                                                                                                                   
-                                                                                   ⏺ alice's Claude Code finished (1 turns, 15.0s)
+                                                                                  ⏺ alice's Claude Code finished (1 turns • 15.0s)
                                                                                                                                   
                                                                                                                                   
                                                                                                                                   
@@ -34,7 +34,7 @@ exports[`ClaudeEventMessageItem renders latest-turn details when multiple turns 
                                                                                                                              Second question
                                                                                                                      ⏺ Edit(/repo/file-2.ts)
                                                                                                                   ⏺ Second answer is visible
-                                                                                             ⏺ alice's Claude Code finished (2 turns, 20.0s)
+                                                                                            ⏺ alice's Claude Code finished (2 turns • 20.0s)
                                                                                                                                             
                                                                                                                                             
                                                                                                                                             

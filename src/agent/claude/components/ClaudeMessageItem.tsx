@@ -5,7 +5,6 @@ import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-j
 import type { ClaudePermissionRequest, Message } from "../../../lib/types"
 import { getClaudeMetadata, getPermissionOneLiner, getToolOneLiner, groupClaudeBlocks, contentToLines } from "../helpers"
 import { compactJson } from "../../../lib/utils"
-import { debugLog } from "../../../lib/debug"
 import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
 
 export type ClaudeMessageItemProps = {
@@ -44,6 +43,12 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
   const claudeResult = createMemo(() => claude()?.result)
   const isThinking = createMemo(() => Boolean(claude()?.thinking))
   const permissionReq = createMemo(() => claude()?.permissionRequest ?? null)
+  const outputTokens = createMemo(() => claude()?.outputTokens)
+  const outputTokensLabel = createMemo(() => {
+    const count = outputTokens()
+    if (typeof count !== "number" || !Number.isFinite(count) || count < 0) return ""
+    return `${count} tok`
+  })
 
   const [elapsed, setElapsed] = createSignal(0)
   const thinkingFrames = ["⋆", "✦", "⋆", "✧", "⋆", "❉", "⋆", "❈", "⋆"]
@@ -218,21 +223,39 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
           <Show when={claudeResult()}>
             {(() => {
               const r = claudeResult()!
-              const duration = typeof r.durationMs === "number" ? ` • ${Math.round(r.durationMs / 1000)}s` : ""
-              const turns = typeof r.numTurns === "number" ? ` • turns ${r.numTurns}` : ""
-              debugLog(`[Result] ${r.subtype}${duration}${turns}`)
-              return null
+              const parts = [r.subtype]
+              if (typeof r.durationMs === "number") {
+                parts.push(`${Math.max(0, Math.round(r.durationMs / 1000))}s`)
+              }
+              if (typeof r.numTurns === "number") {
+                parts.push(`turns ${r.numTurns}`)
+              }
+              if (typeof r.totalCostUsd === "number") {
+                parts.push(`$${r.totalCostUsd.toFixed(4)}`)
+              }
+              return (
+                <text fg={r.isError ? "#AA6666" : "#888888"}>
+                  {`⎿  ${sanitizePlainMessageText(parts.join(" • "))}`}
+                </text>
+              )
             })()}
           </Show>
 
           <Show when={isThinking()}>
             <box flexDirection="row">
               <text fg="#FFA500">{`${thinkingFrames[thinkingFrame()]} Thinking... `}</text>
-              <text fg="#888888">{`(${elapsed()}s)`}</text>
+              <text fg="#888888">
+                {`(${[`${elapsed()}s`, outputTokensLabel()].filter((part) => part.length > 0).join(" • ")})`}
+              </text>
             </box>
           </Show>
           <Show when={claude()?.streaming && !isThinking()}>
-            <text fg="#FFA500">▍</text>
+            <box flexDirection="row">
+              <text fg="#FFA500">▍</text>
+              <Show when={outputTokensLabel()}>
+                <text fg="#888888">{` ${outputTokensLabel()}`}</text>
+              </Show>
+            </box>
           </Show>
         </box>
       </box>

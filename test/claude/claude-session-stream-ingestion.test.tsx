@@ -11,10 +11,14 @@ type CapturedCcEvent = {
   agentId: string
   turnId: string
   sessionId?: string
-  event: "question" | "tool_call" | "text" | "result"
+  event: "question" | "thinking" | "tool_call" | "tool_progress" | "tool_result" | "text_stream" | "text" | "result"
   content: string
   toolName?: string
+  toolUseId?: string
   isError?: boolean
+  outputTokens?: number
+  elapsedSeconds?: number
+  stopReason?: string | null
 }
 
 type ClaudeSessionHandle = {
@@ -40,6 +44,7 @@ class MockClaudeTransport {
   private resolveExit: ((code: number) => void) | null = null
   private originalServe: typeof Bun.serve | null = null
   private originalSpawn: typeof Bun.spawn | null = null
+  spawnCommand: string[] | null = null
   sentLines: string[] = []
 
   install() {
@@ -55,7 +60,8 @@ class MockClaudeTransport {
       } as any
     }) as typeof Bun.serve
 
-    Bun.spawn = (() => {
+    Bun.spawn = (((command: string[]) => {
+      this.spawnCommand = [...command]
       let exited = false
       const exitPromise = new Promise<number>((resolve) => {
         this.resolveExit = (code: number) => {
@@ -75,7 +81,7 @@ class MockClaudeTransport {
           return true
         },
       } as any
-    }) as typeof Bun.spawn
+    }) as typeof Bun.spawn)
   }
 
   openSocket() {
@@ -189,6 +195,13 @@ afterEach(() => {
 })
 
 describe("createClaudeSdkSession stream ingestion", () => {
+  test("starts Claude with include-partial-messages enabled", async () => {
+    const { transport } = await createStartedSession()
+
+    expect(transport.spawnCommand).toBeTruthy()
+    expect(transport.spawnCommand).toContain("--include-partial-messages")
+  })
+
   test("ingests stream deltas, finalizes assistant output, and emits cc text/result events", async () => {
     const { session, transport } = await createStartedSession()
     const events: CapturedCcEvent[] = []
@@ -271,12 +284,158 @@ describe("createClaudeSdkSession stream ingestion", () => {
     expect(finalized?.attributes?.claude?.result?.isError).toBe(false)
     expect(messages.some((message) => Boolean(message.attributes?.claude?.thinking))).toBe(false)
 
-    expect(events.map((event) => event.event)).toEqual(["question", "text", "result"])
+    expect(events.map((event) => event.event)).toEqual([
+      "question",
+      "text_stream",
+      "text_stream",
+      "text",
+      "result",
+    ])
     expect(events[0]?.content).toBe("Summarize status")
-    expect(events[1]?.content).toContain("Hello world")
-    expect(events[2]?.isError).toBe(false)
+    expect(events[1]?.content).toBe("Hello")
+    expect(events[2]?.content).toBe("Hello world")
+    expect(events[3]?.content).toContain("Hello world")
+    expect(events[4]?.isError).toBe(false)
     expect(new Set(events.map((event) => event.turnId)).size).toBe(1)
     expect(new Set(events.map((event) => event.sessionId)).size).toBe(1)
+  })
+
+  test("emits thinking, tool progress, and tool summary cc events from live sdk messages", async () => {
+    const { session, transport } = await createStartedSession()
+    const events: CapturedCcEvent[] = []
+    session.onCcEvent((event) => events.push(event))
+
+    await session.sendMessage("Inspect repo", "alice")
+
+    transport.sendJson({
+      type: "stream_event",
+      event: {
+        type: "content_block_delta",
+        index: 0,
+        delta: {
+          type: "thinking_delta",
+          thinking: "Planning tool calls",
+        },
+      },
+      parent_tool_use_id: null,
+    })
+    transport.sendJson({
+      type: "stream_event",
+      event: {
+        type: "message_delta",
+        delta: { stop_reason: null },
+        usage: { output_tokens: 128 },
+      },
+      parent_tool_use_id: null,
+    })
+    transport.sendJson({
+      type: "tool_progress",
+      tool_use_id: "tool-read-1",
+      tool_name: "Read",
+      elapsed_time_seconds: 1.2,
+    })
+    transport.sendJson({
+      type: "tool_use_summary",
+      summary: "Read(/repo/README.md)",
+      preceding_tool_use_ids: ["tool-read-1"],
+    })
+
+    expect(events.map((event) => event.event)).toEqual([
+      "question",
+      "thinking",
+      "thinking",
+      "tool_progress",
+      "tool_result",
+    ])
+    expect(events[1]?.content).toBe("Planning tool calls")
+    expect(events[2]?.outputTokens).toBe(128)
+    expect(events[3]?.content).toBe("Read running (1.2s)")
+    expect(events[4]?.content).toBe("Read(/repo/README.md)")
+
+    const thinkingMessage = session.messages().find((message) => Boolean(message.attributes?.claude?.thinking))
+    expect(thinkingMessage?.content).toBe("Planning tool calls")
+    expect(thinkingMessage?.attributes?.claude?.outputTokens).toBe(128)
+  })
+
+  test("emits tool_call cc events from assistant tool_use blocks without relying on permission requests", async () => {
+    const { session, transport } = await createStartedSession()
+    const events: CapturedCcEvent[] = []
+    session.onCcEvent((event) => events.push(event))
+
+    await session.sendMessage("Inspect repo", "alice")
+
+    transport.sendJson({
+      type: "assistant",
+      parent_tool_use_id: null,
+      message: {
+        id: "msg-assistant-tool-use",
+        model: "claude-opus-4-6",
+        stop_reason: null,
+        usage: { output_tokens: 12 },
+        content: [
+          {
+            type: "tool_use",
+            id: "tool-read-1",
+            name: "Read",
+            input: { file_path: "/repo/README.md" },
+          },
+          {
+            type: "tool_use",
+            id: "tool-bash-1",
+            name: "Bash",
+            input: { command: "pwd" },
+          },
+        ],
+      },
+    })
+
+    const toolCalls = events.filter((event) => event.event === "tool_call")
+    expect(toolCalls).toHaveLength(2)
+    expect(toolCalls.map((event) => [event.toolName, event.toolUseId, event.content])).toEqual([
+      ["Read", "tool-read-1", "Read(/repo/README.md)"],
+      ["Bash", "tool-bash-1", "Bash(pwd)"],
+    ])
+  })
+
+  test("does not emit duplicate tool_call events when assistant tool_use and can_use_tool reference the same tool", async () => {
+    const { session, transport } = await createStartedSession()
+    const events: CapturedCcEvent[] = []
+    session.onCcEvent((event) => events.push(event))
+
+    await session.sendMessage("Inspect repo", "alice")
+
+    transport.sendJson({
+      type: "assistant",
+      parent_tool_use_id: null,
+      message: {
+        id: "msg-assistant-tool-use-dedupe",
+        model: "claude-opus-4-6",
+        stop_reason: null,
+        content: [
+          {
+            type: "tool_use",
+            id: "tool-bash-1",
+            name: "Bash",
+            input: { command: "pwd" },
+          },
+        ],
+      },
+    })
+
+    transport.sendJson({
+      type: "control_request",
+      request_id: "req-bash-1",
+      request: {
+        subtype: "can_use_tool",
+        tool_name: "Bash",
+        tool_use_id: "tool-bash-1",
+        input: { command: "pwd" },
+      },
+    })
+
+    const toolCalls = events.filter((event) => event.event === "tool_call")
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0]?.toolUseId).toBe("tool-bash-1")
   })
 
   test("replays real WebSearch fixture and emits expected cc tool/text/result events", async () => {
@@ -290,7 +449,7 @@ describe("createClaudeSdkSession stream ingestion", () => {
     expect(events[0]?.event).toBe("question")
 
     const toolCalls = events.filter((event) => event.event === "tool_call")
-    expect(toolCalls.map((event) => event.toolName)).toEqual(["WebSearch", "WebSearch"])
+    expect(toolCalls.map((event) => event.toolName)).toEqual(["WebSearch", "WebSearch", "Bash"])
 
     const textEvents = events.filter((event) => event.event === "text")
     expect(textEvents.length).toBeGreaterThanOrEqual(1)

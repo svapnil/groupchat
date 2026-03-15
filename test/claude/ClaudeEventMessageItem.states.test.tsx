@@ -112,6 +112,49 @@ describe("ClaudeEventMessageItem edge states", () => {
     expect(frame).toContain("finished with error")
   })
 
+  test("renders streamed thinking preview with live token stats", async () => {
+    Date.now = () => new Date("2024-01-01T00:00:07.000Z").getTime()
+    const message = makeCcMessage("thinking-live", {
+      turn_id: "turn-thinking",
+      event: "thinking",
+      events: [
+        { turn_id: "turn-thinking", event: "question" },
+        { turn_id: "turn-thinking", event: "thinking", output_tokens: 128 },
+      ],
+      contents: [
+        "Plan the next steps",
+        "Planning tool calls and response structure",
+      ],
+    })
+
+    const frame = await renderClaudeEvent(message, { messagePaneWidth: 110 })
+    expect(frame).toContain("Plan the next steps")
+    expect(frame).toContain("Planning tool calls and response structure")
+    expect(frame).toContain("128 tok")
+    expect(frame).toContain("Thinking...")
+  })
+
+  test("renders live tool progress detail below the latest tool call", async () => {
+    const message = makeCcMessage("tool-progress", {
+      turn_id: "turn-progress",
+      event: "tool_progress",
+      events: [
+        { turn_id: "turn-progress", event: "question" },
+        { turn_id: "turn-progress", event: "tool_call", tool_name: "Read" },
+        { turn_id: "turn-progress", event: "tool_progress", tool_name: "Read", tool_use_id: "tool-read-1", elapsed_seconds: 1.2 },
+      ],
+      contents: [
+        "Inspect file",
+        "Read(/repo/file.ts)",
+        "Read running (1.2s)",
+      ],
+    })
+
+    const frame = await renderClaudeEvent(message, { messagePaneWidth: 110 })
+    expect(frame).toContain("Read(/repo/file.ts)")
+    expect(frame).toContain("Read running (1.2s)")
+  })
+
   test("renders multi-tool count and avoids duplicate tool-name prefixes", async () => {
     const message = makeCcMessage("tools-dedupe", {
       turn_id: "turn-tools",

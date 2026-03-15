@@ -3,7 +3,7 @@
 import { randomBytes, randomUUID } from "node:crypto"
 import { createSignal, onCleanup } from "solid-js"
 import type { ServerWebSocket } from "bun"
-import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../../lib/types"
+import type { CcEventType, ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../../lib/types"
 import { debugLog } from "../../lib/debug.js"
 import { getToolOneLiner } from "./helpers"
 import { AGENT_ID, CC_WIRE_TYPE } from "./claude-event-message-mutations"
@@ -66,6 +66,9 @@ type ClaudeAssistantMessage = {
     model?: string
     stop_reason?: string | null
     content?: unknown
+    usage?: {
+      output_tokens?: number
+    }
   }
   parent_tool_use_id?: string | null
 }
@@ -111,10 +114,15 @@ type ClaudeAuthStatusMessage = {
 
 type ClaudeToolProgressMessage = {
   type: "tool_progress"
+  tool_use_id?: string
+  tool_name?: string
+  elapsed_time_seconds?: number
 }
 
 type ClaudeToolSummaryMessage = {
   type: "tool_use_summary"
+  summary?: string
+  preceding_tool_use_ids?: string[]
 }
 
 type ClaudeKeepAliveMessage = {
@@ -148,10 +156,14 @@ export type CcBroadcast = {
   agentId: typeof AGENT_ID
   turnId: string
   sessionId?: string
-  event: "question" | "tool_call" | "text" | "result"
+  event: CcEventType
   content: string
   toolName?: string
+  toolUseId?: string
   isError?: boolean
+  outputTokens?: number
+  elapsedSeconds?: number
+  stopReason?: string | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -238,6 +250,18 @@ function extractTextFromBlocks(blocks: ClaudeContentBlock[]): string {
     .join("\n")
 }
 
+function extractThinkingFromBlocks(blocks: ClaudeContentBlock[]): string {
+  return blocks
+    .filter((block): block is Extract<ClaudeContentBlock, { type: "thinking" }> => block.type === "thinking")
+    .map((block) => block.thinking)
+    .filter((text) => text.length > 0)
+    .join("\n")
+}
+
+function extractToolUsesFromBlocks(blocks: ClaudeContentBlock[]): Array<Extract<ClaudeContentBlock, { type: "tool_use" }>> {
+  return blocks.filter((block): block is Extract<ClaudeContentBlock, { type: "tool_use" }> => block.type === "tool_use")
+}
+
 function nowIso() {
   return new Date().toISOString()
 }
@@ -310,6 +334,20 @@ function inferToolNameFromSummary(summary: string): string {
   if (firstWord?.[1]) return firstWord[1]
 
   return "Tool"
+}
+
+function formatElapsedSeconds(seconds?: number): string {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "0.0s"
+  return `${seconds.toFixed(1)}s`
+}
+
+function getToolProgressContent(toolName: string, elapsedSeconds?: number): string {
+  return `${toolName} running (${formatElapsedSeconds(elapsedSeconds)})`
+}
+
+function getOutputTokensFromUsage(value: unknown): number | undefined {
+  if (!isRecord(value) || typeof value.output_tokens !== "number") return undefined
+  return value.output_tokens
 }
 
 function summarizeIncomingMessageForLog(msg: ClaudeIncomingMessage): string {
@@ -453,6 +491,12 @@ export const createClaudeSdkSession = () => {
   let incomingStreamlinedTextLogCount = 0
   let currentTurnId: string | null = null
   let ccSessionId = ""
+  let streamingOutputTokens: number | undefined
+  let streamingStopReason: string | null = null
+  let streamingPhase: "thinking" | "text" | null = null
+  let liveThinkingText = ""
+  let liveStreamingText = ""
+  const emittedToolCallIds = new Set<string>()
   const ccEventCallbacks = new Set<(event: CcBroadcast) => void>()
 
   const log = (...args: unknown[]) => {
@@ -467,6 +511,15 @@ export const createClaudeSdkSession = () => {
     streamlinedTextCharCount = 0
     incomingStreamEventLogCount = 0
     incomingStreamlinedTextLogCount = 0
+  }
+
+  const resetLiveTurnStreamState = () => {
+    streamingOutputTokens = undefined
+    streamingStopReason = null
+    streamingPhase = null
+    liveThinkingText = ""
+    liveStreamingText = ""
+    emittedToolCallIds.clear()
   }
 
   const emitCcEvent = (event: Omit<CcBroadcast, "turnId" | "agentId">) => {
@@ -484,6 +537,19 @@ export const createClaudeSdkSession = () => {
       } catch (error) {
         log("cc_event_callback_error", error)
       }
+    })
+  }
+
+  const emitToolCallEvent = (toolName: string, toolUseId: string, input: Record<string, unknown>) => {
+    if (emittedToolCallIds.has(toolUseId)) return
+    emittedToolCallIds.add(toolUseId)
+    emitCcEvent({
+      event: "tool_call",
+      toolName,
+      toolUseId,
+      content: getToolOneLiner(toolName, [{ id: toolUseId, input }]),
+      outputTokens: streamingOutputTokens,
+      stopReason: streamingStopReason,
     })
   }
 
@@ -540,25 +606,67 @@ export const createClaudeSdkSession = () => {
     })
   }
 
-  const appendThinkingMessage = () => {
+  const appendThinkingMessage = (thinking = "", parentToolUseId: string | null = null) => {
     log("appendThinkingMessage")
     removeThinkingMessage()
+    liveThinkingText = thinking
     const id = nextId("claude-thinking")
     thinkingMessageId = id
     appendMessage({
       id,
       username: "claude",
-      content: "",
+      content: thinking,
       timestamp: nowIso(),
       type: "claude-response",
       attributes: {
         claude: {
-          parentToolUseId: null,
-          contentBlocks: [],
+          parentToolUseId,
+          contentBlocks: thinking ? [{ type: "thinking", thinking }] : [],
           streaming: true,
           thinking: true,
+          outputTokens: streamingOutputTokens,
         } satisfies ClaudeMessageMetadata,
       },
+    })
+  }
+
+  const upsertThinkingMessage = (thinkingChunk: string, parentToolUseId: string | null) => {
+    if (!thinkingChunk) return
+    streamingPhase = "thinking"
+    liveThinkingText = mergeStreamingText(liveThinkingText, thinkingChunk)
+
+    if (!thinkingMessageId) {
+      appendThinkingMessage(liveThinkingText, parentToolUseId)
+    }
+
+    const targetId = thinkingMessageId
+    if (!targetId) return
+
+    setMessages((prev) =>
+      prev.map((message) => {
+        if (message.id !== targetId) return message
+        return {
+          ...message,
+          content: liveThinkingText,
+          attributes: {
+            ...message.attributes,
+            claude: {
+              parentToolUseId,
+              contentBlocks: [{ type: "thinking", thinking: liveThinkingText }],
+              streaming: true,
+              thinking: true,
+              outputTokens: streamingOutputTokens,
+            } satisfies ClaudeMessageMetadata,
+          },
+        }
+      })
+    )
+
+    emitCcEvent({
+      event: "thinking",
+      content: liveThinkingText,
+      outputTokens: streamingOutputTokens,
+      stopReason: streamingStopReason,
     })
   }
 
@@ -566,6 +674,10 @@ export const createClaudeSdkSession = () => {
     if (!thinkingMessageId) return
     const staleId = thinkingMessageId
     thinkingMessageId = null
+    liveThinkingText = ""
+    if (streamingPhase === "thinking") {
+      streamingPhase = liveStreamingText ? "text" : null
+    }
     log("removeThinkingMessage", `id=${staleId}`)
     setMessages((prev) => prev.filter((msg) => msg.id !== staleId))
   }
@@ -574,15 +686,78 @@ export const createClaudeSdkSession = () => {
     if (!streamingMessageId) return
     const staleId = streamingMessageId
     streamingMessageId = null
+    liveStreamingText = ""
+    if (streamingPhase === "text") {
+      streamingPhase = liveThinkingText ? "thinking" : null
+    }
     log("removeStreamingMessage", `id=${staleId}`)
     resetStreamCounters()
     setMessages((prev) => prev.filter((msg) => msg.id !== staleId))
+  }
+
+  const updateActiveStreamingMetadata = () => {
+    setMessages((prev) =>
+      prev.map((message) => {
+        if (!message.attributes?.claude) return message
+        if (message.id === thinkingMessageId && message.attributes.claude.thinking) {
+          return {
+            ...message,
+            attributes: {
+              ...message.attributes,
+              claude: {
+                ...message.attributes.claude,
+                outputTokens: streamingOutputTokens,
+              } satisfies ClaudeMessageMetadata,
+            },
+          }
+        }
+        if (message.id === streamingMessageId && message.attributes.claude.streaming) {
+          return {
+            ...message,
+            attributes: {
+              ...message.attributes,
+              claude: {
+                ...message.attributes.claude,
+                outputTokens: streamingOutputTokens,
+                stopReason: streamingStopReason,
+              } satisfies ClaudeMessageMetadata,
+            },
+          }
+        }
+        return message
+      })
+    )
+  }
+
+  const emitCurrentStreamingSnapshot = () => {
+    if (streamingPhase === "text" && liveStreamingText.trim().length > 0) {
+      emitCcEvent({
+        event: "text_stream",
+        content: liveStreamingText,
+        outputTokens: streamingOutputTokens,
+        stopReason: streamingStopReason,
+      })
+      return
+    }
+
+    if (streamingPhase === "thinking" && liveThinkingText.trim().length > 0) {
+      emitCcEvent({
+        event: "thinking",
+        content: liveThinkingText,
+        outputTokens: streamingOutputTokens,
+        stopReason: streamingStopReason,
+      })
+    }
   }
 
   const finalizeStreamingMessage = (result?: ClaudeMessageMetadata["result"]) => {
     if (!streamingMessageId) return false
     const targetId = streamingMessageId
     streamingMessageId = null
+    liveStreamingText = ""
+    if (streamingPhase === "text") {
+      streamingPhase = liveThinkingText ? "thinking" : null
+    }
     log(
       "finalizeStreamingMessage",
       `id=${targetId}`,
@@ -606,6 +781,8 @@ export const createClaudeSdkSession = () => {
               claude: {
                 ...message.attributes.claude,
                 streaming: false,
+                outputTokens: streamingOutputTokens,
+                stopReason: streamingStopReason,
                 result,
               } satisfies ClaudeMessageMetadata,
             },
@@ -685,14 +862,21 @@ export const createClaudeSdkSession = () => {
       }
     }
 
+    const startingNewTextStream = liveStreamingText.length === 0
+    liveStreamingText = mergeStreamingText(liveStreamingText, textChunk)
+    streamingPhase = "text"
+    if (startingNewTextStream && thinkingMessageId) {
+      removeThinkingMessage()
+    }
+
     if (!streamingMessageId) {
       resetStreamCounters()
       if (eventType === "stream_event") {
         streamEventChunkCount = 1
-        streamEventCharCount = textChunk.length
+        streamEventCharCount = liveStreamingText.length
       } else {
         streamlinedTextChunkCount = 1
-        streamlinedTextCharCount = textChunk.length
+        streamlinedTextCharCount = liveStreamingText.length
       }
       const id = nextId("claude-stream")
       streamingMessageId = id
@@ -700,14 +884,16 @@ export const createClaudeSdkSession = () => {
       appendMessage({
         id,
         username: "claude",
-        content: "",
+        content: liveStreamingText,
         timestamp: nowIso(),
         type: "claude-response",
         attributes: {
           claude: {
             parentToolUseId,
-            contentBlocks: [{ type: "text", text: "" }],
+            contentBlocks: [{ type: "text", text: liveStreamingText }],
             streaming: true,
+            outputTokens: streamingOutputTokens,
+            stopReason: streamingStopReason,
             eventType,
           } satisfies ClaudeMessageMetadata,
         },
@@ -721,22 +907,30 @@ export const createClaudeSdkSession = () => {
       prev.map((message) => {
         if (message.id !== targetId) return message
 
-        const nextText = mergeStreamingText(message.content, textChunk)
         return {
           ...message,
-          content: nextText,
+          content: liveStreamingText,
           attributes: {
             ...message.attributes,
             claude: {
               parentToolUseId,
-              contentBlocks: [{ type: "text", text: nextText }],
+              contentBlocks: [{ type: "text", text: liveStreamingText }],
               streaming: true,
+              outputTokens: streamingOutputTokens,
+              stopReason: streamingStopReason,
               eventType,
             } satisfies ClaudeMessageMetadata,
           },
         }
       })
     )
+
+    emitCcEvent({
+      event: "text_stream",
+      content: liveStreamingText,
+      outputTokens: streamingOutputTokens,
+      stopReason: streamingStopReason,
+    })
   }
 
   const appendClaudeResponse = (input: {
@@ -748,6 +942,7 @@ export const createClaudeSdkSession = () => {
     stopReason?: string | null
     streaming?: boolean
     interrupted?: boolean
+    outputTokens?: number
     eventType?: ClaudeMessageMetadata["eventType"]
     result?: ClaudeMessageMetadata["result"]
   }): string => {
@@ -774,6 +969,7 @@ export const createClaudeSdkSession = () => {
           stopReason: input.stopReason,
           streaming: input.streaming,
           interrupted: input.interrupted,
+          outputTokens: input.outputTokens,
           eventType: input.eventType,
           result: input.result,
         } satisfies ClaudeMessageMetadata,
@@ -892,8 +1088,12 @@ export const createClaudeSdkSession = () => {
     // Keep the temporary "Thinking..." message visible until the turn-level result event arrives.
     if (msg.type === "assistant") {
       removeStreamingMessage()
+      removeThinkingMessage()
       const blocks = normalizeContentBlocks(msg.message?.content)
       const extractedText = extractTextFromBlocks(blocks)
+      const extractedThinking = extractThinkingFromBlocks(blocks)
+      const extractedToolUses = extractToolUsesFromBlocks(blocks)
+      const outputTokens = getOutputTokensFromUsage(msg.message?.usage)
       log(
         "incoming:assistant",
         `messageId=${msg.message?.id || "none"}`,
@@ -908,12 +1108,26 @@ export const createClaudeSdkSession = () => {
         parentToolUseId: msg.parent_tool_use_id ?? null,
         model: msg.message?.model,
         stopReason: msg.message?.stop_reason ?? null,
+        outputTokens,
         eventType: "assistant",
       })
+      if (extractedThinking.trim().length > 0) {
+        emitCcEvent({
+          event: "thinking",
+          content: extractedThinking,
+          outputTokens,
+          stopReason: msg.message?.stop_reason ?? null,
+        })
+      }
+      for (const toolUse of extractedToolUses) {
+        emitToolCallEvent(toolUse.name, toolUse.id, toolUse.input)
+      }
       if (extractedText.trim().length > 0) {
         emitCcEvent({
           event: "text",
           content: extractedText,
+          outputTokens,
+          stopReason: msg.message?.stop_reason ?? null,
         })
       }
       return
@@ -922,10 +1136,38 @@ export const createClaudeSdkSession = () => {
     if (msg.type === "stream_event") {
       if (!isRecord(msg.event)) return
 
+      if (msg.event.type === "message_start") {
+        if (streamingMessageId) {
+          removeStreamingMessage()
+        }
+        streamingOutputTokens = getOutputTokensFromUsage(msg.event.message)
+        streamingStopReason = null
+        updateActiveStreamingMetadata()
+        return
+      }
+
       if (msg.event.type === "content_block_delta" && isRecord(msg.event.delta)) {
         if (msg.event.delta.type === "text_delta" && typeof msg.event.delta.text === "string") {
           upsertStreamingText(msg.event.delta.text, msg.parent_tool_use_id ?? null, "stream_event")
+          return
         }
+
+        if (msg.event.delta.type === "thinking_delta" && typeof msg.event.delta.thinking === "string") {
+          upsertThinkingMessage(msg.event.delta.thinking, msg.parent_tool_use_id ?? null)
+        }
+        return
+      }
+
+      if (msg.event.type === "message_delta") {
+        if (typeof msg.event.delta === "object" && msg.event.delta !== null && typeof msg.event.delta.stop_reason === "string") {
+          streamingStopReason = msg.event.delta.stop_reason
+        }
+        const nextOutputTokens = getOutputTokensFromUsage(msg.event.usage)
+        if (nextOutputTokens !== undefined) {
+          streamingOutputTokens = nextOutputTokens
+        }
+        updateActiveStreamingMetadata()
+        emitCurrentStreamingSnapshot()
       }
       return
     }
@@ -940,9 +1182,10 @@ export const createClaudeSdkSession = () => {
     if (msg.type === "streamlined_tool_use_summary") {
       const summary = typeof msg.tool_summary === "string" ? msg.tool_summary.trim() : ""
       if (!summary) return
+      const toolName = inferToolNameFromSummary(summary)
       emitCcEvent({
-        event: "tool_call",
-        toolName: inferToolNameFromSummary(summary),
+        event: "tool_result",
+        toolName,
         content: summary,
       })
       log("incoming:streamlined_tool_use_summary", `chars=${summary.length}`, previewForLog(summary))
@@ -994,7 +1237,10 @@ export const createClaudeSdkSession = () => {
         event: "result",
         content: errorMessage,
         isError,
+        outputTokens: streamingOutputTokens,
+        stopReason: streamingStopReason,
       })
+      resetLiveTurnStreamState()
       lastAssistantMessageId = null
       currentTurnId = null
       return
@@ -1021,11 +1267,7 @@ export const createClaudeSdkSession = () => {
         description: typeof msg.request.description === "string" ? msg.request.description : undefined,
         input: msg.request.input,
       }
-      emitCcEvent({
-        event: "tool_call",
-        toolName: permission.toolName,
-        content: getToolOneLiner(permission.toolName, [{ id: permission.toolUseId, input: permission.input }]),
-      })
+      emitToolCallEvent(permission.toolName, permission.toolUseId, permission.input)
       log(
         "incoming:control_request_can_use_tool",
         `requestId=${permission.requestId}`,
@@ -1059,13 +1301,44 @@ export const createClaudeSdkSession = () => {
       return
     }
 
-    if (msg.type === "tool_progress" || msg.type === "tool_use_summary") {
-      // NOTE: These messages were NOT observed over stdio (--output-format stream-json).
-      // They likely only appear over the WebSocket --sdk-url transport path.
-      // tool_progress: heartbeat with { tool_use_id, tool_name, elapsed_time_seconds }
-      // tool_use_summary: { summary: string, preceding_tool_use_ids: string[] }
-      // TODO: Render these in the feed once we confirm they appear over --sdk-url.
-      log(`incoming:${msg.type}`, "currently ignored")
+    if (msg.type === "tool_progress") {
+      const toolName = typeof msg.tool_name === "string" && msg.tool_name.trim().length > 0
+        ? msg.tool_name.trim()
+        : "Tool"
+      const toolUseId = typeof msg.tool_use_id === "string" ? msg.tool_use_id : undefined
+      const elapsedSeconds = typeof msg.elapsed_time_seconds === "number" ? msg.elapsed_time_seconds : undefined
+      emitCcEvent({
+        event: "tool_progress",
+        toolName,
+        toolUseId,
+        content: getToolProgressContent(toolName, elapsedSeconds),
+        elapsedSeconds,
+        outputTokens: streamingOutputTokens,
+        stopReason: streamingStopReason,
+      })
+      return
+    }
+
+    if (msg.type === "tool_use_summary") {
+      const summary = typeof msg.summary === "string" ? msg.summary.trim() : ""
+      if (!summary) return
+      emitCcEvent({
+        event: "tool_result",
+        toolName: inferToolNameFromSummary(summary),
+        toolUseId: Array.isArray(msg.preceding_tool_use_ids) && typeof msg.preceding_tool_use_ids[0] === "string"
+          ? msg.preceding_tool_use_ids[0]
+          : undefined,
+        content: summary,
+        outputTokens: streamingOutputTokens,
+        stopReason: streamingStopReason,
+      })
+      lastAssistantMessageId = appendClaudeResponse({
+        content: summary,
+        contentBlocks: [{ type: "text", text: summary }],
+        parentToolUseId: null,
+        outputTokens: streamingOutputTokens,
+        eventType: "tool_use_summary",
+      })
       return
     }
 
@@ -1133,6 +1406,7 @@ export const createClaudeSdkSession = () => {
     processStdoutTail = ""
     processStderrTail = ""
     resetStreamCounters()
+    resetLiveTurnStreamState()
     stdoutChunkCount = 0
     stderrChunkCount = 0
     log("start:begin", `routeId=${aRandomUUID}`)
@@ -1182,6 +1456,7 @@ export const createClaudeSdkSession = () => {
         "--print",
         "--output-format", "stream-json",
         "--input-format", "stream-json",
+        "--include-partial-messages",
         "--verbose",
         "-p", "",
       ]
@@ -1300,6 +1575,7 @@ export const createClaudeSdkSession = () => {
     queuedOutgoing.length = 0
     lastAssistantMessageId = null
     resetStreamCounters()
+    resetLiveTurnStreamState()
     isTearingDown = false
 
     if (reason) {
@@ -1319,6 +1595,7 @@ export const createClaudeSdkSession = () => {
     try {
       log("sendMessage", `username=${username}`, `chars=${trimmed.length}`, `hasSession=${sdkSessionId.length > 0}`)
       lastAssistantMessageId = null
+      resetLiveTurnStreamState()
       currentTurnId = generateUuidV7()
       emitCcEvent({
         event: "question",

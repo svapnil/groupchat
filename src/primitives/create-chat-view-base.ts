@@ -76,7 +76,11 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
         session_id: event.sessionId,
         event: event.event,
         tool_name: event.toolName,
+        tool_use_id: event.toolUseId,
         is_error: event.isError,
+        output_tokens: event.outputTokens,
+        elapsed_seconds: event.elapsedSeconds,
+        stop_reason: event.stopReason,
       })
 
       if (event.event === "result") {

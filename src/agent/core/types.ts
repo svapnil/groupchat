@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
 import type { Accessor } from "solid-js"
-import type { Message } from "../../lib/types"
+import type { CcEventType, Message } from "../../lib/types"
 
 export type AgentDecision = "allow" | "deny"
 
@@ -17,10 +17,14 @@ export type AgentEvent = {
   agentId: string
   turnId: string
   sessionId?: string
-  event: "question" | "tool_call" | "text" | "result"
+  event: CcEventType
   content: string
   toolName?: string
+  toolUseId?: string
   isError?: boolean
+  outputTokens?: number
+  elapsedSeconds?: number
+  stopReason?: string | null
 }
 
 export type LocalAgentSession = {

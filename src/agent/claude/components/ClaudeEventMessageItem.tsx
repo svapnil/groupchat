@@ -34,7 +34,16 @@ export type ClaudeEventMessageItemProps = {
   messagePaneWidth?: number
 }
 
-const VALID_CC_EVENTS = new Set(["question", "tool_call", "text", "result"])
+const VALID_CC_EVENTS = new Set([
+  "question",
+  "thinking",
+  "tool_call",
+  "tool_progress",
+  "tool_result",
+  "text_stream",
+  "text",
+  "result",
+])
 
 function normalizeCcEvent(event: CcEventMetadata): CcEventMetadata {
   return {
@@ -42,7 +51,11 @@ function normalizeCcEvent(event: CcEventMetadata): CcEventMetadata {
     session_id: typeof event.session_id === "string" ? event.session_id : undefined,
     event: event.event,
     tool_name: typeof event.tool_name === "string" ? event.tool_name : undefined,
+    tool_use_id: typeof event.tool_use_id === "string" ? event.tool_use_id : undefined,
     is_error: typeof event.is_error === "boolean" ? event.is_error : undefined,
+    output_tokens: typeof event.output_tokens === "number" ? event.output_tokens : undefined,
+    elapsed_seconds: typeof event.elapsed_seconds === "number" ? event.elapsed_seconds : undefined,
+    stop_reason: typeof event.stop_reason === "string" ? event.stop_reason : undefined,
   }
 }
 
@@ -83,6 +96,11 @@ function compactPreview(content: string, max = 120): string {
   const normalized = content.replace(/\s+/g, " ").trim()
   if (!normalized) return ""
   return truncate(normalized, max)
+}
+
+function formatOutputTokens(outputTokens?: number): string {
+  if (typeof outputTokens !== "number" || !Number.isFinite(outputTokens) || outputTokens < 0) return ""
+  return `${outputTokens} tok`
 }
 
 const markdownSyntaxStyle = SyntaxStyle.fromStyles({
@@ -195,21 +213,73 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
     return `${toolName} ${toolSummary}`
   })
 
-  const textIndex = createMemo(() => {
+  const latestToolProgressIndex = createMemo(() => {
     const indexes = currentTurnIndexes()
     for (let i = indexes.length - 1; i >= 0; i -= 1) {
       const eventIndex = indexes[i]
-      if (events()[eventIndex].event === "text") return eventIndex
+      if (events()[eventIndex].event === "tool_progress") return eventIndex
+    }
+    return -1
+  })
+
+  const latestToolProgressDetail = createMemo(() => {
+    const index = latestToolProgressIndex()
+    if (index < 0) return ""
+    return sanitizePlainMessageText(compactPreview(contents()[index] || ""))
+  })
+
+  const latestToolResultIndex = createMemo(() => {
+    const indexes = currentTurnIndexes()
+    for (let i = indexes.length - 1; i >= 0; i -= 1) {
+      const eventIndex = indexes[i]
+      if (events()[eventIndex].event === "tool_result") return eventIndex
+    }
+    return -1
+  })
+
+  const latestToolResultDetail = createMemo(() => {
+    const index = latestToolResultIndex()
+    if (index < 0) return ""
+    return sanitizePlainMessageText(compactPreview(contents()[index] || ""))
+  })
+
+  const thinkingIndex = createMemo(() => {
+    const indexes = currentTurnIndexes()
+    for (let i = indexes.length - 1; i >= 0; i -= 1) {
+      const eventIndex = indexes[i]
+      if (events()[eventIndex].event === "thinking") return eventIndex
+    }
+    return -1
+  })
+
+  const thinkingPreview = createMemo(() => {
+    const index = thinkingIndex()
+    if (index < 0) return ""
+    return sanitizePlainMessageText(compactPreview(contents()[index] || "", 160))
+  })
+
+  const visibleTextIndex = createMemo(() => {
+    const indexes = currentTurnIndexes()
+    for (let i = indexes.length - 1; i >= 0; i -= 1) {
+      const eventIndex = indexes[i]
+      const eventType = events()[eventIndex].event
+      if (eventType === "text" || eventType === "text_stream") return eventIndex
     }
     return -1
   })
 
   const textContent = createMemo(() => {
-    const index = textIndex()
+    const index = visibleTextIndex()
     if (index < 0) return ""
     return sanitizeMessageMarkdown(contents()[index] || "", {
       hyperlinkPolicy: { enabled: true },
     })
+  })
+
+  const textIsStreaming = createMemo(() => {
+    const index = visibleTextIndex()
+    if (index < 0) return false
+    return events()[index].event === "text_stream"
   })
 
   const resultIndex = createMemo(() => {
@@ -221,6 +291,12 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
     return -1
   })
 
+  const resultContent = createMemo(() => {
+    const index = resultIndex()
+    if (index < 0) return ""
+    return sanitizePlainMessageText(contents()[index] || "")
+  })
+
   const hasResult = createMemo(() => resultIndex() >= 0)
   const resultMarkdownWidth = createMemo(() => Math.max(8, questionMarkdownWidth() - (hasResult() ? 2 : 0)))
   const isError = createMemo(() => {
@@ -228,6 +304,29 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
     if (index < 0) return false
     return Boolean(events()[index].is_error)
   })
+
+  const latestOutputTokens = createMemo(() => {
+    const indexes = currentTurnIndexes()
+    for (let i = indexes.length - 1; i >= 0; i -= 1) {
+      const outputTokens = events()[indexes[i]].output_tokens
+      if (typeof outputTokens === "number" && Number.isFinite(outputTokens)) {
+        return outputTokens
+      }
+    }
+    return undefined
+  })
+
+  const latestStopReason = createMemo(() => {
+    const indexes = currentTurnIndexes()
+    for (let i = indexes.length - 1; i >= 0; i -= 1) {
+      const stopReason = events()[indexes[i]].stop_reason
+      if (typeof stopReason === "string" && stopReason.length > 0) {
+        return stopReason
+      }
+    }
+    return undefined
+  })
+
   const durationSeconds = createMemo(() => {
     const startedAt = new Date(props.message.timestamp).getTime()
     if (!Number.isFinite(startedAt)) return "0.0"
@@ -237,8 +336,35 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
 
   const turnCount = createMemo(() => questionIndexes().length)
   const isWorking = createMemo(() => !hasResult() && currentTurnIndexes().length > 0)
+  const latestToolStatusDetail = createMemo(() => {
+    const toolResult = latestToolResultDetail()
+    if (toolResult) return toolResult
+    const toolProgress = latestToolProgressDetail()
+    if (toolProgress) return toolProgress
+    return ""
+  })
+  const workingLabel = createMemo(() => {
+    if (textContent()) return "Streaming..."
+    if (thinkingPreview()) return "Thinking..."
+    if (latestToolProgressDetail()) return "Working..."
+    return "Thinking..."
+  })
+  const resultSummary = createMemo(() => {
+    const details = [`${turnCount()} turns`, `${durationSeconds()}s`]
+    const outputTokensLabel = formatOutputTokens(latestOutputTokens())
+    if (outputTokensLabel) details.push(outputTokensLabel)
+    return `${username()}'s ${agentLabel()} ${isError() ? "finished with error" : "finished"} (${details.join(" • ")})`
+  })
 
   const [elapsed, setElapsed] = createSignal(0)
+  const statusSummary = createMemo(() => {
+    const parts = [`${elapsed()}s`]
+    const outputTokensLabel = formatOutputTokens(latestOutputTokens())
+    if (outputTokensLabel) parts.push(outputTokensLabel)
+    const stopReason = latestStopReason()
+    if (stopReason) parts.push(stopReason)
+    return parts.join(" • ")
+  })
   const thinkingFrames = ["⋆", "✦", "⋆", "✧", "⋆", "❉", "⋆", "❈", "⋆"]
   const [thinkingFrame, setThinkingFrame] = createSignal(0)
   let thinkingTimer: ReturnType<typeof setInterval> | null = null
@@ -305,6 +431,24 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
             </box>
           </Show>
 
+          <Show when={latestToolStatusDetail() && latestToolStatusDetail() !== latestToolDetail()}>
+            <box flexDirection="row">
+              <text fg="#888888">⋯ </text>
+              <text fg="#888888" truncate flexShrink={1} minWidth={0}>
+                {sanitizePlainMessageText(latestToolStatusDetail())}
+              </text>
+            </box>
+          </Show>
+
+          <Show when={thinkingPreview() && !textContent()}>
+            <box flexDirection="row" justifyContent="flex-end" width={questionMarkdownWidth()}>
+              <text fg={agentAccentColor()}>⋆ </text>
+              <text fg="#888888" truncate flexShrink={1} minWidth={0}>
+                {thinkingPreview()}
+              </text>
+            </box>
+          </Show>
+
           <Show when={textContent()}>
             <box flexDirection="row" justifyContent="flex-end" width={questionMarkdownWidth()}>
               <Show when={hasResult()}>
@@ -318,14 +462,26 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
                   width="auto"
                   maxWidth={resultMarkdownWidth()}
                 />
+                <Show when={textIsStreaming() && !hasResult()}>
+                  <text fg={agentAccentColor()}>▍</text>
+                </Show>
               </box>
+            </box>
+          </Show>
+
+          <Show when={!textContent() && resultContent()}>
+            <box flexDirection="row" justifyContent="flex-end" width={questionMarkdownWidth()}>
+              <text fg={isError() ? "red" : "#888888"}>⏺ </text>
+              <text fg={isError() ? "#AA6666" : "#BBBBBB"} truncate flexShrink={1} minWidth={0}>
+                {resultContent()}
+              </text>
             </box>
           </Show>
 
           <Show when={isWorking()}>
             <box flexDirection="row">
-              <text fg={agentAccentColor()}>{`${thinkingFrames[thinkingFrame()]} Thinking... `}</text>
-              <text fg="#888888">{`(${elapsed()}s)`}</text>
+              <text fg={agentAccentColor()}>{`${thinkingFrames[thinkingFrame()]} ${workingLabel()} `}</text>
+              <text fg="#888888">{`(${statusSummary()})`}</text>
             </box>
           </Show>
 
@@ -333,7 +489,7 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
             <box flexDirection="row">
               <text fg={isError() ? "red" : "#888888"}>⏺ </text>
               <text fg={isError() ? "#AA6666" : "#888888"} truncate flexShrink={1} minWidth={0}>
-                {sanitizePlainMessageText(`${username()}'s ${agentLabel()} ${isError() ? "finished with error" : "finished"} (${turnCount()} turns, ${durationSeconds()}s)`)}
+                {sanitizePlainMessageText(resultSummary())}
               </text>
             </box>
           </Show>

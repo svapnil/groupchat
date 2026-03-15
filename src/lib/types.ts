@@ -12,12 +12,26 @@ export interface MessageAttributes {
   cc?: CcEventMetadata;
 }
 
+export type CcEventType =
+  | "question"
+  | "thinking"
+  | "tool_call"
+  | "tool_progress"
+  | "tool_result"
+  | "text_stream"
+  | "text"
+  | "result";
+
 export interface CcEventMetadata {
   turn_id: string;
   session_id?: string;
-  event: "question" | "tool_call" | "text" | "result";
+  event: CcEventType;
   tool_name?: string;
+  tool_use_id?: string;
   is_error?: boolean;
+  output_tokens?: number;
+  elapsed_seconds?: number;
+  stop_reason?: string | null;
   events?: CcEventMetadata[];
   contents?: string[];
 }
@@ -55,7 +69,8 @@ export interface ClaudeMessageMetadata {
   streaming?: boolean;
   thinking?: boolean;
   interrupted?: boolean;
-  eventType?: "assistant" | "stream_event" | "streamlined_text" | "streamlined_tool_use_summary" | "result";
+  outputTokens?: number;
+  eventType?: "assistant" | "stream_event" | "streamlined_text" | "streamlined_tool_use_summary" | "tool_use_summary" | "result";
   result?: ClaudeResultMetadata;
   permissionRequest?: ClaudePermissionRequest;
 }
