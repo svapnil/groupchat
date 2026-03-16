@@ -1,0 +1,284 @@
+#!/bin/sh
+set -eu
+
+# groupchat installer
+# Usage: curl -fsSL groupchatty.com/install | bash
+
+REPO="svapnil/groupchat"
+INSTALL_DIR="$HOME/.groupchat/bin"
+BIN_NAME="groupchat"
+
+# --- Colors ---
+
+setup_colors() {
+  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    BOLD='\033[1m'
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    CYAN='\033[0;36m'
+    RESET='\033[0m'
+  else
+    BOLD=''
+    RED=''
+    GREEN=''
+    YELLOW=''
+    CYAN=''
+    RESET=''
+  fi
+}
+
+# --- Logging ---
+
+info() {
+  printf "${CYAN}info${RESET} %s\n" "$1" >&2
+}
+
+warn() {
+  printf "${YELLOW}warn${RESET} %s\n" "$1" >&2
+}
+
+error() {
+  printf "${RED}error${RESET} %s\n" "$1" >&2
+  exit 1
+}
+
+success() {
+  printf "${GREEN}success${RESET} %s\n" "$1" >&2
+}
+
+# --- Argument parsing ---
+
+VERSION=""
+MODIFY_PATH=1
+
+usage() {
+  cat <<EOF
+groupchat installer
+
+Usage: install [OPTIONS]
+
+Options:
+  -v, --version <VERSION>  Install a specific version (e.g. 0.1.8)
+      --no-modify-path     Don't add ~/.groupchat/bin to PATH
+  -h, --help               Show this help message
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -v|--version)
+      [ $# -ge 2 ] || error "Missing value for $1"
+      VERSION="$2"
+      shift 2
+      ;;
+    --no-modify-path)
+      MODIFY_PATH=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      error "Unknown option: $1"
+      ;;
+  esac
+done
+
+# --- Platform detection ---
+
+detect_platform() {
+  OS="$(uname -s)"
+  case "$OS" in
+    Darwin)  OS="darwin" ;;
+    Linux)   OS="linux" ;;
+    MINGW*|MSYS*|CYGWIN*)
+      error "Windows is not supported by this installer. Use: npm i -g groupchat"
+      ;;
+    *)
+      error "Unsupported operating system: $OS"
+      ;;
+  esac
+
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    x86_64|amd64) ARCH="x64" ;;
+    arm64|aarch64) ARCH="arm64" ;;
+    *)
+      error "Unsupported architecture: $ARCH"
+      ;;
+  esac
+
+  # Rosetta 2 detection: prefer arm64 native binary on Apple Silicon
+  if [ "$OS" = "darwin" ] && [ "$ARCH" = "x64" ]; then
+    if sysctl -n sysctl.proc_translated 2>/dev/null | grep -q 1; then
+      info "Rosetta 2 detected — installing arm64 binary"
+      ARCH="arm64"
+    fi
+  fi
+}
+
+# --- Version resolution ---
+
+resolve_version() {
+  if [ -z "$VERSION" ]; then
+    info "Fetching latest release..."
+    VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+      | grep '"tag_name"' \
+      | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+    [ -n "$VERSION" ] || error "Could not determine latest version"
+    info "Latest version: $VERSION"
+  else
+    # Normalize: add v prefix if missing
+    case "$VERSION" in
+      v*) ;;
+      *)  VERSION="v${VERSION}" ;;
+    esac
+
+    # Validate the tag exists
+    HTTP_CODE=$(curl -sL -o /dev/null -w '%{http_code}' \
+      "https://github.com/${REPO}/releases/tag/${VERSION}")
+    [ "$HTTP_CODE" != "404" ] || error "Version ${VERSION} not found"
+    info "Installing version: $VERSION"
+  fi
+}
+
+# --- Download ---
+
+download() {
+  ASSET_NAME="${BIN_NAME}-${OS}-${ARCH}"
+  URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET_NAME}"
+  TARGET="${INSTALL_DIR}/${BIN_NAME}"
+
+  mkdir -p "$INSTALL_DIR"
+
+  # Clean up partial download on interrupt
+  TMPFILE="${TARGET}.tmp"
+  trap 'rm -f "$TMPFILE"' INT TERM EXIT
+
+  info "Downloading ${ASSET_NAME}..."
+  curl -#fSL -o "$TMPFILE" "$URL" || error "Download failed. Check that ${VERSION} has a release for ${OS}-${ARCH}"
+
+  mv "$TMPFILE" "$TARGET"
+  chmod +x "$TARGET"
+
+  trap - INT TERM EXIT
+
+  success "Installed to ${TARGET}"
+}
+
+# --- PATH modification ---
+
+add_to_path() {
+  if [ "$MODIFY_PATH" -eq 0 ]; then
+    return
+  fi
+
+  PATH_ENTRY="export PATH=\"\$HOME/.groupchat/bin:\$PATH\""
+  FISH_ENTRY="fish_add_path \$HOME/.groupchat/bin"
+
+  # Check if already in PATH
+  case ":${PATH}:" in
+    *":${INSTALL_DIR}:"*)
+      info "Already in PATH"
+      return
+      ;;
+  esac
+
+  UPDATED=0
+
+  # GitHub Actions
+  if [ -n "${GITHUB_PATH:-}" ]; then
+    echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+    info "Added to \$GITHUB_PATH"
+    UPDATED=1
+    return
+  fi
+
+  # bash
+  for rcfile in "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [ -f "$rcfile" ]; then
+      if ! grep -qF '.groupchat/bin' "$rcfile" 2>/dev/null; then
+        printf '\n# groupchat\n%s\n' "$PATH_ENTRY" >> "$rcfile"
+        info "Updated $rcfile"
+        UPDATED=1
+      fi
+    fi
+  done
+
+  # zsh
+  if [ -f "$HOME/.zshrc" ]; then
+    if ! grep -qF '.groupchat/bin' "$HOME/.zshrc" 2>/dev/null; then
+      printf '\n# groupchat\n%s\n' "$PATH_ENTRY" >> "$HOME/.zshrc"
+      info "Updated $HOME/.zshrc"
+      UPDATED=1
+    fi
+  fi
+
+  # fish
+  FISH_CONFIG="$HOME/.config/fish/config.fish"
+  if [ -f "$FISH_CONFIG" ]; then
+    if ! grep -qF '.groupchat/bin' "$FISH_CONFIG" 2>/dev/null; then
+      printf '\n# groupchat\n%s\n' "$FISH_ENTRY" >> "$FISH_CONFIG"
+      info "Updated $FISH_CONFIG"
+      UPDATED=1
+    fi
+  fi
+
+  if [ "$UPDATED" -eq 0 ]; then
+    warn "Could not detect shell config file. Manually add to PATH:"
+    warn "  $PATH_ENTRY"
+  fi
+}
+
+# --- Existing install check ---
+
+check_existing_install() {
+  EXISTING=$(command -v groupchat 2>/dev/null || true)
+  if [ -n "$EXISTING" ]; then
+    # Resolve symlinks to find the real path
+    REAL_EXISTING="$EXISTING"
+    if command -v readlink >/dev/null 2>&1; then
+      REAL_EXISTING=$(readlink -f "$EXISTING" 2>/dev/null || echo "$EXISTING")
+    fi
+
+    # Skip if it's already our managed install
+    case "$REAL_EXISTING" in
+      "$INSTALL_DIR"/*) return ;;
+    esac
+
+    warn "groupchat is already installed at: $EXISTING"
+    # Detect npm installs
+    case "$REAL_EXISTING" in
+      */node_modules/.bin/*|*/npm/*|*/lib/node_modules/*)
+        warn "This looks like an npm install. After this install completes, you can remove it with:"
+        warn "  npm uninstall -g groupchat"
+        ;;
+      *)
+        warn "After this install completes, you may want to remove the other copy to avoid confusion."
+        ;;
+    esac
+    printf "\n"
+  fi
+}
+
+# --- Main ---
+
+main() {
+  setup_colors
+
+  printf "\n  ${BOLD}groupchat installer${RESET}\n\n"
+
+  detect_platform
+  check_existing_install
+  resolve_version
+  download
+  add_to_path
+
+  printf "\n  Run ${CYAN}groupchat${RESET} to get started."
+  printf "\n  If the command is not found, restart your shell or run:"
+  printf "\n  ${CYAN}export PATH=\"\$HOME/.groupchat/bin:\$PATH\"${RESET}\n\n"
+}
+
+main
