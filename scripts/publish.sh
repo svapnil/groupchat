@@ -97,8 +97,24 @@ npm publish $DRY_RUN
 
 echo ""
 
+# Ensure tag exists and is pushed
+TAG="v${VERSION}"
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  echo "Tag $TAG already exists locally."
+else
+  echo "Creating tag $TAG..."
+  if [ -z "$DRY_RUN" ]; then
+    git tag "$TAG"
+  fi
+fi
+
+if [ -z "$DRY_RUN" ]; then
+  echo "Pushing tag $TAG to remote..."
+  git push origin "$TAG" 2>/dev/null || echo "  Tag $TAG already exists on remote."
+fi
+
 # Create GitHub Release with binaries
-echo "Creating GitHub Release v${VERSION}...${DRY_RUN_LABEL}"
+echo "Creating GitHub Release ${TAG}...${DRY_RUN_LABEL}"
 
 # Copy binaries to a staging directory with platform-specific names
 STAGING_DIR=$(mktemp -d)
