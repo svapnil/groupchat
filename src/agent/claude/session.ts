@@ -543,6 +543,9 @@ export const createClaudeSdkSession = () => {
   const emitToolCallEvent = (toolName: string, toolUseId: string, input: Record<string, unknown>) => {
     if (emittedToolCallIds.has(toolUseId)) return
     emittedToolCallIds.add(toolUseId)
+    // The compact cc/event bridge deliberately keeps tool-call payloads summary-only.
+    // Full tool input remains on claude-response messages, which is why ClaudeEventMessageItem
+    // cannot reconstruct rich edit/write code views the way ClaudeMessageItem can.
     emitCcEvent({
       event: "tool_call",
       toolName,

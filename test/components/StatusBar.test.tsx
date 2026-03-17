@@ -57,7 +57,7 @@ describe("StatusBar", () => {
     await testSetup.renderOnce()
     const frame = testSetup.captureCharFrame()
 
-    expect(frame).toContain("0.1.7 | Ctrl+O Logout | Ctrl+C Exit the App")
+    expect(frame).toContain("0.1.8 | Ctrl+O Logout | Ctrl+C Exit the App")
     expect(frame).toMatchSnapshot()
   })
 

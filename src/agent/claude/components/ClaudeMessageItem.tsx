@@ -3,9 +3,10 @@
 import { RGBA, SyntaxStyle } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { ClaudePermissionRequest, Message } from "../../../lib/types"
-import { getClaudeMetadata, getPermissionOneLiner, getToolOneLiner, groupClaudeBlocks, contentToLines } from "../helpers"
+import { getClaudeMetadata, groupClaudeBlocks, contentToLines } from "../helpers"
 import { compactJson } from "../../../lib/utils"
 import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
+import { ClaudeToolDetail, ClaudeToolGroup } from "./ClaudeToolDetail"
 
 export type ClaudeMessageItemProps = {
   message: Message
@@ -75,8 +76,23 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
 
   const groupedBlocks = createMemo(() => {
     const blocks = claude()?.contentBlocks
-    if (blocks && blocks.length > 0) return groupClaudeBlocks(blocks)
-    return groupClaudeBlocks([{ type: "text", text: props.message.content }])
+    const groups = blocks && blocks.length > 0
+      ? groupClaudeBlocks(blocks)
+      : groupClaudeBlocks([{ type: "text", text: props.message.content }])
+
+    // When a permission request exists, its tool_use block is already rendered
+    // in the permission section — filter it out of tool groups to avoid duplication.
+    const permToolUseId = permissionReq()?.toolUseId
+    if (!permToolUseId) return groups
+
+    return groups
+      .map((group) => {
+        if (group.kind !== "tool_group") return group
+        const filtered = group.items.filter((item) => item.id !== permToolUseId)
+        if (filtered.length === 0) return null
+        return { ...group, items: filtered }
+      })
+      .filter((group): group is NonNullable<typeof group> => group !== null)
   })
   const firstTextGroupIndex = createMemo(() => {
     const groups = groupedBlocks()
@@ -101,12 +117,7 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
           <For each={groupedBlocks()}>
             {(grouped, groupedIndex) => {
               if (grouped.kind === "tool_group") {
-                return (
-                  <box flexDirection="row">
-                    <text fg="green">⏺ </text>
-                    <text fg="#FFFFFF">{sanitizePlainMessageText(getToolOneLiner(grouped.name, grouped.items))}</text>
-                  </box>
-                )
+                return <ClaudeToolGroup name={grouped.name} items={grouped.items} />
               }
 
               const block = grouped.block
@@ -173,7 +184,6 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
           <Show when={permissionReq()}>
             {(perm: () => ClaudePermissionRequest) => {
               const resolved = () => perm().resolution
-              const oneLiner = () => getPermissionOneLiner(perm())
 
               return (
                 <box flexDirection="column">
@@ -185,7 +195,7 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                     </Show>
                   </box>
                   <box paddingLeft={2}>
-                    <text fg="#BBBBBB">{sanitizePlainMessageText(oneLiner())}</text>
+                    <ClaudeToolDetail name={perm().toolName} input={perm().input} showHeader={false} />
                   </box>
 
                   <Show when={!resolved()}>

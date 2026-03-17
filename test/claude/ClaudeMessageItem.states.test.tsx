@@ -103,6 +103,33 @@ describe("ClaudeMessageItem render states", () => {
     expect(frame).toContain("> Deny")
   })
 
+  test("renders rich edit permission details", async () => {
+    const message = makeClaudeMessage("permission-edit", {
+      parentToolUseId: null,
+      contentBlocks: [],
+      permissionRequest: {
+        requestId: "req-edit",
+        toolName: "Edit",
+        toolUseId: "tool-edit",
+        description: "Update the config snippet",
+        input: {
+          file_path: "/repo/src/config.ts",
+          old_string: "let ready = false;",
+          new_string: "let ready = true;",
+          replace_all: true,
+        },
+      },
+    })
+
+    const frame = await renderClaudeMessage(message, { width: 100, height: 22 })
+    expect(frame).toContain("replace all")
+    expect(frame).toContain("config.ts")
+    expect(frame).toContain("ready = false")
+    expect(frame).toContain("ready = true")
+    expect(frame).toContain("Allow")
+    expect(frame).toContain("Deny")
+  })
+
   test("renders resolved permission statuses", async () => {
     const allowed = makeClaudeMessage("permission-allowed", {
       parentToolUseId: null,

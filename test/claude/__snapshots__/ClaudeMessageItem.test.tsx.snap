@@ -1,0 +1,51 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`ClaudeMessageItem renders edit tool calls as inline diffs 1`] = `
+"  ⏺ Edit File src/config/app.ts                                                                     
+    replace all                                                                                     
+    /repo/src/config/app.ts                                                                         
+    ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+    │  1 - const retries = 1;                                                                      │
+    │  2 - const enabled = false;                                                                  │
+    │  1 + const retries = 2;                                                                      │
+    │  2 + const enabled = true;                                                                   │
+    └──────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+"
+`;
+
+exports[`ClaudeMessageItem renders write tool calls as inline code blocks 1`] = `
+"  ⏺ Write File src/generated/config.ts                                                              
+    /repo/src/generated/config.ts                                                                   
+    ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+    │ export const featureFlag = true;                                                             │
+    │ export const retries = 3;                                                                    │
+    └──────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+"
+`;
