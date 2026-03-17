@@ -156,4 +156,72 @@ describe("MessageList", () => {
     expect(frame).toContain("> Deny")
     expect(frame).not.toContain("> Allow")
   })
+
+  test("renders tool details only once when a permission message matches a tool block", async () => {
+    const messages: Message[] = [
+      {
+        id: "m-tool",
+        username: "claude",
+        content: "",
+        timestamp: "2024-01-01T00:00:00.000Z",
+        type: "claude-response",
+        attributes: {
+          claude: {
+            parentToolUseId: null,
+            contentBlocks: [
+              {
+                type: "tool_use",
+                id: "tool-bash-1",
+                name: "Bash",
+                input: { command: "echo hello", description: "Print hello" },
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: "m-perm",
+        username: "claude",
+        content: "",
+        timestamp: "2024-01-01T00:00:01.000Z",
+        type: "claude-response",
+        attributes: {
+          claude: {
+            parentToolUseId: null,
+            contentBlocks: [],
+            permissionRequest: {
+              requestId: "req-bash-1",
+              toolName: "Bash",
+              toolUseId: "tool-bash-1",
+              description: "Print hello",
+              input: { command: "echo hello", description: "Print hello" },
+            },
+          },
+        },
+      },
+    ]
+
+    testSetup = await testRender(
+      () =>
+        <MessageList
+          messages={messages}
+          currentUsername="alice"
+          typingUsers={[]}
+          messagePaneWidth={90}
+          height={16}
+          isDetached={false}
+          pendingActionMessageId="m-perm"
+          pendingActionSelectedIndex={0}
+        />,
+      { width: 110, height: 20 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(frame).toContain("Bash")
+    expect(frame).toContain("$ echo hello")
+    expect(frame.match(/\$ echo hello/g)?.length ?? 0).toBe(1)
+    expect(frame).not.toContain("Terminal")
+  })
 })

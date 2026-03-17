@@ -13,6 +13,7 @@ export type AgentMessageRenderContext = {
   isOwnMessage?: boolean
   agentDepth?: number
   pendingActionSelectedIndex?: number
+  hiddenClaudeToolUseIds?: ReadonlySet<string>
 }
 
 export type AgentMessageRenderer = (context: AgentMessageRenderContext) => JSX.Element | null
@@ -26,6 +27,7 @@ const renderClaudeMessage: AgentMessageRenderer = (context) => {
       message={context.message}
       claudeDepth={context.agentDepth}
       permissionSelectedIndex={context.pendingActionSelectedIndex}
+      hiddenToolUseIds={context.hiddenClaudeToolUseIds}
     />
   )
 }
@@ -70,4 +72,3 @@ export function buildAgentDepthMap(messages: Message[]): Map<string, number> {
 
   return depthByMessageId
 }
-

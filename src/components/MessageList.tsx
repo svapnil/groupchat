@@ -28,6 +28,14 @@ export function MessageList(props: MessageListProps) {
   )
   const safeTypingUsers = createMemo(() => othersTyping().map((user) => sanitizePlainMessageText(user)))
   const agentDepthByMessageId = createMemo(() => buildAgentDepthMap(props.messages))
+  const hiddenClaudeToolUseIds = createMemo(() => {
+    const ids = new Set<string>()
+    for (const message of props.messages) {
+      const toolUseId = message.attributes?.claude?.permissionRequest?.toolUseId
+      if (toolUseId) ids.add(toolUseId)
+    }
+    return ids
+  })
 
   // Precompute which messages need headers in a single pass to avoid
   // repeated Date parsing inside each <For> iteration's reactive callback.
@@ -68,6 +76,7 @@ export function MessageList(props: MessageListProps) {
                   messagePaneWidth={props.messagePaneWidth}
                   showHeader={showHeaderSet().has(index())}
                   agentDepth={agentDepthByMessageId().get(message.id) ?? 0}
+                  hiddenClaudeToolUseIds={hiddenClaudeToolUseIds()}
                   pendingActionSelectedIndex={
                     props.pendingActionMessageId === message.id ? props.pendingActionSelectedIndex : undefined
                   }

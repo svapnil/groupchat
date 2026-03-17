@@ -12,6 +12,7 @@ export type ClaudeMessageItemProps = {
   message: Message
   claudeDepth?: number
   permissionSelectedIndex?: number
+  hiddenToolUseIds?: ReadonlySet<string>
 }
 
 function formatTime(timestamp: string): string {
@@ -29,7 +30,7 @@ const markdownSyntaxStyle = SyntaxStyle.fromStyles({
   "markup.heading": { bold: true },
   "markup.strong": { bold: true },
   "markup.italic": { italic: true },
-  "markup.raw": { fg: RGBA.fromHex("#D7BA7D") },
+  "markup.raw": { fg: RGBA.fromHex("#B0B9F9") },
   "markup.link.label": { underline: true, fg: RGBA.fromHex("#57C7FF") },
   "markup.link.url": { dim: true, fg: RGBA.fromHex("#9AA0A6") },
   "punctuation.special": { dim: true },
@@ -49,6 +50,12 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
     const count = outputTokens()
     if (typeof count !== "number" || !Number.isFinite(count) || count < 0) return ""
     return `${count} tok`
+  })
+  const hiddenToolUseIds = createMemo(() => {
+    const ids = new Set(props.hiddenToolUseIds ?? [])
+    const permissionToolUseId = permissionReq()?.toolUseId
+    if (permissionToolUseId) ids.add(permissionToolUseId)
+    return ids
   })
 
   const [elapsed, setElapsed] = createSignal(0)
@@ -80,15 +87,15 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
       ? groupClaudeBlocks(blocks)
       : groupClaudeBlocks([{ type: "text", text: props.message.content }])
 
-    // When a permission request exists, its tool_use block is already rendered
-    // in the permission section — filter it out of tool groups to avoid duplication.
-    const permToolUseId = permissionReq()?.toolUseId
-    if (!permToolUseId) return groups
+    // Permission requests are rendered with rich tool detail separately, so hide
+    // matching tool_use blocks here to avoid rendering the same code panel twice.
+    const hiddenIds = hiddenToolUseIds()
+    if (hiddenIds.size === 0) return groups
 
     return groups
       .map((group) => {
         if (group.kind !== "tool_group") return group
-        const filtered = group.items.filter((item) => item.id !== permToolUseId)
+        const filtered = group.items.filter((item) => !hiddenIds.has(item.id))
         if (filtered.length === 0) return null
         return { ...group, items: filtered }
       })
@@ -261,12 +268,9 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
               </text>
             </box>
           </Show>
-          <Show when={claude()?.streaming && !isThinking()}>
+          <Show when={claude()?.streaming && !isThinking() && outputTokensLabel()}>
             <box flexDirection="row">
-              <text fg="#FFA500">▍</text>
-              <Show when={outputTokensLabel()}>
-                <text fg="#888888">{` ${outputTokensLabel()}`}</text>
-              </Show>
+              <text fg="#888888">{outputTokensLabel()}</text>
             </box>
           </Show>
         </box>

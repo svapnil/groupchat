@@ -12,6 +12,7 @@ export type MessageItemProps = {
   showHeader?: boolean
   agentDepth?: number
   pendingActionSelectedIndex?: number
+  hiddenClaudeToolUseIds?: ReadonlySet<string>
 }
 
 const COLORS = ["cyan", "magenta", "brightGreen", "brightBlue", "brightYellow", "brightMagenta"] as const
@@ -59,6 +60,7 @@ export function MessageItem(props: MessageItemProps) {
       isOwnMessage: props.isOwnMessage,
       agentDepth: props.agentDepth,
       pendingActionSelectedIndex: props.pendingActionSelectedIndex,
+      hiddenClaudeToolUseIds: props.hiddenClaudeToolUseIds,
     })
     if (renderedAgentMessage) return renderedAgentMessage
 
