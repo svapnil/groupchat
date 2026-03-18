@@ -5,7 +5,16 @@ import { createSignal, onCleanup } from "solid-js"
 import type { ServerWebSocket } from "bun"
 import type { CcEventType, ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../../lib/types"
 import { debugLog } from "../../lib/debug.js"
-import { getToolOneLiner } from "./helpers"
+import {
+  getClaudePendingActionDescription,
+  getClaudePendingActionHelperText,
+  getClaudePendingActionTextInput,
+  getClaudePendingActionTitle,
+  getClaudePermissionChoices,
+  getToolOneLiner,
+  normalizeClaudePermissionSuggestions,
+  parseClaudeAskUserQuestionState,
+} from "./helpers"
 import { AGENT_ID, CC_WIRE_TYPE } from "./claude-event-message-mutations"
 import { getRuntimeCapabilities } from "../../lib/runtime-capabilities"
 
@@ -150,6 +159,8 @@ export type ClaudePendingPermission = {
   agentId?: string
   description?: string
   input: Record<string, unknown>
+  permissionSuggestions?: ClaudePermissionRequest["permissionSuggestions"]
+  askUserQuestion?: ClaudePermissionRequest["askUserQuestion"]
 }
 
 export type CcBroadcast = {
@@ -1007,6 +1018,62 @@ export const createClaudeSdkSession = () => {
     })
   }
 
+  const toPendingAction = (permission: ClaudePendingPermission) => {
+    const choices = getClaudePermissionChoices(permission)
+    return {
+      requestId: permission.requestId,
+      title: getClaudePendingActionTitle(permission),
+      description: getClaudePendingActionDescription(permission),
+      input: permission.input,
+      agentId: permission.agentId,
+      choices: choices.map((choice) => ({
+        label: choice.label,
+        description: choice.description,
+      })),
+      helperText: getClaudePendingActionHelperText(permission),
+      textInput: getClaudePendingActionTextInput(permission),
+    }
+  }
+
+  const updatePermissionMessage = (
+    requestId: string,
+    updater: (permission: ClaudePermissionRequest) => ClaudePermissionRequest,
+  ) => {
+    setMessages((prev) =>
+      prev.map((message) => {
+        if (!message.attributes?.claude?.permissionRequest) return message
+        if (message.attributes.claude.permissionRequest.requestId !== requestId) return message
+        return {
+          ...message,
+          attributes: {
+            ...message.attributes,
+            claude: {
+              ...message.attributes.claude,
+              permissionRequest: updater(message.attributes.claude.permissionRequest),
+            },
+          },
+        }
+      })
+    )
+  }
+
+  const updatePendingPermission = (
+    requestId: string,
+    updater: (permission: ClaudePendingPermission) => ClaudePendingPermission,
+  ) => {
+    setPendingPermissions((prev) =>
+      prev.map((permission) => (permission.requestId === requestId ? updater(permission) : permission))
+    )
+  }
+
+  const updatePendingPermissionState = (
+    requestId: string,
+    updater: (permission: ClaudePendingPermission) => ClaudePendingPermission,
+  ) => {
+    updatePendingPermission(requestId, updater)
+    updatePermissionMessage(requestId, (permission) => updater(permission))
+  }
+
   const resolvePermissionMessage = (
     requestId: string,
     resolution: ClaudePermissionRequest["resolution"],
@@ -1016,26 +1083,10 @@ export const createClaudeSdkSession = () => {
     permissionMessageIdsByRequestId.delete(requestId)
     log("resolvePermissionMessage", `requestId=${requestId}`, `id=${targetId}`, `resolution=${resolution}`)
 
-    setMessages((prev) =>
-      prev.map((message) => {
-        if (message.id !== targetId) return message
-        if (!message.attributes?.claude?.permissionRequest) return message
-        if (message.attributes.claude.permissionRequest.requestId !== requestId) return message
-        return {
-          ...message,
-          attributes: {
-            ...message.attributes,
-            claude: {
-              ...message.attributes.claude,
-              permissionRequest: {
-                ...message.attributes.claude.permissionRequest,
-                resolution,
-              },
-            },
-          },
-        }
-      })
-    )
+    updatePermissionMessage(requestId, (permission) => ({
+      ...permission,
+      resolution,
+    }))
   }
 
   const sendLineToClaude = (line: string) => {
@@ -1270,6 +1321,10 @@ export const createClaudeSdkSession = () => {
         agentId: typeof msg.request.agent_id === "string" ? msg.request.agent_id : undefined,
         description: typeof msg.request.description === "string" ? msg.request.description : undefined,
         input: msg.request.input,
+        permissionSuggestions: normalizeClaudePermissionSuggestions(msg.request.permission_suggestions),
+        askUserQuestion: msg.request.tool_name === "AskUserQuestion"
+          ? parseClaudeAskUserQuestionState(msg.request.input)
+          : undefined,
       }
       emitToolCallEvent(permission.toolName, permission.toolUseId, permission.input)
       log(
@@ -1286,6 +1341,8 @@ export const createClaudeSdkSession = () => {
         agentId: permission.agentId,
         description: permission.description,
         input: permission.input,
+        permissionSuggestions: permission.permissionSuggestions,
+        askUserQuestion: permission.askUserQuestion,
       }])
       return
     }
@@ -1628,38 +1685,33 @@ export const createClaudeSdkSession = () => {
     }
   }
 
-  const respondToPendingPermission = async (behavior: "allow" | "deny") => {
+  const finishPendingPermission = (
+    pending: ClaudePendingPermission,
+    response:
+      | { behavior: "allow"; updatedInput?: Record<string, unknown>; updatedPermissions?: ClaudePermissionRequest["permissionSuggestions"] }
+      | { behavior: "deny"; message: string },
+  ) => {
     const stack = pendingPermissions()
-    const pending = stack.length > 0 ? stack[stack.length - 1] : null
-    if (!pending) {
-      log("respondToPendingPermission:skip_no_pending", `behavior=${behavior}`)
-      return
-    }
-
-    log(
-      "respondToPendingPermission",
-      `behavior=${behavior}`,
-      `requestId=${pending.requestId}`,
-      `tool=${pending.toolName}`,
-      `remainingAfter=${stack.length - 1}`,
-    )
-
-    resolvePermissionMessage(pending.requestId, behavior === "allow" ? "allowed" : "denied")
-    setPendingPermissions((prev) => prev.slice(0, -1))
+    resolvePermissionMessage(pending.requestId, response.behavior === "allow" ? "allowed" : "denied")
+    setPendingPermissions((prev) => prev.filter((permission) => permission.requestId !== pending.requestId))
     if (stack.length <= 1) {
       appendThinkingMessage()
     }
 
-    if (behavior === "allow") {
+    if (response.behavior === "allow") {
+      const payload: Record<string, unknown> = {
+        behavior: "allow",
+        updatedInput: response.updatedInput ?? pending.input,
+      }
+      if (response.updatedPermissions && response.updatedPermissions.length > 0) {
+        payload.updatedPermissions = response.updatedPermissions
+      }
       sendToClaude({
         type: "control_response",
         response: {
           subtype: "success",
           request_id: pending.requestId,
-          response: {
-            behavior: "allow",
-            updatedInput: pending.input,
-          },
+          response: payload,
         },
       })
       return
@@ -1672,10 +1724,146 @@ export const createClaudeSdkSession = () => {
         request_id: pending.requestId,
         response: {
           behavior: "deny",
-          message: "Denied by user",
+          message: response.message,
         },
       },
     })
+  }
+
+  const advanceAskUserQuestionAnswer = (
+    pending: ClaudePendingPermission,
+    answer: string,
+    questionIndex: number,
+  ) => {
+    const askUserQuestion = pending.askUserQuestion
+    if (!askUserQuestion) return
+
+    const nextAnswers = {
+      ...askUserQuestion.answers,
+      [String(questionIndex)]: answer,
+    }
+    const nextQuestionIndex = questionIndex + 1
+
+    if (nextQuestionIndex < askUserQuestion.questions.length) {
+      updatePendingPermissionState(pending.requestId, (permission) => ({
+        ...permission,
+        askUserQuestion: {
+          ...askUserQuestion,
+          answers: nextAnswers,
+          activeQuestionIndex: nextQuestionIndex,
+          customInputQuestionIndex: null,
+        },
+      }))
+      return
+    }
+
+    finishPendingPermission(pending, {
+      behavior: "allow",
+      updatedInput: {
+        ...pending.input,
+        answers: nextAnswers,
+      },
+    })
+  }
+
+  const respondToPendingPermission = async (selectedIndex: number) => {
+    const stack = pendingPermissions()
+    const pending = stack.length > 0 ? stack[stack.length - 1] : null
+    if (!pending) {
+      log("respondToPendingPermission:skip_no_pending", `selectedIndex=${selectedIndex}`)
+      return
+    }
+
+    const choices = getClaudePermissionChoices(pending)
+    const choice = choices[selectedIndex]
+    if (!choice) {
+      log(
+        "respondToPendingPermission:invalid_choice",
+        `requestId=${pending.requestId}`,
+        `selectedIndex=${selectedIndex}`,
+        `choiceCount=${choices.length}`,
+      )
+      return
+    }
+
+    log(
+      "respondToPendingPermission",
+      `requestId=${pending.requestId}`,
+      `tool=${pending.toolName}`,
+      `selectedIndex=${selectedIndex}`,
+      `choice=${choice.label}`,
+    )
+
+    if (choice.action.kind === "answer") {
+      advanceAskUserQuestionAnswer(pending, choice.action.answer, choice.action.questionIndex)
+      return
+    }
+
+    if (choice.action.kind === "custom_input") {
+      const askUserQuestion = pending.askUserQuestion
+      if (!askUserQuestion) return
+      const questionIndex = choice.action.questionIndex
+
+      updatePendingPermissionState(pending.requestId, (permission) => ({
+        ...permission,
+        askUserQuestion: {
+          ...askUserQuestion,
+          customInputQuestionIndex: questionIndex,
+        },
+      }))
+      return
+    }
+
+    if (choice.action.kind === "suggestion") {
+      finishPendingPermission(pending, {
+        behavior: "allow",
+        updatedInput: pending.input,
+        updatedPermissions: choice.action.updatedPermissions,
+      })
+      return
+    }
+
+    if (choice.action.kind === "allow") {
+      finishPendingPermission(pending, {
+        behavior: "allow",
+        updatedInput: pending.input,
+      })
+      return
+    }
+
+    finishPendingPermission(pending, {
+      behavior: "deny",
+      message: "Denied by user",
+    })
+  }
+
+  const submitPendingPermissionInput = async (value: string) => {
+    const answer = value.trim()
+    if (!answer) return
+
+    const stack = pendingPermissions()
+    const pending = stack.length > 0 ? stack[stack.length - 1] : null
+    const askUserQuestion = pending?.askUserQuestion
+    if (!pending || !askUserQuestion) return
+    if (askUserQuestion.customInputQuestionIndex !== askUserQuestion.activeQuestionIndex) return
+
+    advanceAskUserQuestionAnswer(pending, answer, askUserQuestion.activeQuestionIndex)
+  }
+
+  const cancelPendingPermissionInput = () => {
+    const stack = pendingPermissions()
+    const pending = stack.length > 0 ? stack[stack.length - 1] : null
+    const askUserQuestion = pending?.askUserQuestion
+    if (!pending || !askUserQuestion) return
+    if (askUserQuestion.customInputQuestionIndex !== askUserQuestion.activeQuestionIndex) return
+
+    updatePendingPermissionState(pending.requestId, (permission) => ({
+      ...permission,
+      askUserQuestion: {
+        ...askUserQuestion,
+        customInputQuestionIndex: null,
+      },
+    }))
   }
 
   const interrupt = () => {
@@ -1713,16 +1901,22 @@ export const createClaudeSdkSession = () => {
     ccEventCallbacks.add(callback)
   }
 
-  const pendingPermission = () => {
+  const pendingAction = () => {
     const stack = pendingPermissions()
-    return stack.length > 0 ? stack[stack.length - 1] : null
+    const pending = stack.length > 0 ? stack[stack.length - 1] : null
+    return pending ? toPendingAction(pending) : null
+  }
+
+  const pendingActionStack = () => {
+    return pendingPermissions().map((permission) => toPendingAction(permission))
   }
 
   return {
     isActive,
     isConnecting,
     messages,
-    pendingPermission,
+    pendingAction,
+    pendingActionStack,
     pendingPermissions,
     lastError,
     start,
@@ -1730,6 +1924,8 @@ export const createClaudeSdkSession = () => {
     sendMessage,
     onCcEvent,
     respondToPendingPermission,
+    submitPendingActionInput: submitPendingPermissionInput,
+    cancelPendingActionInput: cancelPendingPermissionInput,
     interrupt,
     appendError,
   }

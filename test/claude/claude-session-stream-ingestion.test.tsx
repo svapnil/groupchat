@@ -25,6 +25,9 @@ type ClaudeSessionHandle = {
   start: () => Promise<void>
   stop: (reason?: string) => void
   sendMessage: (content: string, username: string) => Promise<void>
+  respondToPendingPermission: (selectedIndex: number) => Promise<void>
+  submitPendingActionInput: (value: string) => Promise<void>
+  cancelPendingActionInput: () => void
   onCcEvent: (callback: (event: CapturedCcEvent) => void) => void
   messages: () => Message[]
   pendingPermissions: () => Array<{ toolName: string }>
@@ -473,6 +476,167 @@ describe("createClaudeSdkSession stream ingestion", () => {
     )
     expect(summaryMessage).toBeTruthy()
     expect(summaryMessage?.attributes?.claude?.result?.subtype).toBe("success")
+  })
+
+  test("forwards updatedPermissions when selecting a permission suggestion", async () => {
+    const { session, transport } = await createStartedSession()
+
+    transport.sendJson({
+      type: "control_request",
+      request_id: "req-perm-update",
+      request: {
+        subtype: "can_use_tool",
+        tool_name: "Bash",
+        input: { command: "echo hello" },
+        tool_use_id: "tool-bash-update",
+        permission_suggestions: [
+          {
+            type: "addRules",
+            rules: [{ toolName: "Bash", ruleContent: "echo *" }],
+            behavior: "allow",
+            destination: "session",
+          },
+        ],
+      },
+    })
+
+    transport.sentLines.length = 0
+    await session.respondToPendingPermission(1)
+
+    expect(transport.sentLines).toHaveLength(1)
+    const response = JSON.parse(transport.sentLines[0].trim())
+    expect(response.type).toBe("control_response")
+    expect(response.response.response.behavior).toBe("allow")
+    expect(response.response.response.updatedInput).toEqual({ command: "echo hello" })
+    expect(response.response.response.updatedPermissions).toEqual([
+      {
+        type: "addRules",
+        rules: [{ toolName: "Bash", ruleContent: "echo *" }],
+        behavior: "allow",
+        destination: "session",
+      },
+    ])
+  })
+
+  test("steps through ask-user-question choices and submits merged answers", async () => {
+    const { session, transport } = await createStartedSession()
+
+    transport.sendJson({
+      type: "control_request",
+      request_id: "req-ask-user",
+      request: {
+        subtype: "can_use_tool",
+        tool_name: "AskUserQuestion",
+        input: {
+          questions: [
+            {
+              header: "Database",
+              question: "Which database should we use?",
+              options: [
+                { label: "SQLite", description: "Simple local setup" },
+                { label: "Postgres", description: "Shared database" },
+              ],
+            },
+            {
+              header: "Cache",
+              question: "Should we add caching?",
+              options: [
+                { label: "Yes", description: "Add caching" },
+                { label: "No", description: "Keep it simple" },
+              ],
+            },
+          ],
+        },
+        tool_use_id: "tool-ask-user",
+      },
+    })
+
+    transport.sentLines.length = 0
+    await session.respondToPendingPermission(0)
+
+    expect(transport.sentLines).toHaveLength(0)
+    const permissionMessage = session.messages().find(
+      (message) => message.attributes?.claude?.permissionRequest?.requestId === "req-ask-user"
+    )
+    expect(permissionMessage?.attributes?.claude?.permissionRequest?.askUserQuestion?.answers).toEqual({
+      "0": "SQLite",
+    })
+    expect(permissionMessage?.attributes?.claude?.permissionRequest?.askUserQuestion?.activeQuestionIndex).toBe(1)
+
+    await session.respondToPendingPermission(1)
+
+    expect(transport.sentLines).toHaveLength(1)
+    const response = JSON.parse(transport.sentLines[0].trim())
+    expect(response.type).toBe("control_response")
+    expect(response.response.response.behavior).toBe("allow")
+    expect(response.response.response.updatedInput.answers).toEqual({
+      "0": "SQLite",
+      "1": "No",
+    })
+  })
+
+  test("supports ask-user-question custom input and simple question input", async () => {
+    const { session, transport } = await createStartedSession()
+
+    transport.sendJson({
+      type: "control_request",
+      request_id: "req-ask-custom",
+      request: {
+        subtype: "can_use_tool",
+        tool_name: "AskUserQuestion",
+        input: {
+          questions: [
+            {
+              header: "Context",
+              question: "Add extra context",
+              options: [{ label: "None", description: "No extra context" }],
+            },
+          ],
+        },
+        tool_use_id: "tool-ask-custom",
+      },
+    })
+
+    await session.respondToPendingPermission(1)
+    let permissionMessage = session.messages().find(
+      (message) => message.attributes?.claude?.permissionRequest?.requestId === "req-ask-custom"
+    )
+    expect(permissionMessage?.attributes?.claude?.permissionRequest?.askUserQuestion?.customInputQuestionIndex).toBe(0)
+
+    session.cancelPendingActionInput()
+    permissionMessage = session.messages().find(
+      (message) => message.attributes?.claude?.permissionRequest?.requestId === "req-ask-custom"
+    )
+    expect(permissionMessage?.attributes?.claude?.permissionRequest?.askUserQuestion?.customInputQuestionIndex).toBe(null)
+
+    await session.respondToPendingPermission(1)
+    await session.submitPendingActionInput("Custom response")
+
+    expect(transport.sentLines).toHaveLength(1)
+    let response = JSON.parse(transport.sentLines[0].trim())
+    expect(response.response.response.updatedInput.answers).toEqual({
+      "0": "Custom response",
+    })
+
+    transport.sentLines.length = 0
+    transport.sendJson({
+      type: "control_request",
+      request_id: "req-simple-question",
+      request: {
+        subtype: "can_use_tool",
+        tool_name: "AskUserQuestion",
+        input: { question: "What do you want?" },
+        tool_use_id: "tool-simple-question",
+      },
+    })
+
+    await session.submitPendingActionInput("Ship it")
+
+    expect(transport.sentLines).toHaveLength(1)
+    response = JSON.parse(transport.sentLines[0].trim())
+    expect(response.response.response.updatedInput.answers).toEqual({
+      "0": "Ship it",
+    })
   })
 
   test("keeps and renders all own Claude prompt messages in message list", async () => {

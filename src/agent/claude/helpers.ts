@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
-import type { ClaudeContentBlock, ClaudeMessageMetadata, ClaudePermissionRequest, Message } from "../../lib/types"
+import type {
+  ClaudeAskUserQuestion,
+  ClaudeAskUserQuestionOption,
+  ClaudeContentBlock,
+  ClaudeMessageMetadata,
+  ClaudePermissionRequest,
+  ClaudePermissionUpdate,
+  Message,
+} from "../../lib/types"
 import { compactJson, shortenPath, truncate } from "../../lib/utils"
 
 export function getClaudeMetadata(message: Message): ClaudeMessageMetadata | null {
@@ -12,6 +20,12 @@ export function getClaudeMetadata(message: Message): ClaudeMessageMetadata | nul
 export function getPermissionOneLiner(permission: ClaudePermissionRequest): string {
   const { toolName, input } = permission
   switch (toolName) {
+    case "AskUserQuestion":
+      if (permission.askUserQuestion) {
+        const current = permission.askUserQuestion.questions[permission.askUserQuestion.activeQuestionIndex]
+        if (current?.question) return truncate(current.question, 80)
+      }
+      return "Answer a question"
     case "Bash":
       if (typeof input.command === "string") return `$ ${truncate(input.command, 80)}`
       return "Run a command"
@@ -36,8 +50,298 @@ export function getPermissionOneLiner(permission: ClaudePermissionRequest): stri
     case "Task":
       if (typeof input.description === "string") return `Spawn agent: ${truncate(input.description, 50)}`
       return "Spawn a sub-agent"
+    case "ExitPlanMode":
+      return "Review and approve a plan"
     default:
       return `${toolName}(${compactJson(input, 60)})`
+  }
+}
+
+export function getToolLabel(name: string): string {
+  switch (name) {
+    case "AskUserQuestion":
+      return "Question"
+    case "Bash":
+      return "Terminal"
+    case "Read":
+      return "Read File"
+    case "Write":
+      return "Write File"
+    case "Edit":
+      return "Edit File"
+    case "Glob":
+      return "Find Files"
+    case "Grep":
+      return "Search Content"
+    case "WebSearch":
+      return "Web Search"
+    case "WebFetch":
+      return "Web Fetch"
+    case "Task":
+      return "Sub-agent"
+    case "ExitPlanMode":
+      return "Plan Approval"
+    default:
+      return name
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function normalizeQuestionOptions(value: unknown): ClaudeAskUserQuestionOption[] {
+  if (!Array.isArray(value)) return []
+
+  const options: ClaudeAskUserQuestionOption[] = []
+  for (const option of value) {
+    if (!isRecord(option)) continue
+    const label = typeof option.label === "string" ? option.label.trim() : ""
+    if (!label) continue
+    options.push({
+      label,
+      description: typeof option.description === "string" ? option.description.trim() || undefined : undefined,
+    })
+  }
+  return options
+}
+
+export function parseClaudeAskUserQuestionState(
+  input: Record<string, unknown>,
+): ClaudePermissionRequest["askUserQuestion"] | undefined {
+  if (!Array.isArray(input.questions)) {
+    const simpleQuestion = typeof input.question === "string" ? input.question.trim() : ""
+    if (!simpleQuestion) return undefined
+    return {
+      questions: [
+        {
+          question: simpleQuestion,
+          options: [],
+          allowCustomInput: true,
+        },
+      ],
+      answers: {},
+      activeQuestionIndex: 0,
+      customInputQuestionIndex: 0,
+    }
+  }
+
+  const questions: ClaudeAskUserQuestion[] = []
+  for (const question of input.questions) {
+    if (!isRecord(question)) continue
+    const prompt = typeof question.question === "string" ? question.question.trim() : ""
+    const options = normalizeQuestionOptions(question.options)
+    if (!prompt || options.length === 0) continue
+    questions.push({
+      header: typeof question.header === "string" ? question.header.trim() || undefined : undefined,
+      question: prompt,
+      options,
+      allowCustomInput: true,
+    })
+  }
+
+  if (questions.length === 0) return undefined
+
+  return {
+    questions,
+    answers: {},
+    activeQuestionIndex: 0,
+    customInputQuestionIndex: null,
+  }
+}
+
+function normalizePermissionRules(value: unknown): Array<{ toolName: string; ruleContent?: string }> {
+  if (!Array.isArray(value)) return []
+
+  const rules: Array<{ toolName: string; ruleContent?: string }> = []
+  for (const rule of value) {
+    if (!isRecord(rule) || typeof rule.toolName !== "string" || rule.toolName.trim().length === 0) continue
+    rules.push({
+      toolName: rule.toolName.trim(),
+      ruleContent: typeof rule.ruleContent === "string" ? rule.ruleContent.trim() || undefined : undefined,
+    })
+  }
+  return rules
+}
+
+function normalizePermissionUpdate(candidate: unknown): ClaudePermissionUpdate | null {
+  if (!isRecord(candidate) || typeof candidate.type !== "string") return null
+
+  const destination = candidate.destination
+  if (destination !== "session" && destination !== "userSettings") return null
+
+  switch (candidate.type) {
+    case "addRules":
+    case "replaceRules":
+    case "removeRules": {
+      const rules = normalizePermissionRules(candidate.rules)
+      const behavior = candidate.behavior
+      if (rules.length === 0 || (behavior !== "allow" && behavior !== "deny" && behavior !== "ask")) return null
+      return {
+        type: candidate.type,
+        rules,
+        behavior,
+        destination,
+      }
+    }
+    case "setMode":
+      if (typeof candidate.mode !== "string" || candidate.mode.trim().length === 0) return null
+      return {
+        type: "setMode",
+        mode: candidate.mode.trim(),
+        destination,
+      }
+    case "addDirectories":
+    case "removeDirectories": {
+      if (!Array.isArray(candidate.directories)) return null
+      const directories = candidate.directories
+        .filter((directory): directory is string => typeof directory === "string" && directory.trim().length > 0)
+        .map((directory) => directory.trim())
+      if (directories.length === 0) return null
+      return {
+        type: candidate.type,
+        directories,
+        destination,
+      }
+    }
+    default:
+      return null
+  }
+}
+
+export function normalizeClaudePermissionSuggestions(value: unknown): ClaudePermissionUpdate[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((candidate) => normalizePermissionUpdate(candidate))
+    .filter((candidate): candidate is ClaudePermissionUpdate => candidate !== null)
+}
+
+export function getClaudePermissionSuggestionLabel(suggestion: ClaudePermissionUpdate): string {
+  if (suggestion.type === "setMode") return `Set mode to "${suggestion.mode}"`
+
+  const scope = suggestion.destination === "session" ? "for session" : "always"
+  if (suggestion.type === "addRules" || suggestion.type === "replaceRules") {
+    const rule = suggestion.rules[0]
+    if (rule?.ruleContent) return `Allow "${rule.ruleContent}" ${scope}`
+    if (rule?.toolName) return `Allow ${rule.toolName} ${scope}`
+  }
+  if (suggestion.type === "addDirectories") {
+    return `Trust ${suggestion.directories[0] || "directory"} ${scope}`
+  }
+
+  return `Allow ${scope}`
+}
+
+export function getActiveClaudeAskUserQuestion(permission: Pick<ClaudePermissionRequest, "askUserQuestion">): ClaudeAskUserQuestion | null {
+  const state = permission.askUserQuestion
+  if (!state) return null
+  return state.questions[state.activeQuestionIndex] ?? null
+}
+
+export function isClaudeAskUserQuestionAwaitingTextInput(
+  permission: Pick<ClaudePermissionRequest, "askUserQuestion">,
+): boolean {
+  const state = permission.askUserQuestion
+  if (!state) return false
+  return state.customInputQuestionIndex === state.activeQuestionIndex
+}
+
+export type ClaudePermissionChoice =
+  | { label: string; description?: string; action: { kind: "allow" } }
+  | { label: string; description?: string; action: { kind: "deny" } }
+  | { label: string; description?: string; action: { kind: "suggestion"; updatedPermissions: ClaudePermissionUpdate[] } }
+  | { label: string; description?: string; action: { kind: "answer"; questionIndex: number; answer: string } }
+  | { label: string; description?: string; action: { kind: "custom_input"; questionIndex: number } }
+
+export function getClaudePermissionChoices(
+  permission: Pick<ClaudePermissionRequest, "toolName" | "permissionSuggestions" | "askUserQuestion">,
+): ClaudePermissionChoice[] {
+  if (permission.toolName === "AskUserQuestion") {
+    const state = permission.askUserQuestion
+    const current = getActiveClaudeAskUserQuestion(permission)
+    if (!state || !current) return []
+    if (isClaudeAskUserQuestionAwaitingTextInput(permission)) return []
+    return [
+      ...current.options.map((option) => ({
+        label: option.label,
+        description: option.description,
+        action: {
+          kind: "answer",
+          questionIndex: state.activeQuestionIndex,
+          answer: option.label,
+        },
+      } satisfies ClaudePermissionChoice)),
+      ...(current.allowCustomInput === false
+        ? []
+        : [{
+            label: "Other...",
+            action: {
+              kind: "custom_input" as const,
+              questionIndex: state.activeQuestionIndex,
+            },
+          } satisfies ClaudePermissionChoice]),
+    ]
+  }
+
+  return [
+    { label: "Allow", action: { kind: "allow" } },
+    ...(permission.permissionSuggestions ?? []).map((suggestion) => ({
+      label: getClaudePermissionSuggestionLabel(suggestion),
+      action: {
+        kind: "suggestion",
+        updatedPermissions: [suggestion],
+      },
+    }) satisfies ClaudePermissionChoice),
+    { label: "Deny", action: { kind: "deny" } },
+  ]
+}
+
+export function getClaudePendingActionTitle(permission: Pick<ClaudePermissionRequest, "toolName">): string {
+  return getToolLabel(permission.toolName)
+}
+
+export function getClaudePendingActionDescription(
+  permission: Pick<ClaudePermissionRequest, "toolName" | "description" | "askUserQuestion">,
+): string | undefined {
+  if (permission.toolName === "AskUserQuestion") {
+    return getActiveClaudeAskUserQuestion(permission)?.question
+  }
+  return permission.description
+}
+
+export function getClaudePendingActionHelperText(
+  permission: Pick<ClaudePermissionRequest, "toolName" | "permissionSuggestions" | "askUserQuestion">,
+): string {
+  if (permission.toolName === "AskUserQuestion") {
+    const state = permission.askUserQuestion
+    const current = getActiveClaudeAskUserQuestion(permission)
+    if (!state || !current) return "Answer the question in the message list."
+    if (isClaudeAskUserQuestionAwaitingTextInput(permission)) {
+      return "Type your answer and press Enter • Esc to go back"
+    }
+    const isLast = state.activeQuestionIndex >= state.questions.length - 1
+    return isLast
+      ? "↑/↓ select answer • Enter to submit"
+      : "↑/↓ select answer • Enter for next question"
+  }
+
+  return permission.permissionSuggestions && permission.permissionSuggestions.length > 0
+    ? "↑/↓ select action • Enter to confirm"
+    : "↑/↓ select action • Enter to confirm"
+}
+
+export function getClaudePendingActionTextInput(
+  permission: Pick<ClaudePermissionRequest, "toolName" | "askUserQuestion">,
+): { placeholder?: string; helperText?: string } | undefined {
+  if (permission.toolName !== "AskUserQuestion" || !isClaudeAskUserQuestionAwaitingTextInput(permission)) {
+    return undefined
+  }
+
+  const current = getActiveClaudeAskUserQuestion(permission)
+  if (!current) return undefined
+  return {
+    placeholder: "Type your answer...",
+    helperText: "Type your answer and press Enter • Esc to go back",
   }
 }
 

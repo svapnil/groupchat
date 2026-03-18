@@ -23,9 +23,11 @@ export function createLocalAgentSessions(
         sendMessage: claude.sendMessage,
         appendError: claude.appendError,
         interrupt: claude.interrupt,
-        pendingAction: claude.pendingPermission,
-        pendingActions: claude.pendingPermissions,
+        pendingAction: claude.pendingAction,
+        pendingActions: claude.pendingActionStack,
         respondToPendingAction: claude.respondToPendingPermission,
+        submitPendingActionInput: claude.submitPendingActionInput,
+        cancelPendingActionInput: claude.cancelPendingActionInput,
         onEvent: claude.onCcEvent,
         findPendingActionMessageId: (requestId: string) => {
           const messages = claude.messages()

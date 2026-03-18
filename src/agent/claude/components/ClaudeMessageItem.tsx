@@ -3,7 +3,15 @@
 import { RGBA, SyntaxStyle } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { ClaudePermissionRequest, Message } from "../../../lib/types"
-import { getClaudeMetadata, groupClaudeBlocks, contentToLines } from "../helpers"
+import {
+  contentToLines,
+  getActiveClaudeAskUserQuestion,
+  getClaudeMetadata,
+  getClaudePermissionChoices,
+  getToolLabel,
+  isClaudeAskUserQuestionAwaitingTextInput,
+  groupClaudeBlocks,
+} from "../helpers"
 import { compactJson } from "../../../lib/utils"
 import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
 import { ClaudeToolDetail, ClaudeToolGroup } from "./ClaudeToolDetail"
@@ -38,7 +46,6 @@ const markdownSyntaxStyle = SyntaxStyle.fromStyles({
 })
 
 export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
-  const time = () => formatTime(props.message.timestamp)
   const claude = createMemo(() => getClaudeMetadata(props.message))
   const depth = () => Math.max(0, props.claudeDepth ?? 0)
   const leftPad = () => Math.min(20, depth() * 2)
@@ -56,6 +63,15 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
     const permissionToolUseId = permissionReq()?.toolUseId
     if (permissionToolUseId) ids.add(permissionToolUseId)
     return ids
+  })
+  const toolUseById = createMemo(() => {
+    const map = new Map<string, { name: string; input: Record<string, unknown> }>()
+    for (const block of claude()?.contentBlocks ?? []) {
+      if (block.type === "tool_use") {
+        map.set(block.id, { name: block.name, input: block.input })
+      }
+    }
+    return map
   })
 
   const [elapsed, setElapsed] = createSignal(0)
@@ -168,16 +184,47 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
                   typeof block.content === "string"
                     ? block.content
                     : compactJson(block.content, 200)
+                const linkedTool = toolUseById().get(block.tool_use_id)
+                const resultLines = contentToLines(sanitizePlainMessageText(resultContent))
+
+                if (linkedTool?.name === "Bash") {
+                  const hiddenLineCount = block.is_error || resultLines.length <= 20
+                    ? 0
+                    : resultLines.length - 20
+                  const visibleLines = hiddenLineCount > 0 ? resultLines.slice(-20) : resultLines
+                  const heading = block.is_error
+                    ? "Terminal Error"
+                    : hiddenLineCount > 0
+                      ? "Terminal Output (last 20 lines)"
+                      : "Terminal Output"
+
+                  return (
+                    <box flexDirection="column">
+                      <box flexDirection="row">
+                        <text fg={block.is_error ? "red" : "green"}>⏺ </text>
+                        <text fg={block.is_error ? "red" : "#888888"}>{heading}</text>
+                      </box>
+                      <For each={visibleLines}>
+                        {(line) => <text fg={block.is_error ? "red" : "#AAAAAA"}>{line}</text>}
+                      </For>
+                      <Show when={hiddenLineCount > 0}>
+                        <text fg="#888888">{`${hiddenLineCount} earlier lines omitted`}</text>
+                      </Show>
+                    </box>
+                  )
+                }
+
+                const label = linkedTool
+                  ? `${getToolLabel(linkedTool.name)} ${block.is_error ? "Error" : "Result"}`
+                  : block.is_error ? "Error" : "Result"
 
                 return (
                   <box flexDirection="column">
                     <box flexDirection="row">
                       <text fg={block.is_error ? "red" : "green"}>⏺ </text>
-                      <text fg={block.is_error ? "red" : "#888888"}>
-                        {block.is_error ? "Error" : "Result"}
-                      </text>
+                      <text fg={block.is_error ? "red" : "#888888"}>{label}</text>
                     </box>
-                    <For each={contentToLines(sanitizePlainMessageText(resultContent))}>
+                    <For each={resultLines}>
                       {(line) => <text fg={block.is_error ? "red" : "#AAAAAA"}>{line}</text>}
                     </For>
                   </box>
@@ -191,33 +238,95 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
           <Show when={permissionReq()}>
             {(perm: () => ClaudePermissionRequest) => {
               const resolved = () => perm().resolution
+              const questionState = () => perm().askUserQuestion
+              const currentQuestion = () => getActiveClaudeAskUserQuestion(perm())
+              const choices = () => getClaudePermissionChoices(perm())
+              const isAskUserQuestion = () => perm().toolName === "AskUserQuestion" && Boolean(questionState())
+              const awaitingTextInput = () => isClaudeAskUserQuestionAwaitingTextInput(perm())
+              const answeredQuestions = () => {
+                const state = questionState()
+                if (!state) return []
+                return Object.entries(state.answers)
+                  .map(([index, answer]) => {
+                    const numericIndex = Number(index)
+                    const question = Number.isInteger(numericIndex) ? state.questions[numericIndex] : undefined
+                    if (!question) return null
+                    return {
+                      label: question.header || `Q${numericIndex + 1}`,
+                      answer,
+                    }
+                  })
+                  .filter((entry): entry is { label: string; answer: string } => entry !== null)
+              }
+              const unresolvedHelperText = () => {
+                if (!isAskUserQuestion()) return "↑/↓ select • Enter to confirm"
+                if (awaitingTextInput()) return "Type your answer in the input box • Esc to go back"
+                const state = questionState()
+                if (!state) return "↑/↓ select • Enter to continue"
+                const isLast = state.activeQuestionIndex >= state.questions.length - 1
+                return isLast
+                  ? "↑/↓ select • Enter to submit"
+                  : "↑/↓ select • Enter to continue"
+              }
 
               return (
                 <box flexDirection="column">
                   <box flexDirection="row">
                     <text fg="yellow">⏺ </text>
-                    <text fg="#FFFFFF">{sanitizePlainMessageText(perm().toolName)}</text>
-                    <Show when={perm().description}>
+                    <text fg="#FFFFFF">{sanitizePlainMessageText(isAskUserQuestion() ? "Question" : getToolLabel(perm().toolName))}</text>
+                    <Show when={perm().description && !isAskUserQuestion()}>
                       <text fg="#888888"> — {sanitizePlainMessageText(perm().description!)}</text>
                     </Show>
                   </box>
-                  <box paddingLeft={2}>
-                    <ClaudeToolDetail name={perm().toolName} input={perm().input} showHeader={false} />
-                  </box>
 
-                  <Show when={!resolved()}>
+                  <Show when={isAskUserQuestion()}>
+                    <box flexDirection="column" paddingLeft={2}>
+                      <For each={answeredQuestions()}>
+                        {(entry) => (
+                          <text fg="#888888">{`${sanitizePlainMessageText(entry.label)}: ${sanitizePlainMessageText(entry.answer)}`}</text>
+                        )}
+                      </For>
+                      <Show when={currentQuestion()}>
+                        <box flexDirection="column" marginTop={answeredQuestions().length > 0 ? 1 : 0}>
+                          <Show when={currentQuestion()?.header}>
+                            <text fg="#57C7FF">{sanitizePlainMessageText(currentQuestion()!.header!)}</text>
+                          </Show>
+                          <markdown
+                            content={sanitizeMessageMarkdown(currentQuestion()!.question)}
+                            syntaxStyle={markdownSyntaxStyle}
+                            conceal
+                            width="100%"
+                          />
+                          <Show when={awaitingTextInput()}>
+                            <text fg="#888888">Type your answer in the input box below. Press Esc to go back.</text>
+                          </Show>
+                        </box>
+                      </Show>
+                    </box>
+                  </Show>
+
+                  <Show when={!isAskUserQuestion()}>
+                    <box paddingLeft={2}>
+                      <ClaudeToolDetail name={perm().toolName} input={perm().input} showHeader={false} />
+                    </box>
+                  </Show>
+
+                  <Show when={!resolved() && choices().length > 0}>
                     <box flexDirection="column" marginTop={1}>
-                      <box marginLeft={2} flexDirection="row" height={1} alignItems="center">
-                        <text fg={props.permissionSelectedIndex === 0 ? "#00FF00" : "white"}>
-                          {props.permissionSelectedIndex === 0 ? "> " : "  "}Allow
-                        </text>
-                      </box>
-                      <box marginLeft={2} flexDirection="row" height={1} alignItems="center">
-                        <text fg={props.permissionSelectedIndex === 1 ? "#00FF00" : "white"}>
-                          {props.permissionSelectedIndex === 1 ? "> " : "  "}Deny
-                        </text>
-                      </box>
-                      <text fg="#888888" marginLeft={2}>↑/↓ select • Enter to confirm</text>
+                      <For each={choices()}>
+                        {(choice, choiceIndex) => (
+                          <box marginLeft={2} flexDirection="column" marginTop={choiceIndex() === 0 ? 0 : 1}>
+                            <text fg={props.permissionSelectedIndex === choiceIndex() ? "#00FF00" : "white"}>
+                              {props.permissionSelectedIndex === choiceIndex() ? "> " : "  "}
+                              {sanitizePlainMessageText(choice.label)}
+                            </text>
+                            <Show when={choice.description}>
+                              <text fg="#888888" marginLeft={4}>{sanitizePlainMessageText(choice.description!)}</text>
+                            </Show>
+                          </box>
+                        )}
+                      </For>
+                      <text fg="#888888" marginLeft={2}>{unresolvedHelperText()}</text>
                     </box>
                   </Show>
 

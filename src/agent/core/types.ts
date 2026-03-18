@@ -3,7 +3,15 @@
 import type { Accessor } from "solid-js"
 import type { CcEventType, Message } from "../../lib/types"
 
-export type AgentDecision = "allow" | "deny"
+export type AgentPendingActionChoice = {
+  label: string
+  description?: string
+}
+
+export type AgentPendingActionTextInput = {
+  placeholder?: string
+  helperText?: string
+}
 
 export type AgentPendingAction = {
   requestId: string
@@ -11,6 +19,9 @@ export type AgentPendingAction = {
   description?: string
   input?: Record<string, unknown>
   agentId?: string
+  choices?: AgentPendingActionChoice[]
+  helperText?: string
+  textInput?: AgentPendingActionTextInput
 }
 
 export type AgentEvent = {
@@ -38,7 +49,9 @@ export type LocalAgentSession = {
   interrupt?: () => void
   pendingAction?: () => AgentPendingAction | null
   pendingActions?: () => AgentPendingAction[]
-  respondToPendingAction?: (behavior: AgentDecision) => Promise<void>
+  respondToPendingAction?: (selectedIndex: number) => Promise<void>
+  submitPendingActionInput?: (value: string) => Promise<void>
+  cancelPendingActionInput?: () => void
   onEvent?: (callback: (event: AgentEvent) => void) => void
   findPendingActionMessageId?: (requestId: string) => string | null
   isThinkingMessage?: (message: Message) => boolean

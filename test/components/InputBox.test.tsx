@@ -100,6 +100,40 @@ describe("InputBox", () => {
     expect(frame).toContain("Allow/Deny")
     expect(frame).toMatchSnapshot()
   })
+
+  test("submits text while pending action input is enabled", async () => {
+    const sent: string[] = []
+
+    testSetup = await testRender(
+      () =>
+        <InputBox
+          {...createProps({
+            onSend: async (message) => {
+              sent.push(message)
+            },
+            mode: {
+              id: "claude",
+              label: "Claude Code",
+              accentColor: "#FFA500",
+              pendingAction: true,
+              pendingActionAllowsTextInput: true,
+              pendingActionPlaceholder: "Type your answer...",
+              pendingActionHelperText: "Type your answer and press Enter",
+            },
+          })}
+        />,
+      { width: 80, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    await testSetup.mockInput.typeText("custom answer")
+    testSetup.mockInput.pressEnter()
+
+    await tick()
+    await testSetup.renderOnce()
+
+    expect(sent).toEqual(["custom answer"])
+  })
 })
 
 describe("InputBox tab completion", () => {

@@ -76,7 +76,7 @@ export function InputBox(props: InputBoxProps) {
     const trimmed = candidate.trim()
     if (!trimmed || props.disabled || props.sendDisabled || isSending()) return
 
-    if (props.mode?.pendingAction) {
+    if (props.mode?.pendingAction && !props.mode.pendingActionAllowsTextInput) {
       return
     }
 
@@ -162,7 +162,7 @@ export function InputBox(props: InputBoxProps) {
                 void handleSubmit(nextValue)
               }}
               placeholder={placeholder()}
-              focused={!props.disabled && !props.mode?.pendingAction}
+              focused={!props.disabled && (!props.mode?.pendingAction || Boolean(props.mode.pendingActionAllowsTextInput))}
               width="100%"
               textColor={inputTextColor()}
               focusedTextColor={inputTextColor()}

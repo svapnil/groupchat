@@ -3,9 +3,9 @@
 import { RGBA, SyntaxStyle } from "@opentui/core"
 import { extname } from "node:path"
 import { For, Show } from "solid-js"
-import { sanitizePlainMessageText } from "../../../lib/content-sanitizer"
+import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
 import { compactJson, shortenPath, truncate } from "../../../lib/utils"
-import { getToolOneLiner } from "../helpers"
+import { getToolLabel, getToolOneLiner } from "../helpers"
 
 export type ClaudeToolGroupItem = {
   id: string
@@ -46,30 +46,18 @@ const codeSyntaxStyle = SyntaxStyle.fromStyles({
   "punctuation": { fg: RGBA.fromHex("#D4D4D4") },
 })
 
-function getToolLabel(name: string): string {
-  switch (name) {
-    case "Bash":
-      return "Terminal"
-    case "Read":
-      return "Read File"
-    case "Write":
-      return "Write File"
-    case "Edit":
-      return "Edit File"
-    case "Glob":
-      return "Find Files"
-    case "Grep":
-      return "Search Content"
-    case "WebSearch":
-      return "Web Search"
-    case "WebFetch":
-      return "Web Fetch"
-    case "Task":
-      return "Sub-agent"
-    default:
-      return name
-  }
-}
+const markdownSyntaxStyle = SyntaxStyle.fromStyles({
+  "default": {},
+  "conceal": { fg: RGBA.fromHex("#666666") },
+  "markup.heading": { bold: true },
+  "markup.strong": { bold: true },
+  "markup.italic": { italic: true },
+  "markup.raw": { fg: RGBA.fromHex("#B0B9F9") },
+  "markup.link.label": { underline: true, fg: RGBA.fromHex("#57C7FF") },
+  "markup.link.url": { dim: true, fg: RGBA.fromHex("#9AA0A6") },
+  "punctuation.special": { dim: true },
+  "markup.list": { dim: true },
+})
 
 function getToolPreview(name: string, input: Record<string, unknown>): string {
   if ((name === "Read" || name === "Write" || name === "Edit") && typeof input.file_path === "string") {
@@ -106,6 +94,10 @@ function getToolPreview(name: string, input: Record<string, unknown>): string {
 function getTextField(input: Record<string, unknown>, key: string): string {
   const value = input[key]
   return typeof value === "string" ? sanitizePlainMessageText(value) : ""
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
 }
 
 function inferFiletype(filePath: string, fallback?: string): string | undefined {
@@ -463,6 +455,55 @@ function TaskDetail(props: { input: Record<string, unknown> }) {
   )
 }
 
+function ExitPlanModeDetail(props: { input: Record<string, unknown> }) {
+  const plan = getTextField(props.input, "plan")
+  const allowedPrompts = Array.isArray(props.input.allowedPrompts)
+    ? props.input.allowedPrompts
+        .filter((prompt): prompt is Record<string, unknown> => isRecord(prompt))
+        .map((prompt) => ({
+          tool: typeof prompt.tool === "string" ? sanitizePlainMessageText(prompt.tool) : "",
+          prompt: typeof prompt.prompt === "string" ? sanitizePlainMessageText(prompt.prompt) : "",
+        }))
+        .filter((prompt) => prompt.tool.length > 0 || prompt.prompt.length > 0)
+    : []
+
+  return (
+    <box flexDirection="column">
+      <Show when={plan}>
+        <box flexDirection="column">
+          <text fg="#57C7FF">Plan</text>
+          <box paddingLeft={1}>
+            <markdown
+              content={sanitizeMessageMarkdown(plan)}
+              syntaxStyle={markdownSyntaxStyle}
+              conceal
+              width="100%"
+            />
+          </box>
+        </box>
+      </Show>
+      <Show when={allowedPrompts.length > 0}>
+        <box flexDirection="column" marginTop={plan ? 1 : 0}>
+          <text fg="#888888">Requested permissions</text>
+          <For each={allowedPrompts}>
+            {(allowed) => (
+              <box flexDirection="row">
+                <text fg="#57C7FF">{allowed.tool || "Tool"}</text>
+                <Show when={allowed.prompt}>
+                  <text fg="#BBBBBB">{` ${allowed.prompt}`}</text>
+                </Show>
+              </box>
+            )}
+          </For>
+        </box>
+      </Show>
+      <Show when={!plan && allowedPrompts.length === 0}>
+        <text fg="#888888">Plan approval requested</text>
+      </Show>
+    </box>
+  )
+}
+
 function ClaudeToolDetailBody(props: { name: string; input: Record<string, unknown> }) {
   switch (props.name) {
     case "Bash":
@@ -483,6 +524,8 @@ function ClaudeToolDetailBody(props: { name: string; input: Record<string, unkno
       return <WebFetchDetail input={props.input} />
     case "Task":
       return <TaskDetail input={props.input} />
+    case "ExitPlanMode":
+      return <ExitPlanModeDetail input={props.input} />
     default:
       return <JsonFallback input={props.input} />
   }

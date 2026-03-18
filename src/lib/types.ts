@@ -50,6 +50,35 @@ export interface ClaudeResultMetadata {
   durationMs?: number;
 }
 
+export type ClaudePermissionDestination = "session" | "userSettings"
+
+export type ClaudePermissionUpdate =
+  | { type: "addRules"; rules: Array<{ toolName: string; ruleContent?: string }>; behavior: "allow" | "deny" | "ask"; destination: ClaudePermissionDestination }
+  | { type: "replaceRules"; rules: Array<{ toolName: string; ruleContent?: string }>; behavior: "allow" | "deny" | "ask"; destination: ClaudePermissionDestination }
+  | { type: "removeRules"; rules: Array<{ toolName: string; ruleContent?: string }>; behavior: "allow" | "deny" | "ask"; destination: ClaudePermissionDestination }
+  | { type: "setMode"; mode: string; destination: ClaudePermissionDestination }
+  | { type: "addDirectories"; directories: string[]; destination: ClaudePermissionDestination }
+  | { type: "removeDirectories"; directories: string[]; destination: ClaudePermissionDestination }
+
+export interface ClaudeAskUserQuestionOption {
+  label: string
+  description?: string
+}
+
+export interface ClaudeAskUserQuestion {
+  header?: string
+  question: string
+  options: ClaudeAskUserQuestionOption[]
+  allowCustomInput?: boolean
+}
+
+export interface ClaudeAskUserQuestionState {
+  questions: ClaudeAskUserQuestion[]
+  answers: Record<string, string>
+  activeQuestionIndex: number
+  customInputQuestionIndex?: number | null
+}
+
 export interface ClaudePermissionRequest {
   requestId: string;
   toolName: string;
@@ -57,6 +86,8 @@ export interface ClaudePermissionRequest {
   agentId?: string;
   description?: string;
   input: Record<string, unknown>;
+  permissionSuggestions?: ClaudePermissionUpdate[];
+  askUserQuestion?: ClaudeAskUserQuestionState;
   /** Set once the user responds or the request is cancelled */
   resolution?: "allowed" | "denied" | "cancelled";
 }

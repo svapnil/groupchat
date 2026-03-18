@@ -138,6 +138,8 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     const active = activeAgent()
     if (!active) return null
 
+    const currentPendingAction = pendingAction()
+
     const displayName = getAgentDisplayNameById(active.id)
     const accentColor = getAgentColorById(active.id) ?? "#FFA500"
 
@@ -146,9 +148,10 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
       label: displayName,
       accentColor,
       placeholder: `${displayName} mode...`,
-      pendingAction: Boolean(active.session.pendingAction?.()),
-      pendingActionPlaceholder: "Awaiting permission decision...",
-      pendingActionHelperText: "↑/↓ select Allow/Deny in message list • Enter to confirm",
+      pendingAction: Boolean(currentPendingAction),
+      pendingActionAllowsTextInput: Boolean(currentPendingAction?.textInput),
+      pendingActionPlaceholder: currentPendingAction?.textInput?.placeholder || "Awaiting permission decision...",
+      pendingActionHelperText: currentPendingAction?.textInput?.helperText || currentPendingAction?.helperText || "↑/↓ select action in message list • Enter to confirm",
     }
   })
 
@@ -223,7 +226,13 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   // Reset permission index on new permission
   createEffect(() => {
     pendingAction()?.requestId
+    pendingAction()?.choices?.map((choice) => choice.label)?.join("\u0000")
     setPendingActionSelectedIndex(0)
+  })
+
+  createEffect(() => {
+    const choiceCount = Math.max(1, pendingAction()?.choices?.length ?? 0)
+    setPendingActionSelectedIndex((prev) => Math.min(prev, choiceCount - 1))
   })
 
   // Keyboard handler — returns true if key was consumed
@@ -241,19 +250,27 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     }
 
     const pendingSession = activePendingActionSession()
-    if (pendingSession?.session.pendingAction?.()) {
+    const currentPendingAction = pendingAction()
+    if (pendingSession?.session.pendingAction?.() && currentPendingAction) {
+      if (currentPendingAction.textInput) {
+        if (key.name === "escape") {
+          pendingSession.session.cancelPendingActionInput?.()
+          return consumeKey()
+        }
+        return false
+      }
+
+      const choiceCount = Math.max(1, currentPendingAction.choices?.length ?? 0)
       if (key.name === "up" || key.name === "k") {
-        setPendingActionSelectedIndex(0)
+        setPendingActionSelectedIndex((prev) => Math.max(0, prev - 1))
         return consumeKey()
       }
       if (key.name === "down" || key.name === "j") {
-        setPendingActionSelectedIndex(1)
+        setPendingActionSelectedIndex((prev) => Math.min(choiceCount - 1, prev + 1))
         return consumeKey()
       }
       if (key.name === "return") {
-        void pendingSession.session.respondToPendingAction?.(
-          pendingActionSelectedIndex() === 0 ? "allow" : "deny"
-        )
+        void pendingSession.session.respondToPendingAction?.(pendingActionSelectedIndex())
         return consumeKey()
       }
       return consumeKey()
@@ -312,6 +329,12 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     return async (message: string) => {
       const trimmed = message.trim()
       if (!trimmed) return
+      const pendingSession = activePendingActionSession()
+      const currentPendingAction = pendingAction()
+      if (pendingSession && currentPendingAction?.textInput) {
+        await pendingSession.session.submitPendingActionInput?.(trimmed)
+        return
+      }
       const active = activeAgent()
       if (active) {
         await active.session.sendMessage(trimmed, options.username() || "you")

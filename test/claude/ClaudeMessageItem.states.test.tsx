@@ -130,6 +130,154 @@ describe("ClaudeMessageItem render states", () => {
     expect(frame).toContain("Deny")
   })
 
+  test("renders ask-user-question progress and selectable answers", async () => {
+    const message = makeClaudeMessage("permission-question", {
+      parentToolUseId: null,
+      contentBlocks: [],
+      permissionRequest: {
+        requestId: "req-question",
+        toolName: "AskUserQuestion",
+        toolUseId: "tool-question",
+        input: {
+          questions: [
+            {
+              header: "Database",
+              question: "Which database should we use?",
+              options: [{ label: "SQLite", description: "Simple local setup" }],
+            },
+            {
+              header: "Cache",
+              question: "Should we add caching?",
+              options: [
+                { label: "Yes", description: "Add a cache layer" },
+                { label: "No", description: "Keep it simple" },
+              ],
+            },
+          ],
+        },
+        askUserQuestion: {
+          questions: [
+            {
+              header: "Database",
+              question: "Which database should we use?",
+              options: [{ label: "SQLite", description: "Simple local setup" }],
+            },
+            {
+              header: "Cache",
+              question: "Should we add caching?",
+              options: [
+                { label: "Yes", description: "Add a cache layer" },
+                { label: "No", description: "Keep it simple" },
+              ],
+            },
+          ],
+          answers: { "0": "SQLite" },
+          activeQuestionIndex: 1,
+        },
+      },
+    })
+
+    const frame = await renderClaudeMessage(message, { permissionSelectedIndex: 1, width: 100, height: 24 })
+    expect(frame).toContain("Question")
+    expect(frame).toContain("Database: SQLite")
+    expect(frame).toContain("Should we add caching?")
+    expect(frame).toContain("Add a cache layer")
+    expect(frame).toContain("> No")
+    expect(frame).toContain("Enter to submit")
+  })
+
+  test("renders ask-user-question custom input state", async () => {
+    const message = makeClaudeMessage("permission-question-custom", {
+      parentToolUseId: null,
+      contentBlocks: [],
+      permissionRequest: {
+        requestId: "req-question-custom",
+        toolName: "AskUserQuestion",
+        toolUseId: "tool-question-custom",
+        input: {
+          questions: [
+            {
+              header: "Context",
+              question: "Add extra context",
+              options: [{ label: "None", description: "No extra context" }],
+            },
+          ],
+        },
+        askUserQuestion: {
+          questions: [
+            {
+              header: "Context",
+              question: "Add extra context",
+              options: [{ label: "None", description: "No extra context" }],
+              allowCustomInput: true,
+            },
+          ],
+          answers: {},
+          activeQuestionIndex: 0,
+          customInputQuestionIndex: 0,
+        },
+      },
+    })
+
+    const frame = await renderClaudeMessage(message, { width: 100, height: 20 })
+    expect(frame).toContain("Add extra context")
+    expect(frame).toContain("Type your answer in the input box below")
+    expect(frame).toContain("Esc to go back")
+  })
+
+  test("renders permission suggestions alongside allow and deny", async () => {
+    const message = makeClaudeMessage("permission-suggestions", {
+      parentToolUseId: null,
+      contentBlocks: [],
+      permissionRequest: {
+        requestId: "req-suggestions",
+        toolName: "Bash",
+        toolUseId: "tool-suggestions",
+        input: { command: "ls -la" },
+        permissionSuggestions: [
+          {
+            type: "addRules",
+            rules: [{ toolName: "Bash" }],
+            behavior: "allow",
+            destination: "session",
+          },
+        ],
+      },
+    })
+
+    const frame = await renderClaudeMessage(message, { permissionSelectedIndex: 1, width: 100, height: 20 })
+    expect(frame).toContain("Allow")
+    expect(frame).toContain("Allow Bash for session")
+    expect(frame).toContain("Deny")
+    expect(frame).toContain("> Allow Bash for session")
+  })
+
+  test("renders exit-plan-mode permission details", async () => {
+    const message = makeClaudeMessage("permission-plan", {
+      parentToolUseId: null,
+      contentBlocks: [],
+      permissionRequest: {
+        requestId: "req-plan",
+        toolName: "ExitPlanMode",
+        toolUseId: "tool-plan",
+        input: {
+          plan: "## Step 1\nRun tests",
+          allowedPrompts: [
+            { tool: "Bash", prompt: "Run tests" },
+            { tool: "Edit", prompt: "Fix typo" },
+          ],
+        },
+      },
+    })
+
+    const frame = await renderClaudeMessage(message, { width: 100, height: 24 })
+    expect(frame).toContain("Plan")
+    expect(frame).toContain("Step 1")
+    expect(frame).toContain("Requested permissions")
+    expect(frame).toContain("Run tests")
+    expect(frame).toContain("Fix typo")
+  })
+
   test("renders resolved permission statuses", async () => {
     const allowed = makeClaudeMessage("permission-allowed", {
       parentToolUseId: null,
@@ -195,7 +343,25 @@ describe("ClaudeMessageItem render states", () => {
     })
 
     expect(await renderClaudeMessage(thinking)).toContain("Thinking...")
-    expect(await renderClaudeMessage(streaming)).toContain("▍")
+    expect(await renderClaudeMessage(streaming)).toContain("partial")
+  })
+
+  test("renders bash tool results as tailed terminal output", async () => {
+    const output = Array.from({ length: 25 }, (_, index) => `line-${index + 1}`).join("\n")
+    const message = makeClaudeMessage("bash-result", {
+      parentToolUseId: null,
+      contentBlocks: [
+        { type: "tool_use", id: "tool-bash", name: "Bash", input: { command: "cat big.log" } },
+        { type: "tool_result", tool_use_id: "tool-bash", content: output },
+      ],
+    })
+
+    const frame = await renderClaudeMessage(message, { width: 100, height: 28 })
+    const renderedLines = frame.split("\n").map((line) => line.trim())
+    expect(frame).toContain("Terminal Output (last 20 lines)")
+    expect(renderedLines.includes("line-1")).toBe(false)
+    expect(frame).toContain("line-25")
+    expect(frame).toContain("5 earlier lines omitted")
   })
 
   test("applies indentation for deeper claude depth", async () => {

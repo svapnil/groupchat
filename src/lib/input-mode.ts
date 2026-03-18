@@ -8,6 +8,7 @@ export type InputMode = {
   placeholder?: string
   helperText?: string
   pendingAction?: boolean
+  pendingActionAllowsTextInput?: boolean
   pendingActionPlaceholder?: string
   pendingActionHelperText?: string
 }
