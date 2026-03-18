@@ -7,10 +7,25 @@ const PACKAGE_VERSION =
   process.env.npm_package_version ??
   "0.0.0"
 
+const SELF_UPDATE_BINARY_NAMES = new Set(["groupchat", "groupchat.exe"])
+
 export interface UpdateInfo {
   currentVersion: string;
   latestVersion: string;
   updateAvailable: boolean;
+}
+
+function getExecutableName(execPath: string): string {
+  return execPath.replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? ""
+}
+
+/**
+ * Only allow self-update when running as the installed production binary.
+ * In development, process.execPath points at bun/node, and replacing that
+ * would corrupt the local runtime instead of updating groupchat.
+ */
+export function shouldSelfUpdate(execPath: string = process.execPath): boolean {
+  return SELF_UPDATE_BINARY_NAMES.has(getExecutableName(execPath))
 }
 
 /**
@@ -100,6 +115,10 @@ function getAssetName(): string {
  */
 export async function performUpdate(version: string): Promise<void> {
   const binaryPath = process.execPath;
+  if (!shouldSelfUpdate(binaryPath)) {
+    return
+  }
+
   const tmpPath = `${binaryPath}.tmp`;
   const assetName = getAssetName();
   const url = `https://github.com/svapnil/groupchat/releases/download/v${version}/${assetName}`;

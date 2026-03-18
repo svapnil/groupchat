@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { render } from "@opentui/solid"
 import App from "./components/App"
-import { checkForUpdate, performUpdate } from "./lib/update-checker"
+import { checkForUpdate, performUpdate, shouldSelfUpdate } from "./lib/update-checker"
 import { initializeRuntimeCapabilities } from "./lib/runtime-capabilities"
 
 async function main() {
@@ -14,12 +14,15 @@ async function main() {
 
   initializeRuntimeCapabilities()
 
-  // Auto-update silently in the background (takes effect next launch)
-  checkForUpdate().then((info) => {
-    if (info.updateAvailable) {
-      performUpdate(info.latestVersion).catch(() => {})
-    }
-  }).catch(() => {})
+  // Auto-update silently in the background (takes effect next launch).
+  // Skip this during development runs so we never replace bun/node.
+  if (shouldSelfUpdate()) {
+    checkForUpdate().then((info) => {
+      if (info.updateAvailable) {
+        performUpdate(info.latestVersion).catch(() => {})
+      }
+    }).catch(() => {})
+  }
 
   // Clear terminal and start app
   process.stdout.write('\x1b[2J\x1b[0f')
