@@ -7,9 +7,13 @@ import { PRESENCE } from "../lib/colors"
 export type UserListProps = {
   users: UserWithStatus[]
   currentUsername: string | null
-  height: number
+  screenWidth: number
+  screenHeight: number
   isPrivateChannel?: boolean
 }
+
+const POPUP_WIDTH = 34
+const POPUP_MIN_HEIGHT = 8
 
 const normalizeColor = (color?: string) => {
   if (!color) return undefined
@@ -32,49 +36,53 @@ export function UserList(props: UserListProps) {
       return 0
     })
 
+  const popupHeight = () => {
+    // 2 for border, 1 for header, 1 for count, 1 for gap, plus 1 per user (2 if they have an agent)
+    const userLines = sortedUsers().reduce((acc, user) => acc + (user.currentAgent ? 2 : 1), 0)
+    const contentHeight = 3 + userLines + 2 // header + count + gap + users + padding
+    return Math.min(Math.max(POPUP_MIN_HEIGHT, contentHeight), props.screenHeight - 4)
+  }
+
   return (
     <box
-      flexDirection="column"
-      flexShrink={0}
-      border
-      borderStyle="single"
-      borderColor="gray"
-      width={24}
-      height={props.height}
-      paddingLeft={1}
-      paddingRight={1}
-      overflow="hidden"
+      position="absolute"
+      left={0}
+      top={0}
+      width={props.screenWidth}
+      height={props.screenHeight}
+      justifyContent="center"
+      alignItems="center"
+      zIndex={100}
     >
-      <box marginBottom={1}>
-        {props.isPrivateChannel ? (
+      <box
+        flexDirection="column"
+        border
+        borderStyle="single"
+        backgroundColor="black"
+        borderColor="gray"
+        width={POPUP_WIDTH}
+        height={popupHeight()}
+        paddingLeft={1}
+        paddingRight={1}
+        overflow="hidden"
+      >
+        <box marginBottom={1}>
           <text>
-            <strong>MEMBERS</strong>
+            <u><strong>ONLINE USERS</strong></u>
           </text>
-        ) : (
-          <box flexDirection="row">
-            <text fg={PRESENCE.online}>● </text>
-            <text>
-              <strong>ONLINE USERS</strong>
-            </text>
-          </box>
-        )}
-      </box>
+        </box>
 
-      <box marginBottom={1}>
-        <text fg="cyan">[{onlineCount()} {props.isPrivateChannel ? "online" : "connected"}]</text>
-      </box>
+        <box marginBottom={1}>
+          <text fg="cyan">[{onlineCount()} {props.isPrivateChannel ? "online" : "connected"}]</text>
+        </box>
 
-      <box flexDirection="column">
-        {sortedUsers().map((user) => {
-          const isTruncated = user.username.length > 8
-          const displayName = isTruncated ? user.username.substring(0, 8) : user.username
-
-          return (
+        <box flexDirection="column">
+          {sortedUsers().map((user) => (
             <box flexDirection="column">
               <box flexDirection="row">
                 <text fg={user.isOnline ? PRESENCE.online : PRESENCE.offline}>● </text>
                 <text fg={user.username === props.currentUsername ? "yellow" : "white"}>
-                  {displayName}{isTruncated ? "..." : ""}
+                  {user.username}
                 </text>
                 {user.username === props.currentUsername ? <text fg="gray"> (you)</text> : null}
                 {user.role === "admin" ? <text fg="yellow"> *</text> : null}
@@ -87,8 +95,8 @@ export function UserList(props: UserListProps) {
                 </box>
               ) : null}
             </box>
-          )
-        })}
+          ))}
+        </box>
       </box>
     </box>
   )

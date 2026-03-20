@@ -244,7 +244,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     }
 
     const active = activeAgent()
-    if (key.ctrl && key.name === "c" && active?.session.interrupt) {
+    if ((key.ctrl && key.name === "c" || key.name === "escape") && active?.session.interrupt) {
       active.session.interrupt()
       return consumeKey()
     }

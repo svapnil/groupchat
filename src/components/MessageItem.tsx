@@ -48,7 +48,7 @@ export function MessageItem(props: MessageItemProps) {
       return (
         <box justifyContent="center">
           <text fg="#888888">
-            <em>{safeContent()}</em>
+            {safeContent()}
           </text>
         </box>
       )

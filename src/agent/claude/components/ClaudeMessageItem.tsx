@@ -358,9 +358,10 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
               if (typeof r.numTurns === "number") {
                 parts.push(`turns ${r.numTurns}`)
               }
-              if (typeof r.totalCostUsd === "number") {
-                parts.push(`$${r.totalCostUsd.toFixed(4)}`)
-              }
+              // TODO: re-enable cost display once billing is finalized
+              // if (typeof r.totalCostUsd === "number") {
+              //   parts.push(`$${r.totalCostUsd.toFixed(4)}`)
+              // }
               return (
                 <text fg={r.isError ? "#AA6666" : "#888888"}>
                   {`⎿  ${sanitizePlainMessageText(parts.join(" • "))}`}

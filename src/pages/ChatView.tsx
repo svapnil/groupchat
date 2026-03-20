@@ -22,7 +22,6 @@ export type ChatViewProps = {
   topPadding?: number
 }
 
-const USER_LIST_WIDTH = 24
 const MESSAGE_LIST_HORIZONTAL_PADDING = 2
 
 export function ChatView(props: ChatViewProps) {
@@ -32,15 +31,14 @@ export function ChatView(props: ChatViewProps) {
   const auth = useAuth()
   const renderer = useRenderer()
 
-  const [showUserList, setShowUserList] = createSignal(true)
+  const [showUserList, setShowUserList] = createSignal(false)
 
   const topPadding = () => props.topPadding ?? 0
   const [listHeight, setListHeight] = createSignal(
     calculateMiddleSectionHeight(props.height, topPadding(), LAYOUT_HEIGHTS.inputBox)
   )
   const messagePaneWidth = createMemo(() => {
-    const userListWidth = showUserList() ? USER_LIST_WIDTH : 0
-    return Math.max(20, props.width - userListWidth - MESSAGE_LIST_HORIZONTAL_PADDING)
+    return Math.max(20, props.width - MESSAGE_LIST_HORIZONTAL_PADDING)
   })
 
   const base = createChatViewBase({
@@ -192,15 +190,16 @@ export function ChatView(props: ChatViewProps) {
               pendingActionSelectedIndex={base.pendingActionSelectedIndex()}
             />
           </box>
-          {showUserList() ? (
-            <UserList
-              users={users()}
-              currentUsername={chat.username()}
-              height={Math.max(1, base.listHeight() - 1)}
-              isPrivateChannel={isPrivateChannel()}
-            />
-          ) : null}
         </box>
+        {showUserList() ? (
+          <UserList
+            users={users()}
+            currentUsername={chat.username()}
+            screenWidth={props.width}
+            screenHeight={props.height}
+            isPrivateChannel={isPrivateChannel()}
+          />
+        ) : null}
 
         <CommandInputPanel
           token={auth.token()}

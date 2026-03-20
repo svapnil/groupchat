@@ -85,19 +85,19 @@ export function StatusBar(props: StatusBarProps) {
               alignItems="center"
               justifyContent="flex-end"
             >
-              <Show when={props.showVersion}>
-                <text fg="#888888" flexShrink={0}>{packageJson.version}</text>
-              </Show>
-              <Show when={hasOnlineCount()}>
-                <Show when={props.showVersion}>
-                  <text fg="#888888" flexShrink={0}> | </text>
-                </Show>
-                <box flexDirection="row" alignItems="center" flexShrink={0}>
-                  <text fg={PRESENCE.online}>●</text>
-                  <text fg="#888888"> {props.onlineCount} Online</text>
-                </box>
-              </Show>
               <Show when={props.showVersion || hasOnlineCount()}>
+                <box flexDirection="row" alignItems="center" flexShrink={0}>
+                  <Show when={props.showVersion}>
+                    <text fg="#888888" flexShrink={0}>{packageJson.version}</text>
+                  </Show>
+                  <Show when={props.showVersion && hasOnlineCount()}>
+                    <text fg="#888888" flexShrink={0}> | </text>
+                  </Show>
+                  <Show when={hasOnlineCount()}>
+                    <text fg={PRESENCE.online}>●</text>
+                    <text fg="#888888"> {props.onlineCount} Online</text>
+                  </Show>
+                </box>
                 <text fg="#888888" flexShrink={0}> | </text>
               </Show>
               <box flexShrink={1} minWidth={0} overflow="hidden">
