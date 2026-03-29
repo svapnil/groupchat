@@ -159,7 +159,7 @@ export function InputBox(props: InputBoxProps) {
             <box height={1} flexDirection="row">
               <text fg={props.mode!.accentColor}>{"● "}</text>
               <text fg="#FFFFFF">{`Using ${props.mode!.label}`}</text>
-              <text fg="#888888">{" (Shift+Enter to toggle)"}</text>
+              <text fg="#888888">{" (Shift+Tab to toggle)"}</text>
             </box>
           </box>
         </Show>
@@ -167,7 +167,7 @@ export function InputBox(props: InputBoxProps) {
           <box height={2} paddingLeft={1} flexDirection="column" justifyContent="flex-end">
             <box height={1} flexDirection="row">
               <text fg="#888888">{"● "}</text>
-              <text fg="#888888">{`Using ${props.backgroundMode!.label} in the background (Shift+Enter to resume)`}</text>
+              <text fg="#888888">{`Using ${props.backgroundMode!.label} in the background (Shift+Tab to resume)`}</text>
             </box>
           </box>
         </Show>
