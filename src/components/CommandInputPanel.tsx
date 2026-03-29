@@ -35,12 +35,11 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
     isPrivateChannel: () => props.isPrivateChannel,
     commandsEnabled: () => true,
     commandFilter: (command) => {
-      if (props.agentMode) {
-        if (!isAgentExitCommandEvent(command.eventType)) return false
-      } else if (props.backgroundAgentMode) {
+      const agentActive = Boolean(props.agentMode || props.backgroundAgentMode)
+      if (agentActive) {
         if (isAgentEnterCommandEvent(command.eventType)) return false
-      } else if (isAgentExitCommandEvent(command.eventType)) {
-        return false
+      } else {
+        if (isAgentExitCommandEvent(command.eventType)) return false
       }
       return props.commandFilter ? props.commandFilter(command) : true
     },
