@@ -254,8 +254,8 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
       return true
     }
 
-    // Shift+Tab toggles between agent input and normal chat
-    if (key.shift && key.name === "tab" && activeAgent()) {
+    // Shift+Enter toggles between agent input and normal chat
+    if (key.shift && key.name === "return" && activeAgent()) {
       setIsAgentInputSuspended((prev) => !prev)
       return consumeKey()
     }

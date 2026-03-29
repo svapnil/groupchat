@@ -2,9 +2,9 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 export const LAYOUT_HEIGHTS = {
   inputBox: 3,
-  inputBoxWithMode: 4,
+  inputBoxWithMode: 5,
   inputBoxWithHelper: 4,
-  inputBoxWithModeAndHelper: 5,
+  inputBoxWithModeAndHelper: 6,
   footer: 2,
   statusBar: 1,
   linesPerMessage: 1,

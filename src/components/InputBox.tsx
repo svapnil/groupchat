@@ -155,15 +155,20 @@ export function InputBox(props: InputBoxProps) {
     >
       <box paddingLeft={1} paddingRight={1} width="100%" height="100%" flexDirection="column">
         <Show when={props.mode}>
-          <box height={1} paddingLeft={1} flexDirection="row">
-            <text fg={props.mode!.accentColor}>{"● "}</text>
-            <text fg="#FFFFFF">{`Using ${props.mode!.label}`}</text>
+          <box height={2} paddingLeft={1} flexDirection="column" justifyContent="flex-end">
+            <box height={1} flexDirection="row">
+              <text fg={props.mode!.accentColor}>{"● "}</text>
+              <text fg="#FFFFFF">{`Using ${props.mode!.label}`}</text>
+              <text fg="#888888">{" (Shift+Enter to toggle)"}</text>
+            </box>
           </box>
         </Show>
         <Show when={!props.mode && props.backgroundMode}>
-          <box height={1} paddingLeft={1} flexDirection="row">
-            <text fg="#888888">{"● "}</text>
-            <text fg="#888888">{`Using ${props.backgroundMode!.label} in the background`}</text>
+          <box height={2} paddingLeft={1} flexDirection="column" justifyContent="flex-end">
+            <box height={1} flexDirection="row">
+              <text fg="#888888">{"● "}</text>
+              <text fg="#888888">{`Using ${props.backgroundMode!.label} in the background (Shift+Enter to resume)`}</text>
+            </box>
           </box>
         </Show>
         <text fg={frameColor()} width="100%" height={1} truncate>{FRAME_RULE}</text>
