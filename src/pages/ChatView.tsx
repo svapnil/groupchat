@@ -52,8 +52,9 @@ export function ChatView(props: ChatViewProps) {
 
   createEffect(() => {
     const mode = base.activeInputMode()
-    const inputBoxHeight = mode
-      ? (mode.pendingAction ? LAYOUT_HEIGHTS.inputBoxWithModeAndHelper : LAYOUT_HEIGHTS.inputBoxWithMode)
+    const bgMode = base.backgroundAgentMode()
+    const inputBoxHeight = (mode || bgMode)
+      ? (mode?.pendingAction ? LAYOUT_HEIGHTS.inputBoxWithModeAndHelper : LAYOUT_HEIGHTS.inputBoxWithMode)
       : LAYOUT_HEIGHTS.inputBox
     setListHeight(calculateMiddleSectionHeight(props.height, topPadding(), inputBoxHeight))
   })
@@ -224,6 +225,7 @@ export function ChatView(props: ChatViewProps) {
           }}
           onTooltipHeightChange={base.handleTooltipHeightChange}
           agentMode={base.activeInputMode()}
+          backgroundAgentMode={base.backgroundAgentMode()}
         />
       </Layout.Content>
 

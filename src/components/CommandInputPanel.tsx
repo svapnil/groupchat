@@ -5,7 +5,7 @@ import { InputBox } from "./InputBox"
 import { ToolTip } from "./ToolTip"
 import { useCommandInput } from "../primitives/use-command-input"
 import { isAgentExitCommandEvent, type Command } from "../lib/commands"
-import type { InputMode } from "../lib/input-mode"
+import type { BackgroundAgentMode, InputMode } from "../lib/input-mode"
 import type { ConnectionStatus, Subscriber } from "../lib/types"
 import type { UserWithStatus } from "../primitives/presence"
 
@@ -25,6 +25,7 @@ export type CommandInputPanelProps = {
   onTooltipHeightChange?: (height: number) => void
   commandFilter?: (command: Command) => boolean
   agentMode?: InputMode | null
+  backgroundAgentMode?: BackgroundAgentMode | null
 }
 
 export function CommandInputPanel(props: CommandInputPanelProps) {
@@ -71,6 +72,7 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
         disabled={commandInput.isInputDisabled()}
         sendDisabled={commandInput.isSendDisabled()}
         mode={props.agentMode || null}
+        backgroundMode={props.backgroundAgentMode || null}
         tabCompletion={commandInput.tabCompletion()}
       />
     </>

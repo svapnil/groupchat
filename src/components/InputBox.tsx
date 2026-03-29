@@ -4,7 +4,7 @@ import { Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import { isCommandLikeInput, startsWithKnownCommand } from "../lib/command-input"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
-import type { InputMode } from "../lib/input-mode"
+import type { BackgroundAgentMode, InputMode } from "../lib/input-mode"
 
 const FRAME_RULE = "─".repeat(512)
 
@@ -18,6 +18,7 @@ export type InputBoxProps = {
   commandNames?: string[]
   placeholder?: string
   mode?: InputMode | null
+  backgroundMode?: BackgroundAgentMode | null
   tabCompletion?: string | null
 }
 
@@ -145,7 +146,7 @@ export function InputBox(props: InputBoxProps) {
       flexDirection="column"
       width="100%"
       height={
-        props.mode
+        (props.mode || props.backgroundMode)
           ? (helperText() ? LAYOUT_HEIGHTS.inputBoxWithModeAndHelper : LAYOUT_HEIGHTS.inputBoxWithMode)
           : (helperText() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox)
       }
@@ -157,6 +158,12 @@ export function InputBox(props: InputBoxProps) {
           <box height={1} paddingLeft={1} flexDirection="row">
             <text fg={props.mode!.accentColor}>{"● "}</text>
             <text fg="#FFFFFF">{`Using ${props.mode!.label}`}</text>
+          </box>
+        </Show>
+        <Show when={!props.mode && props.backgroundMode}>
+          <box height={1} paddingLeft={1} flexDirection="row">
+            <text fg="#888888">{"● "}</text>
+            <text fg="#888888">{`Using ${props.backgroundMode!.label} in the background`}</text>
           </box>
         </Show>
         <text fg={frameColor()} width="100%" height={1} truncate>{FRAME_RULE}</text>
