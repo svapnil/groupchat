@@ -117,10 +117,9 @@ export function InputBox(props: InputBoxProps) {
 
   const isKnownCommandPrefix = createMemo(() => startsWithKnownCommand(value(), props.commandNames || []))
   const inputTextColor = () => {
-    if (props.mode) return props.mode.accentColor
     return isKnownCommandPrefix() ? "cyan" : "#FFFFFF"
   }
-  const frameColor = () => props.mode ? props.mode.accentColor : "gray"
+  const frameColor = () => "gray"
   const placeholder = () => {
     if (props.disabled) return "Connecting..."
     if (props.mode?.pendingAction) {
@@ -145,14 +144,24 @@ export function InputBox(props: InputBoxProps) {
     <box
       flexDirection="column"
       width="100%"
-      height={helperText() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox}
+      height={
+        props.mode
+          ? (helperText() ? LAYOUT_HEIGHTS.inputBoxWithModeAndHelper : LAYOUT_HEIGHTS.inputBoxWithMode)
+          : (helperText() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox)
+      }
       overflow="hidden"
       flexShrink={0}
     >
       <box paddingLeft={1} paddingRight={1} width="100%" height="100%" flexDirection="column">
+        <Show when={props.mode}>
+          <box height={1} paddingLeft={1} flexDirection="row">
+            <text fg={props.mode!.accentColor}>{"● "}</text>
+            <text fg="#FFFFFF">{`Using ${props.mode!.label}`}</text>
+          </box>
+        </Show>
         <text fg={frameColor()} width="100%" height={1} truncate>{FRAME_RULE}</text>
         <box flexDirection="row" height={1} alignItems="center" paddingLeft={1} paddingRight={1}>
-          <text fg={props.mode ? props.mode.accentColor : "#FFFFFF"}>{"❯ "}</text>
+          <text fg="#FFFFFF">{"❯ "}</text>
           <box flexGrow={1} minWidth={0} overflow="hidden">
             <input
               value={value()}

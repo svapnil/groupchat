@@ -65,7 +65,10 @@ export function DmChatView(props: DmChatViewProps) {
   })
 
   createEffect(() => {
-    const inputBoxHeight = base.activeInputMode()?.pendingAction ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox
+    const mode = base.activeInputMode()
+    const inputBoxHeight = mode
+      ? (mode.pendingAction ? LAYOUT_HEIGHTS.inputBoxWithModeAndHelper : LAYOUT_HEIGHTS.inputBoxWithMode)
+      : LAYOUT_HEIGHTS.inputBox
     setListHeight(calculateMiddleSectionHeight(props.height, topPadding(), inputBoxHeight))
   })
 
