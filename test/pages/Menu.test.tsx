@@ -20,6 +20,10 @@ afterEach(() => {
   }
 })
 
+function normalizeVersion(frame: string): string {
+  return frame.replace(/\d+\.\d+\.\d+/g, "<version>")
+}
+
 const publicChannels: Channel[] = [
   {
     id: "1",
@@ -127,7 +131,7 @@ describe("Menu", () => {
     expect(frame).toContain("Direct Messages")
     expect(frame).toContain("#engineering")
     expect(frame).toContain("bob")
-    expect(frame).toMatchSnapshot()
+    expect(normalizeVersion(frame)).toMatchSnapshot()
   })
 
   test("renders empty-state menu", async () => {
@@ -144,6 +148,6 @@ describe("Menu", () => {
     expect(frame).toContain("No channels available")
     expect(frame).toContain("No Direct Messages Yet.")
     expect(frame).toContain("No users online")
-    expect(frame).toMatchSnapshot()
+    expect(normalizeVersion(frame)).toMatchSnapshot()
   })
 })

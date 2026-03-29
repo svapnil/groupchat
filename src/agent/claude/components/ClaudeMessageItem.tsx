@@ -15,6 +15,7 @@ import {
 import { compactJson } from "../../../lib/utils"
 import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
 import { ClaudeToolDetail, ClaudeToolGroup } from "./ClaudeToolDetail"
+import { ClaudeThinkingIndicator } from "./ClaudeThinkingIndicator"
 
 export type ClaudeMessageItemProps = {
   message: Message
@@ -75,10 +76,7 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
   })
 
   const [elapsed, setElapsed] = createSignal(0)
-  const thinkingFrames = ["⋆", "✦", "⋆", "✧", "⋆", "❉", "⋆", "❈", "⋆"]
-  const [thinkingFrame, setThinkingFrame] = createSignal(0)
   let thinkingTimer: ReturnType<typeof setInterval> | null = null
-  let animTimer: ReturnType<typeof setInterval> | null = null
   onMount(() => {
     thinkingTimer = setInterval(() => {
       if (isThinking()) {
@@ -86,15 +84,9 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
         setElapsed(Math.max(0, Math.floor((Date.now() - since) / 1000)))
       }
     }, 1000)
-    animTimer = setInterval(() => {
-      if (isThinking()) {
-        setThinkingFrame((f) => (f + 1) % thinkingFrames.length)
-      }
-    }, 300)
   })
   onCleanup(() => {
     if (thinkingTimer) clearInterval(thinkingTimer)
-    if (animTimer) clearInterval(animTimer)
   })
 
   const groupedBlocks = createMemo(() => {
@@ -371,12 +363,11 @@ export function ClaudeMessageItem(props: ClaudeMessageItemProps) {
           </Show>
 
           <Show when={isThinking()}>
-            <box flexDirection="row">
-              <text fg="#FFA500">{`${thinkingFrames[thinkingFrame()]} Thinking... `}</text>
-              <text fg="#888888">
-                {`(${[`${elapsed()}s`, outputTokensLabel()].filter((part) => part.length > 0).join(" • ")})`}
-              </text>
-            </box>
+            <ClaudeThinkingIndicator
+              color="#FFA500"
+              label="Thinking..."
+              summary={[`${elapsed()}s`, outputTokensLabel()].filter((part) => part.length > 0).join(" • ")}
+            />
           </Show>
           <Show when={claude()?.streaming && !isThinking() && outputTokensLabel()}>
             <box flexDirection="row">

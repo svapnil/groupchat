@@ -6,6 +6,10 @@ import { buildClaudeDepthMap } from "../claude/helpers"
 import { CC_WIRE_TYPE } from "../claude/claude-event-message-mutations"
 import { ClaudeMessageItem } from "../claude/components/ClaudeMessageItem"
 import { ClaudeEventMessageItem } from "../claude/components/ClaudeEventMessageItem"
+import { buildCodexDepthMap } from "../codex/helpers"
+import { CX_WIRE_TYPE } from "../codex/codex-event-message-mutations"
+import { CodexMessageItem } from "../codex/components/CodexMessageItem"
+import { CodexEventMessageItem } from "../codex/components/CodexEventMessageItem"
 
 export type AgentMessageRenderContext = {
   message: Message
@@ -37,16 +41,29 @@ const renderClaudeEventMessage: AgentMessageRenderer = (context) => {
   return <ClaudeEventMessageItem message={context.message} isOwnMessage={context.isOwnMessage} messagePaneWidth={context.messagePaneWidth} />
 }
 
+const renderCodexMessage: AgentMessageRenderer = (context) => {
+  if (context.message.type !== "codex-response") return null
+  return <CodexMessageItem message={context.message} codexDepth={context.agentDepth} />
+}
+
+const renderCodexEventMessage: AgentMessageRenderer = (context) => {
+  if (context.message.type !== CX_WIRE_TYPE) return null
+  return <CodexEventMessageItem message={context.message} isOwnMessage={context.isOwnMessage} messagePaneWidth={context.messagePaneWidth} />
+}
+
 /**
  * Add renderers here as new local/remote agent message formats are introduced.
  */
 const AGENT_MESSAGE_RENDERERS: AgentMessageRenderer[] = [
   renderClaudeMessage,
   renderClaudeEventMessage,
+  renderCodexMessage,
+  renderCodexEventMessage,
 ]
 
 const AGENT_MESSAGE_DEPTH_RESOLVERS: AgentMessageDepthResolver[] = [
   buildClaudeDepthMap,
+  buildCodexDepthMap,
 ]
 
 export function renderAgentMessage(context: AgentMessageRenderContext): JSX.Element | null {

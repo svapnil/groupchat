@@ -50,10 +50,10 @@ describe("createChatViewBase agent event bridge", () => {
     const [username] = createSignal<string | null>("alice")
     const [currentChannel, setCurrentChannel] = createSignal("public:alpha")
 
-    const sent: Array<{ channel: string; content: string; meta: Record<string, unknown> }> = []
+    const sent: Array<{ channel: string; type: string; content: string; meta: Record<string, unknown> }> = []
     const manager = {
-      sendAgentEvent: (channel: string, content: string, meta: Record<string, unknown>) => {
-        sent.push({ channel, content, meta })
+      sendAgentEvent: (channel: string, type: string, content: string, meta: Record<string, unknown>) => {
+        sent.push({ channel, type, content, meta })
         return Promise.resolve()
       },
     }
@@ -76,6 +76,7 @@ describe("createChatViewBase agent event bridge", () => {
 
     emitAgentEvent!({
       agentId: "claude",
+      wireType: "cc",
       turnId: "turn-1",
       sessionId: "session-1",
       event: "question",
@@ -86,6 +87,7 @@ describe("createChatViewBase agent event bridge", () => {
 
     emitAgentEvent!({
       agentId: "claude",
+      wireType: "cc",
       turnId: "turn-1",
       sessionId: "session-1",
       event: "tool_call",
@@ -95,6 +97,7 @@ describe("createChatViewBase agent event bridge", () => {
 
     emitAgentEvent!({
       agentId: "claude",
+      wireType: "cc",
       turnId: "turn-1",
       sessionId: "session-1",
       event: "result",
@@ -105,6 +108,7 @@ describe("createChatViewBase agent event bridge", () => {
     // Mapping should be gone after result, so non-question fallback uses current active channel.
     emitAgentEvent!({
       agentId: "claude",
+      wireType: "cc",
       turnId: "turn-1",
       sessionId: "session-1",
       event: "text",
@@ -114,6 +118,7 @@ describe("createChatViewBase agent event bridge", () => {
     // New turn binds to current channel (beta) and remains there after channel switch.
     emitAgentEvent!({
       agentId: "claude",
+      wireType: "cc",
       turnId: "turn-2",
       sessionId: "session-1",
       event: "question",
@@ -124,6 +129,7 @@ describe("createChatViewBase agent event bridge", () => {
 
     emitAgentEvent!({
       agentId: "claude",
+      wireType: "cc",
       turnId: "turn-2",
       sessionId: "session-1",
       event: "tool_call",
@@ -140,7 +146,16 @@ describe("createChatViewBase agent event bridge", () => {
       "public:beta", // turn-2 tool_call stays beta despite active channel now gamma
     ])
 
-    expect(sent[0].meta).toEqual({
+    expect(sent.map((entry) => entry.type)).toEqual([
+      "cc",
+      "cc",
+      "cc",
+      "cc",
+      "cc",
+      "cc",
+    ])
+
+    expect(sent[0].meta).toMatchObject({
       turn_id: "turn-1",
       session_id: "session-1",
       event: "question",
@@ -148,7 +163,7 @@ describe("createChatViewBase agent event bridge", () => {
       is_error: undefined,
     })
 
-    expect(sent[2].meta).toEqual({
+    expect(sent[2].meta).toMatchObject({
       turn_id: "turn-1",
       session_id: "session-1",
       event: "result",

@@ -342,7 +342,9 @@ describe("ClaudeMessageItem render states", () => {
       thinking: false,
     })
 
-    expect(await renderClaudeMessage(thinking)).toContain("Thinking...")
+    const thinkingFrame = await renderClaudeMessage(thinking)
+    expect(thinkingFrame).toContain("Thinking...")
+    expect(thinkingFrame).toContain("◐")
     expect(await renderClaudeMessage(streaming)).toContain("partial")
   })
 

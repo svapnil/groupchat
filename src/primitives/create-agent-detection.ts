@@ -14,7 +14,7 @@ function detectCurrentAgent(): AgentType {
       { stdio: "pipe", encoding: "utf-8" }
     ).trim()
 
-    if (result.includes("@openai/codex")) return "codex"
+    if (result.includes("@openai/codex") || result === "codex") return "codex"
     if (result === "claude") return "claude"
     if (result.includes("Cursor.app")) return "cursor"
     if (result.includes("Windsurf.app")) return "windsurf"

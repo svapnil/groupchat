@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
 import type { Accessor } from "solid-js"
-import type { CcEventType, Message } from "../../lib/types"
+import type { AgentEventType, Message } from "../../lib/types"
 
 export type AgentPendingActionChoice = {
   label: string
@@ -26,9 +26,10 @@ export type AgentPendingAction = {
 
 export type AgentEvent = {
   agentId: string
+  wireType: "cc" | "cx"
   turnId: string
   sessionId?: string
-  event: CcEventType
+  event: AgentEventType
   content: string
   toolName?: string
   toolUseId?: string

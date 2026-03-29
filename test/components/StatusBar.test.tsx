@@ -13,6 +13,10 @@ afterEach(() => {
   }
 })
 
+function normalizeVersion(frame: string): string {
+  return frame.replace(/\d+\.\d+\.\d+/g, "<version>")
+}
+
 describe("StatusBar", () => {
   test("renders default controls with user toggle", async () => {
     testSetup = await testRender(
@@ -57,8 +61,8 @@ describe("StatusBar", () => {
     await testSetup.renderOnce()
     const frame = testSetup.captureCharFrame()
 
-    expect(frame).toContain("0.1.8 | Ctrl+O Logout | Ctrl+C Exit the App")
-    expect(frame).toMatchSnapshot()
+    expect(frame).toMatch(/\d+\.\d+\.\d+ \| Ctrl\+O Logout \| Ctrl\+C Exit the App/)
+    expect(normalizeVersion(frame)).toMatchSnapshot()
   })
 
   test("renders online count before the hint", async () => {

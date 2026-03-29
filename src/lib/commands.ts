@@ -5,6 +5,7 @@
 // ============================================
 
 import { AGENT_ID as CC_AGENT_ID } from "../agent/claude/claude-event-message-mutations"
+import { AGENT_ID as CX_AGENT_ID } from "../agent/codex/codex-event-message-mutations"
 
 export type ParameterType = "username" | "text" | "number" | "choice";
 
@@ -277,6 +278,15 @@ export const COMMANDS: Command[] = [
     adminOnly: false,
     parameters: [],
     eventType: getAgentEnterCommandEvent(CC_AGENT_ID),
+  },
+  {
+    name: "/codex",
+    syntax: "/codex",
+    description: "Enter Codex mode",
+    privateOnly: false,
+    adminOnly: false,
+    parameters: [],
+    eventType: getAgentEnterCommandEvent(CX_AGENT_ID),
   },
   {
     name: "/exit",

@@ -88,6 +88,7 @@ describe("ClaudeEventMessageItem edge states", () => {
     expect(frame).toContain("Inspect file")
     expect(frame).toContain("Read(/repo/file.ts)")
     expect(frame).toContain("Thinking...")
+    expect(frame).toContain("◐")
   })
 
   test("renders error result summary for failed turns", async () => {
@@ -132,6 +133,7 @@ describe("ClaudeEventMessageItem edge states", () => {
     expect(frame).toContain("Planning tool calls and response structure")
     expect(frame).toContain("128 tok")
     expect(frame).toContain("Thinking...")
+    expect(frame).toContain("◐")
   })
 
   test("renders live tool progress detail below the latest tool call", async () => {

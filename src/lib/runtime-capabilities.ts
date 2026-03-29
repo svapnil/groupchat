@@ -3,6 +3,8 @@
 export type RuntimeCapabilities = {
   claudePath: string | null
   hasClaude: boolean
+  codexPath: string | null
+  hasCodex: boolean
 }
 
 let cachedCapabilities: RuntimeCapabilities | null = null
@@ -15,11 +17,22 @@ function detectClaudePath(): string | null {
   }
 }
 
+function detectCodexPath(): string | null {
+  try {
+    return Bun.which("codex") ?? null
+  } catch {
+    return null
+  }
+}
+
 function detectRuntimeCapabilities(): RuntimeCapabilities {
   const claudePath = detectClaudePath()
+  const codexPath = detectCodexPath()
   return {
     claudePath,
     hasClaude: claudePath !== null,
+    codexPath,
+    hasCodex: codexPath !== null,
   }
 }
 

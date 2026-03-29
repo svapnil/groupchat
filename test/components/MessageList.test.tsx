@@ -219,9 +219,8 @@ describe("MessageList", () => {
     await testSetup.renderOnce()
     const frame = testSetup.captureCharFrame()
 
-    expect(frame).toContain("Bash")
+    expect(frame).toContain("Terminal")
     expect(frame).toContain("$ echo hello")
     expect(frame.match(/\$ echo hello/g)?.length ?? 0).toBe(1)
-    expect(frame).not.toContain("Terminal")
   })
 })

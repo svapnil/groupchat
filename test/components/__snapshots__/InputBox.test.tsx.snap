@@ -13,24 +13,24 @@ exports[`InputBox renders default placeholder and helper text 1`] = `
 `;
 
 exports[`InputBox renders pending mode action state 1`] = `
-" ────────────────────────────────────────────────────────────────────────────── 
+"                                                                                
+  ● Using Claude Code (Shift+Tab to toggle)                                     
+ ────────────────────────────────────────────────────────────────────────────── 
   ❯ Awaiting permission decision...                                             
  ────────────────────────────────────────────────────────────────────────────── 
   ↑/↓ select Allow/Deny in message list • Enter to confirm                      
-                                                                                
-                                                                                
                                                                                 
                                                                                 
 "
 `;
 
 exports[`InputBox command mode display renders mode placeholder and helper text for claude mode 1`] = `
-" ────────────────────────────────────────────────────────────────────────────── 
+"                                                                                
+  ● Using Claude Code (Shift+Tab to toggle)                                     
+ ────────────────────────────────────────────────────────────────────────────── 
   ❯ Message Claude Code...                                                      
  ────────────────────────────────────────────────────────────────────────────── 
   Type /exit to leave Claude Code mode                                          
-                                                                                
-                                                                                
                                                                                 
                                                                                 
 "

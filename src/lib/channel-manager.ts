@@ -3,6 +3,7 @@
 import { Socket, Channel as PhoenixChannel } from "phoenix";
 import type {
   CcEventMetadata,
+  CxEventMetadata,
   Message,
   MessageAttributes,
   PresenceState,
@@ -643,7 +644,12 @@ export class ChannelManager {
    * Send an ephemeral agent event message to a specific channel.
    * Fire-and-forget: errors are logged but not propagated to callers.
    */
-  async sendAgentEvent(channelSlug: string, content: string, ccMeta: CcEventMetadata): Promise<void> {
+  async sendAgentEvent(
+    channelSlug: string,
+    type: "cc" | "cx",
+    content: string,
+    metadata: CcEventMetadata | CxEventMetadata,
+  ): Promise<void> {
     const channelState = this.channelStates.get(channelSlug);
     if (!this.socket || this.connectionStatus !== "connected") {
       return;
@@ -654,19 +660,19 @@ export class ChannelManager {
         channelState.channel
           .push("new_message", {
             content,
-            type: "cc",
+            type,
             attributes: {
-              cc: ccMeta,
+              [type]: metadata,
             },
           })
           .receive("error", (err: unknown) => {
-            console.error(`Failed to send cc message to ${channelSlug}:`, err);
+            console.error(`Failed to send ${type} message to ${channelSlug}:`, err);
           })
           .receive("timeout", () => {
-            console.error(`CC message send timeout for ${channelSlug}`);
+            console.error(`${type.toUpperCase()} message send timeout for ${channelSlug}`);
           });
       } catch (error) {
-        console.error(`Failed to send cc message to ${channelSlug}:`, error);
+        console.error(`Failed to send ${type} message to ${channelSlug}:`, error);
       }
       return;
     }
@@ -676,11 +682,11 @@ export class ChannelManager {
         channelSlug,
         content,
         {
-          cc: ccMeta,
+          [type]: metadata,
         },
-        "cc"
+        type
       ).catch((error) => {
-        console.error(`Failed to send cc message to DM ${channelSlug}:`, error);
+        console.error(`Failed to send ${type} message to DM ${channelSlug}:`, error);
       });
     }
   }
@@ -930,7 +936,7 @@ export class ChannelManager {
     dmSlug: string,
     content: string,
     attributes?: MessageAttributes,
-    type?: "cc"
+    type?: "cc" | "cx"
   ): Promise<{ message_id: string }> {
     if (!this.userChannel) {
       throw new Error("User channel not connected");
@@ -944,7 +950,7 @@ export class ChannelManager {
       dm_slug: string;
       content: string;
       attributes?: MessageAttributes;
-      type?: "cc";
+      type?: "cc" | "cx";
     } = {
       dm_slug: dmSlug,
       content,

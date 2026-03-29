@@ -54,7 +54,7 @@ describe("ChannelManager.sendAgentEvent", () => {
       tool_name: "Read",
     }
 
-    await manager.sendAgentEvent("public:general", "Read(src/app.ts)", ccMeta)
+    await manager.sendAgentEvent("public:general", "cc", "Read(src/app.ts)", ccMeta)
 
     expect(pushCalls).toHaveLength(1)
     expect(pushCalls[0]).toEqual({
@@ -84,7 +84,7 @@ describe("ChannelManager.sendAgentEvent", () => {
       event: "text",
     }
 
-    await manager.sendAgentEvent("dm:alice", "hello from claude", ccMeta)
+    await manager.sendAgentEvent("dm:alice", "cc", "hello from claude", ccMeta)
 
     expect(dmCalls).toHaveLength(1)
     expect(dmCalls[0]).toEqual([
@@ -106,7 +106,7 @@ describe("ChannelManager.sendAgentEvent", () => {
       return Promise.resolve({ message_id: "m1" })
     }
 
-    await manager.sendAgentEvent("dm:alice", "ignored", {
+    await manager.sendAgentEvent("dm:alice", "cc", "ignored", {
       turn_id: "turn-3",
       event: "question",
     })

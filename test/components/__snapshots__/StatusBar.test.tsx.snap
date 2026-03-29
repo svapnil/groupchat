@@ -11,7 +11,7 @@ exports[`StatusBar renders back navigation, title, and error message 1`] = `
 `;
 
 exports[`StatusBar renders custom hint text 1`] = `
-"                                              0.1.8 | Ctrl+O Logout | Ctrl+C Exit the App 
+"                                             <version> | Ctrl+O Logout | Ctrl+C Exit the App 
 "
 `;
 

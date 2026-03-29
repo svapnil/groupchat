@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import type { Message } from "../../lib/types"
 import { isClaudeEventMessage, upsertClaudeEventMessage } from "../claude/claude-event-message-mutations"
+import { isCodexEventMessage, upsertCodexEventMessage } from "../codex/codex-event-message-mutations"
 
 type AgentMessageMutator = (
   messages: Message[],
@@ -14,11 +15,17 @@ const upsertClaudeEventMutator: AgentMessageMutator = (messages, incoming, myUse
   return upsertClaudeEventMessage(messages, incoming, myUsername)
 }
 
+const upsertCodexEventMutator: AgentMessageMutator = (messages, incoming, myUsername) => {
+  if (!isCodexEventMessage(incoming)) return null
+  return upsertCodexEventMessage(messages, incoming, myUsername)
+}
+
 /**
  * Add mutators in priority order as new agent message formats are introduced.
  */
 const AGENT_MESSAGE_MUTATORS: AgentMessageMutator[] = [
   upsertClaudeEventMutator,
+  upsertCodexEventMutator,
 ]
 
 export function upsertAgentMessage(

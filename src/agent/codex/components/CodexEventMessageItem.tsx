@@ -2,12 +2,12 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { RGBA, SyntaxStyle } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
-import type { CcEventMetadata, Message } from "../../../lib/types"
+import type { CxEventMetadata, Message } from "../../../lib/types"
 import { getAgentColorById, getAgentDisplayNameById } from "../../../lib/constants"
-import { AGENT_ID } from "../claude-event-message-mutations"
+import { AGENT_ID } from "../codex-event-message-mutations"
 import { truncate } from "../../../lib/utils"
 import { sanitizeMessageMarkdown, sanitizePlainMessageText } from "../../../lib/content-sanitizer"
-import { ClaudeThinkingIndicator } from "./ClaudeThinkingIndicator"
+import { CodexThinkingIndicator } from "./CodexThinkingIndicator"
 
 const COLORS = ["cyan", "magenta", "brightGreen", "brightBlue", "brightYellow", "brightMagenta"] as const
 type UsernameColor = (typeof COLORS)[number]
@@ -29,13 +29,13 @@ function formatTime(timestamp: string): string {
   })
 }
 
-export type ClaudeEventMessageItemProps = {
+export type CodexEventMessageItemProps = {
   message: Message
   isOwnMessage?: boolean
   messagePaneWidth?: number
 }
 
-const VALID_CC_EVENTS = new Set([
+const VALID_CX_EVENTS = new Set([
   "question",
   "thinking",
   "tool_call",
@@ -46,7 +46,7 @@ const VALID_CC_EVENTS = new Set([
   "result",
 ])
 
-function normalizeCcEvent(event: CcEventMetadata): CcEventMetadata {
+function normalizeCxEvent(event: CxEventMetadata): CxEventMetadata {
   return {
     turn_id: event.turn_id,
     session_id: typeof event.session_id === "string" ? event.session_id : undefined,
@@ -60,24 +60,24 @@ function normalizeCcEvent(event: CcEventMetadata): CcEventMetadata {
   }
 }
 
-function getCcEventTimeline(message: Message): { events: CcEventMetadata[]; contents: string[] } {
-  const cc = message.attributes?.cc
-  if (!cc || typeof cc !== "object") {
+function getCxEventTimeline(message: Message): { events: CxEventMetadata[]; contents: string[] } {
+  const cx = message.attributes?.cx
+  if (!cx || typeof cx !== "object") {
     return { events: [], contents: [] }
   }
 
-  const base = cc as CcEventMetadata
-  if (typeof base.turn_id !== "string" || !VALID_CC_EVENTS.has(base.event)) {
+  const base = cx as CxEventMetadata
+  if (typeof base.turn_id !== "string" || !VALID_CX_EVENTS.has(base.event)) {
     return { events: [], contents: [] }
   }
 
   const events = Array.isArray(base.events) && base.events.length > 0
     ? base.events
-        .filter((event): event is CcEventMetadata => {
-          return Boolean(event && typeof event.turn_id === "string" && VALID_CC_EVENTS.has(event.event))
+        .filter((event): event is CxEventMetadata => {
+          return Boolean(event && typeof event.turn_id === "string" && VALID_CX_EVENTS.has(event.event))
         })
-        .map(normalizeCcEvent)
-    : [normalizeCcEvent(base)]
+        .map(normalizeCxEvent)
+    : [normalizeCxEvent(base)]
 
   const contents = Array.isArray(base.contents)
     ? base.contents.map((entry) => (typeof entry === "string" ? entry : ""))
@@ -110,17 +110,16 @@ const markdownSyntaxStyle = SyntaxStyle.fromStyles({
   "markup.heading": { bold: true },
   "markup.strong": { bold: true },
   "markup.italic": { italic: true },
-  "markup.raw": { fg: RGBA.fromHex("#D7BA7D") },
+  "markup.raw": { fg: RGBA.fromHex("#98E6B8") },
   "markup.link.label": { underline: true, fg: RGBA.fromHex("#57C7FF") },
   "markup.link.url": { dim: true, fg: RGBA.fromHex("#9AA0A6") },
   "punctuation.special": { dim: true },
   "markup.list": { dim: true },
 })
 
-export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
+export function CodexEventMessageItem(props: CodexEventMessageItemProps) {
   const safeContent = () => sanitizePlainMessageText(props.message.content)
 
-  // Own "cc" messages are local agent prompts — render as italicized user messages.
   if (props.isOwnMessage) {
     const username = () => sanitizePlainMessageText(props.message.username)
     const usernameColor = () => getUsernameColor(username())
@@ -143,7 +142,7 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
     )
   }
 
-  const timeline = createMemo(() => getCcEventTimeline(props.message))
+  const timeline = createMemo(() => getCxEventTimeline(props.message))
   const events = createMemo(() => timeline().events)
   const contents = createMemo(() => timeline().contents)
   const username = () => sanitizePlainMessageText(props.message.username)
@@ -155,7 +154,7 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
   })
   const questionMarkdownWidth = createMemo(() => Math.max(12, bubbleWidth() - 2))
   const agentLabel = createMemo(() => sanitizePlainMessageText(getAgentDisplayNameById(AGENT_ID)))
-  const agentAccentColor = createMemo(() => getAgentColorById(AGENT_ID) ?? "#FFA500")
+  const agentAccentColor = createMemo(() => getAgentColorById(AGENT_ID) ?? "cyan")
 
   const questionIndexes = createMemo(() => {
     const indexes: number[] = []
@@ -336,11 +335,11 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
   })
 
   const turnCount = createMemo(() => questionIndexes().length)
-
-  // Expire the "working" indicator if no new events arrive within this window.
   const STALE_TIMEOUT_MS = 120_000
-  const [lastEventTime, setLastEventTime] = createSignal(Date.now())
-  const isWorking = createMemo(() => !hasResult() && currentTurnIndexes().length > 0 && Date.now() - lastEventTime() < STALE_TIMEOUT_MS)
+  const [clockMs, setClockMs] = createSignal(Date.now())
+  const [lastEventTime, setLastEventTime] = createSignal(clockMs())
+  const isWorking = createMemo(() => !hasResult() && currentTurnIndexes().length > 0 && clockMs() - lastEventTime() < STALE_TIMEOUT_MS)
+  const isStreamingActive = createMemo(() => textIsStreaming() && isWorking())
   const latestToolStatusDetail = createMemo(() => {
     const toolResult = latestToolResultDetail()
     if (toolResult) return toolResult
@@ -350,9 +349,9 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
   })
   const workingLabel = createMemo(() => {
     if (textContent()) return "Streaming..."
-    if (thinkingPreview()) return "Thinking..."
+    if (thinkingPreview()) return "Reasoning..."
     if (latestToolProgressDetail()) return "Working..."
-    return "Thinking..."
+    return "Reasoning..."
   })
   const resultSummary = createMemo(() => {
     const details = [`${turnCount()} turns`, `${durationSeconds()}s`]
@@ -374,14 +373,16 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
   onMount(() => {
     let prevEventCount = events().length
     thinkingTimer = setInterval(() => {
+      const now = Date.now()
+      setClockMs(now)
       const currentCount = events().length
       if (currentCount !== prevEventCount) {
         prevEventCount = currentCount
-        setLastEventTime(Date.now())
+        setLastEventTime(now)
       }
       if (isWorking()) {
         const since = new Date(props.message.timestamp).getTime()
-        setElapsed(Math.max(0, Math.floor((Date.now() - since) / 1000)))
+        setElapsed(Math.max(0, Math.floor((now - since) / 1000)))
       }
     }, 1000)
   })
@@ -464,7 +465,7 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
                   width="auto"
                   maxWidth={resultMarkdownWidth()}
                 />
-                <Show when={textIsStreaming() && !hasResult()}>
+                <Show when={isStreamingActive()}>
                   <text fg={agentAccentColor()}>▍</text>
                 </Show>
               </box>
@@ -481,8 +482,7 @@ export function ClaudeEventMessageItem(props: ClaudeEventMessageItemProps) {
           </Show>
 
           <Show when={isWorking()}>
-            <ClaudeThinkingIndicator
-              color={agentAccentColor()}
+            <CodexThinkingIndicator
               label={workingLabel()}
               summary={statusSummary()}
             />

@@ -165,6 +165,7 @@ export type ClaudePendingPermission = {
 
 export type CcBroadcast = {
   agentId: typeof AGENT_ID
+  wireType: typeof CC_WIRE_TYPE
   turnId: string
   sessionId?: string
   event: CcEventType
@@ -533,10 +534,11 @@ export const createClaudeSdkSession = () => {
     emittedToolCallIds.clear()
   }
 
-  const emitCcEvent = (event: Omit<CcBroadcast, "turnId" | "agentId">) => {
+  const emitCcEvent = (event: Omit<CcBroadcast, "turnId" | "agentId" | "wireType">) => {
     if (!currentTurnId) return
     const payload: CcBroadcast = {
       agentId: AGENT_ID,
+      wireType: CC_WIRE_TYPE,
       turnId: currentTurnId,
       sessionId: ccSessionId || undefined,
       ...event,

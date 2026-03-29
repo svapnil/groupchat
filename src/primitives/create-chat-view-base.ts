@@ -80,7 +80,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
         channel = activeChannel
       }
 
-      void manager.sendAgentEvent(channel, event.content, {
+      void manager.sendAgentEvent(channel, event.wireType, event.content, {
         turn_id: event.turnId,
         session_id: event.sessionId,
         event: event.event,

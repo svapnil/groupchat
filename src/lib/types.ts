@@ -9,10 +9,12 @@ export interface MessageAttributes {
   /** Extensible map for message metadata */
   [key: string]: unknown;
   claude?: ClaudeMessageMetadata;
+  codex?: CodexMessageMetadata;
   cc?: CcEventMetadata;
+  cx?: CxEventMetadata;
 }
 
-export type CcEventType =
+export type AgentEventType =
   | "question"
   | "thinking"
   | "tool_call"
@@ -21,6 +23,9 @@ export type CcEventType =
   | "text_stream"
   | "text"
   | "result";
+
+export type CcEventType = AgentEventType
+export type CxEventType = AgentEventType
 
 export interface CcEventMetadata {
   turn_id: string;
@@ -36,11 +41,28 @@ export interface CcEventMetadata {
   contents?: string[];
 }
 
-export type ClaudeContentBlock =
+export interface CxEventMetadata {
+  turn_id: string;
+  session_id?: string;
+  event: CxEventType;
+  tool_name?: string;
+  tool_use_id?: string;
+  is_error?: boolean;
+  output_tokens?: number;
+  elapsed_seconds?: number;
+  stop_reason?: string | null;
+  events?: CxEventMetadata[];
+  contents?: string[];
+}
+
+export type AgentContentBlock =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; tool_use_id: string; content: string | ClaudeContentBlock[]; is_error?: boolean }
+  | { type: "tool_result"; tool_use_id: string; content: string | AgentContentBlock[]; is_error?: boolean }
   | { type: "thinking"; thinking: string; budget_tokens?: number };
+
+export type ClaudeContentBlock = AgentContentBlock
+export type CodexContentBlock = AgentContentBlock
 
 export interface ClaudeResultMetadata {
   subtype: string;
@@ -106,6 +128,25 @@ export interface ClaudeMessageMetadata {
   permissionRequest?: ClaudePermissionRequest;
 }
 
+export interface CodexMessageMetadata {
+  parentToolUseId: string | null;
+  contentBlocks: CodexContentBlock[];
+  model?: string;
+  stopReason?: string | null;
+  streaming?: boolean;
+  thinking?: boolean;
+  interrupted?: boolean;
+  outputTokens?: number;
+  eventType?:
+    | "assistant"
+    | "stream_event"
+    | "reasoning"
+    | "tool_use"
+    | "tool_result"
+    | "result";
+  result?: ClaudeResultMetadata;
+}
+
 export interface Message {
   id: string;
   username: string;
@@ -113,7 +154,7 @@ export interface Message {
   timestamp: string;
 
   /** Message type - defaults to "user" for regular messages */
-  type?: "user" | "system" | "claude-response" | "cc";
+  type?: "user" | "system" | "claude-response" | "codex-response" | "cc" | "cx";
 
   /** Optional attributes - only present when message has attributes */
   attributes?: MessageAttributes;
