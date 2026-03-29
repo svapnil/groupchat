@@ -10,7 +10,7 @@ import {
   parseAgentIdFromEnterEvent,
 } from "../lib/commands"
 import { getAgentColorById, getAgentDisplayNameById } from "../lib/constants"
-import type { InputMode } from "../lib/input-mode"
+import type { BackgroundAgentMode, InputMode } from "../lib/input-mode"
 import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
 import type { ConnectionStatus, Message } from "../lib/types"
 import type { ChannelManager } from "../lib/channel-manager"
@@ -26,6 +26,7 @@ export type CreateChatViewBaseOptions = {
 
 type AgentKeyEvent = {
   ctrl?: boolean
+  shift?: boolean
   name: string
   preventDefault?: () => void
   stopPropagation?: () => void
@@ -38,6 +39,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   const [tooltipHeight, setTooltipHeight] = createSignal(0)
   const [pendingActionSelectedIndex, setPendingActionSelectedIndex] = createSignal(0)
   const [activeAgentId, setActiveAgentId] = createSignal<string | null>(null)
+  const [isAgentInputSuspended, setIsAgentInputSuspended] = createSignal(false)
 
   const agentSessions = createLocalAgentSessions(runtimeCapabilities)
   const defaultAgentSession = agentSessions[0]?.session ?? null
@@ -119,6 +121,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     }
     if (!active && current !== null) {
       setActiveAgentId(null)
+      setIsAgentInputSuspended(false)
     }
   })
 
@@ -137,6 +140,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   const activeInputMode = createMemo<InputMode | null>(() => {
     const active = activeAgent()
     if (!active) return null
+    if (isAgentInputSuspended()) return null
 
     const currentPendingAction = pendingAction()
 
@@ -153,6 +157,13 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
       pendingActionPlaceholder: currentPendingAction?.textInput?.placeholder || "Awaiting permission decision...",
       pendingActionHelperText: currentPendingAction?.textInput?.helperText || currentPendingAction?.helperText || "↑/↓ select action in message list • Enter to confirm",
     }
+  })
+
+  const backgroundAgentMode = createMemo<BackgroundAgentMode | null>(() => {
+    const active = activeAgent()
+    if (!active) return null
+    if (!isAgentInputSuspended()) return null
+    return { label: getAgentDisplayNameById(active.id) }
   })
 
   createEffect(() => {
@@ -241,6 +252,12 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
       key.preventDefault?.()
       key.stopPropagation?.()
       return true
+    }
+
+    // Shift+Tab toggles between agent input and normal chat
+    if (key.shift && key.name === "tab" && activeAgent()) {
+      setIsAgentInputSuspended((prev) => !prev)
+      return consumeKey()
     }
 
     const active = activeAgent()
@@ -336,7 +353,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
         return
       }
       const active = activeAgent()
-      if (active) {
+      if (active && !isAgentInputSuspended()) {
         await active.session.sendMessage(trimmed, options.username() || "you")
         return
       }
@@ -346,14 +363,14 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
 
   const wrapTypingStart = (normalStart: () => void) => {
     return () => {
-      if (isAgentMode()) return
+      if (isAgentMode() && !isAgentInputSuspended()) return
       normalStart()
     }
   }
 
   const wrapTypingStop = (normalStop: () => void) => {
     return () => {
-      if (isAgentMode()) return
+      if (isAgentMode() && !isAgentInputSuspended()) return
       normalStop()
     }
   }
@@ -394,6 +411,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     activeAgentId,
     activeAgent,
     activeInputMode,
+    backgroundAgentMode,
     pendingAction,
     isAgentMode,
     combinedMessages,

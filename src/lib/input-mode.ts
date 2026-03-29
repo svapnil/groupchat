@@ -12,3 +12,7 @@ export type InputMode = {
   pendingActionPlaceholder?: string
   pendingActionHelperText?: string
 }
+
+export type BackgroundAgentMode = {
+  label: string
+}

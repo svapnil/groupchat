@@ -4,7 +4,7 @@ import { Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import { isCommandLikeInput, startsWithKnownCommand } from "../lib/command-input"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
-import type { InputMode } from "../lib/input-mode"
+import type { BackgroundAgentMode, InputMode } from "../lib/input-mode"
 
 const FRAME_RULE = "─".repeat(512)
 
@@ -18,6 +18,7 @@ export type InputBoxProps = {
   commandNames?: string[]
   placeholder?: string
   mode?: InputMode | null
+  backgroundMode?: BackgroundAgentMode | null
   tabCompletion?: string | null
 }
 
@@ -117,10 +118,9 @@ export function InputBox(props: InputBoxProps) {
 
   const isKnownCommandPrefix = createMemo(() => startsWithKnownCommand(value(), props.commandNames || []))
   const inputTextColor = () => {
-    if (props.mode) return props.mode.accentColor
     return isKnownCommandPrefix() ? "cyan" : "#FFFFFF"
   }
-  const frameColor = () => props.mode ? props.mode.accentColor : "gray"
+  const frameColor = () => "gray"
   const placeholder = () => {
     if (props.disabled) return "Connecting..."
     if (props.mode?.pendingAction) {
@@ -145,14 +145,35 @@ export function InputBox(props: InputBoxProps) {
     <box
       flexDirection="column"
       width="100%"
-      height={helperText() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox}
+      height={
+        (props.mode || props.backgroundMode)
+          ? (helperText() ? LAYOUT_HEIGHTS.inputBoxWithModeAndHelper : LAYOUT_HEIGHTS.inputBoxWithMode)
+          : (helperText() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox)
+      }
       overflow="hidden"
       flexShrink={0}
     >
       <box paddingLeft={1} paddingRight={1} width="100%" height="100%" flexDirection="column">
+        <Show when={props.mode}>
+          <box height={2} paddingLeft={1} flexDirection="column" justifyContent="flex-end">
+            <box height={1} flexDirection="row">
+              <text fg={props.mode!.accentColor}>{"● "}</text>
+              <text fg="#FFFFFF">{`Using ${props.mode!.label}`}</text>
+              <text fg="#888888">{" (Shift+Tab to toggle)"}</text>
+            </box>
+          </box>
+        </Show>
+        <Show when={!props.mode && props.backgroundMode}>
+          <box height={2} paddingLeft={1} flexDirection="column" justifyContent="flex-end">
+            <box height={1} flexDirection="row">
+              <text fg="#888888">{"● "}</text>
+              <text fg="#888888">{`Using ${props.backgroundMode!.label} in the background (Shift+Tab to resume)`}</text>
+            </box>
+          </box>
+        </Show>
         <text fg={frameColor()} width="100%" height={1} truncate>{FRAME_RULE}</text>
         <box flexDirection="row" height={1} alignItems="center" paddingLeft={1} paddingRight={1}>
-          <text fg={props.mode ? props.mode.accentColor : "#FFFFFF"}>{"❯ "}</text>
+          <text fg="#FFFFFF">{"❯ "}</text>
           <box flexGrow={1} minWidth={0} overflow="hidden">
             <input
               value={value()}
