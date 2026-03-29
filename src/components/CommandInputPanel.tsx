@@ -4,7 +4,7 @@ import { Show, createEffect } from "solid-js"
 import { InputBox } from "./InputBox"
 import { ToolTip } from "./ToolTip"
 import { useCommandInput } from "../primitives/use-command-input"
-import { isAgentExitCommandEvent, type Command } from "../lib/commands"
+import { isAgentEnterCommandEvent, isAgentExitCommandEvent, type Command } from "../lib/commands"
 import type { BackgroundAgentMode, InputMode } from "../lib/input-mode"
 import type { ConnectionStatus, Subscriber } from "../lib/types"
 import type { UserWithStatus } from "../primitives/presence"
@@ -37,6 +37,8 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
     commandFilter: (command) => {
       if (props.agentMode) {
         if (!isAgentExitCommandEvent(command.eventType)) return false
+      } else if (props.backgroundAgentMode) {
+        if (isAgentEnterCommandEvent(command.eventType)) return false
       } else if (isAgentExitCommandEvent(command.eventType)) {
         return false
       }
