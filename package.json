@@ -28,11 +28,11 @@
     "prepublishOnly": "bun run typecheck && bun run build"
   },
   "optionalDependencies": {
-    "@groupchat-cli/darwin-arm64": "0.1.10",
-    "@groupchat-cli/darwin-x64": "0.1.10",
-    "@groupchat-cli/linux-arm64": "0.1.10",
-    "@groupchat-cli/linux-x64": "0.1.10",
-    "@groupchat-cli/win32-x64": "0.1.10"
+    "@groupchat-cli/darwin-arm64": "0.1.11",
+    "@groupchat-cli/darwin-x64": "0.1.11",
+    "@groupchat-cli/linux-arm64": "0.1.11",
+    "@groupchat-cli/linux-x64": "0.1.11",
+    "@groupchat-cli/win32-x64": "0.1.11"
   },
   "dependencies": {},
   "devDependencies": {
