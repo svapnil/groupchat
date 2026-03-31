@@ -12,6 +12,7 @@ import { useDmStore } from "../stores/dm-store"
 import type { Channel, DmConversation } from "../lib/types"
 import { PRESENCE } from "../lib/colors"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
+import { SkeletonChannelList, SkeletonDmList } from "../components/SkeletonLoader"
 
 export type MenuProps = {
   width: number
@@ -165,26 +166,31 @@ export function Menu(props: MenuProps) {
               <AtAGlance presenceState={chat.globalPresence()} />
             </box>
 
-            <Show when={sortedPublicChannels().length > 0}>
+            <Show when={sortedPublicChannels().length > 0 || channels.loading()}>
               <box flexDirection="column" marginBottom={1}>
                 <box marginBottom={1}>
                   <text>
                     <strong>Public Channels</strong>
                   </text>
                 </box>
-                <For each={sortedPublicChannels()}>
-                  {(channel, idx) => {
-                    const absoluteIndex = () => publicStartIndex() + idx()
-                    const unreadCount = () => channels.unreadCounts()[channel.slug] || 0
-                    return (
-                      <ChannelItem
-                        channel={channel}
-                        isSelected={selectedIndex() === absoluteIndex()}
-                        unreadCount={unreadCount()}
-                      />
-                    )
-                  }}
-                </For>
+                <Show
+                  when={sortedPublicChannels().length > 0}
+                  fallback={<SkeletonChannelList count={3} />}
+                >
+                  <For each={sortedPublicChannels()}>
+                    {(channel, idx) => {
+                      const absoluteIndex = () => publicStartIndex() + idx()
+                      const unreadCount = () => channels.unreadCounts()[channel.slug] || 0
+                      return (
+                        <ChannelItem
+                          channel={channel}
+                          isSelected={selectedIndex() === absoluteIndex()}
+                          unreadCount={unreadCount()}
+                        />
+                      )
+                    }}
+                  </For>
+                </Show>
               </box>
             </Show>
 
@@ -194,31 +200,36 @@ export function Menu(props: MenuProps) {
                   <strong>Private Channels</strong>
                 </text>
               </box>
-              {/* Append null sentinel so the "Create" action is part of the same <For> list.
-                 This guarantees render order — a sibling after <For> can shift above
-                 dynamically-inserted items when the reactive list updates. */}
-              <For each={[...channels.privateChannels(), null]}>
-                {(channel, idx) => {
-                  if (channel === null) {
+              <Show
+                when={!channels.loading() || channels.privateChannels().length > 0}
+                fallback={<SkeletonChannelList count={2} />}
+              >
+                {/* Append null sentinel so the "Create" action is part of the same <For> list.
+                   This guarantees render order — a sibling after <For> can shift above
+                   dynamically-inserted items when the reactive list updates. */}
+                <For each={[...channels.privateChannels(), null]}>
+                  {(channel, idx) => {
+                    if (channel === null) {
+                      return (
+                        <ActionItem
+                          label="+ Create a new private channel"
+                          isSelected={selectedIndex() === createChannelIndex()}
+                        />
+                      )
+                    }
+                    const absoluteIndex = () => privateStartIndex() + idx()
+                    const unreadCount = () => channels.unreadCounts()[channel.slug] || 0
                     return (
-                      <ActionItem
-                        label="+ Create a new private channel"
-                        isSelected={selectedIndex() === createChannelIndex()}
+                      <ChannelItem
+                        channel={channel}
+                        isSelected={selectedIndex() === absoluteIndex()}
+                        unreadCount={unreadCount()}
+                        isPrivate
                       />
                     )
-                  }
-                  const absoluteIndex = () => privateStartIndex() + idx()
-                  const unreadCount = () => channels.unreadCounts()[channel.slug] || 0
-                  return (
-                    <ChannelItem
-                      channel={channel}
-                      isSelected={selectedIndex() === absoluteIndex()}
-                      unreadCount={unreadCount()}
-                      isPrivate
-                    />
-                  )
-                }}
-              </For>
+                  }}
+                </For>
+              </Show>
             </box>
 
             <box flexDirection="column" marginBottom={1}>
@@ -235,11 +246,7 @@ export function Menu(props: MenuProps) {
 
               <Show
                 when={!dms.loading() || dms.conversations().length > 0}
-                fallback={
-                  <box marginLeft={2}>
-                    <text fg="cyan">Loading conversations...</text>
-                  </box>
-                }
+                fallback={<SkeletonDmList count={3} />}
               >
                 <Show
                   when={dms.conversations().length > 0}
@@ -272,13 +279,9 @@ export function Menu(props: MenuProps) {
               </Show>
             </box>
 
-            <Show when={allChannels().length === 0}>
+            <Show when={allChannels().length === 0 && !channels.loading()}>
               <box>
-                {channels.loading() ? (
-                  <text fg="cyan">Loading channels...</text>
-                ) : (
-                  <text fg="#888888">No channels available</text>
-                )}
+                <text fg="#888888">No channels available</text>
               </box>
             </Show>
           </box>
