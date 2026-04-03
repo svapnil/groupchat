@@ -26,6 +26,7 @@ export type CommandInputPanelProps = {
   commandFilter?: (command: Command) => boolean
   agentMode?: InputMode | null
   backgroundAgentMode?: BackgroundAgentMode | null
+  onBashModeChange?: (active: boolean) => void
 }
 
 export function CommandInputPanel(props: CommandInputPanelProps) {
@@ -75,6 +76,7 @@ export function CommandInputPanel(props: CommandInputPanelProps) {
         mode={props.agentMode || null}
         backgroundMode={props.backgroundAgentMode || null}
         tabCompletion={commandInput.tabCompletion()}
+        onBashModeChange={props.onBashModeChange}
       />
     </>
   )

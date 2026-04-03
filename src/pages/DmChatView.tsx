@@ -46,6 +46,7 @@ export function DmChatView(props: DmChatViewProps) {
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal<string | null>(null)
   const [typingUsers, setTypingUsers] = createSignal<string[]>([])
+  const [isBashMode, setIsBashMode] = createSignal(false)
 
   const conversation = () => dms.currentDm()
   const title = () => conversation()?.other_username || "DM"
@@ -67,7 +68,9 @@ export function DmChatView(props: DmChatViewProps) {
   createEffect(() => {
     const mode = base.activeInputMode()
     const bgMode = base.backgroundAgentMode()
-    const inputBoxHeight = (mode || bgMode)
+    const inputBoxHeight = isBashMode()
+      ? LAYOUT_HEIGHTS.inputBoxWithMode
+      : (mode || bgMode)
       ? (mode?.pendingAction ? LAYOUT_HEIGHTS.inputBoxWithModeAndHelper : LAYOUT_HEIGHTS.inputBoxWithMode)
       : LAYOUT_HEIGHTS.inputBox
     setListHeight(calculateMiddleSectionHeight(props.height, topPadding(), inputBoxHeight))
@@ -162,6 +165,7 @@ export function DmChatView(props: DmChatViewProps) {
           username: msg.username,
           content: msg.content,
           timestamp: extractTimestampFromUUIDv7(msg.id),
+          type: msg.type,
           attributes: msg.attributes,
         }
 
@@ -300,6 +304,7 @@ export function DmChatView(props: DmChatViewProps) {
           onTooltipHeightChange={base.handleTooltipHeightChange}
           agentMode={base.activeInputMode()}
           backgroundAgentMode={base.backgroundAgentMode()}
+          onBashModeChange={setIsBashMode}
         />
       </Layout.Content>
       <Layout.Footer>

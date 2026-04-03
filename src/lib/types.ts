@@ -12,6 +12,20 @@ export interface MessageAttributes {
   codex?: CodexMessageMetadata;
   cc?: CcEventMetadata;
   cx?: CxEventMetadata;
+  bash?: BashEventMetadata;
+}
+
+export type BashEventKind = "prompt" | "output"
+export type BashCommandStatus = "running" | "completed" | "failed"
+
+export interface BashEventMetadata {
+  command_id: string;
+  event: BashEventKind;
+  status?: BashCommandStatus;
+  exit_code?: number;
+  cwd?: string;
+  events?: BashEventMetadata[];
+  contents?: string[];
 }
 
 export type AgentEventType =
@@ -154,7 +168,7 @@ export interface Message {
   timestamp: string;
 
   /** Message type - defaults to "user" for regular messages */
-  type?: "user" | "system" | "claude-response" | "codex-response" | "cc" | "cx";
+  type?: "user" | "system" | "claude-response" | "codex-response" | "cc" | "cx" | "bash_prompt" | "bash_output";
 
   /** Optional attributes - only present when message has attributes */
   attributes?: MessageAttributes;
@@ -292,6 +306,7 @@ export interface DmMessage {
   username: string;
   content: string;
   sender_id: number;
+  type?: "cc" | "cx" | "bash_prompt" | "bash_output";
   attributes?: MessageAttributes;
 }
 

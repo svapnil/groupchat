@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { afterEach, describe, expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
+import { createSignal } from "solid-js"
 import { InputBox, type InputBoxProps } from "../../src/components/InputBox"
+import type { InputMode } from "../../src/lib/input-mode"
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null
 
@@ -133,6 +135,123 @@ describe("InputBox", () => {
     await testSetup.renderOnce()
 
     expect(sent).toEqual(["custom answer"])
+  })
+
+  test("switches to bash mode and still submits from agent mode", async () => {
+    const sent: string[] = []
+
+    testSetup = await testRender(
+      () =>
+        <InputBox
+          {...createProps({
+            onSend: async (message) => {
+              sent.push(message)
+            },
+            mode: {
+              id: "claude",
+              label: "Claude Code",
+              accentColor: "#FFA500",
+            },
+          })}
+        />,
+      { width: 80, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    await testSetup.mockInput.typeText("!echo hello")
+    await testSetup.renderOnce()
+
+    let frame = testSetup.captureCharFrame()
+    expect(frame).toContain("Bash Mode")
+    expect(frame).not.toContain("Using Claude Code")
+    expect(frame).toContain("echo hello")
+
+    testSetup.mockInput.pressEnter()
+
+    await tick()
+    await testSetup.renderOnce()
+    frame = testSetup.captureCharFrame()
+
+    expect(sent).toEqual(["!echo hello"])
+    expect(frame).not.toContain("Bash Mode")
+    expect(frame).toContain("Using Claude Code")
+  })
+
+  test("does not render a duplicate exclamation mark when entering bash mode", async () => {
+    testSetup = await testRender(
+      () => <InputBox {...createProps()} />,
+      { width: 60, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    await testSetup.mockInput.typeText("!")
+    await testSetup.renderOnce()
+
+    const frame = testSetup.captureCharFrame()
+    expect(frame).toContain("Bash Mode")
+    expect(frame).toContain("! Run a shell command...")
+    expect(frame).not.toContain("! !")
+  })
+
+  test("clears bash input when pending mode takes over", async () => {
+    const sent: string[] = []
+    let setMode: ((value: InputMode | null) => void) | undefined
+
+    testSetup = await testRender(
+      () => {
+        const [mode, updateMode] = createSignal<InputMode | null>({
+          id: "claude",
+          label: "Claude Code",
+          accentColor: "#FFA500",
+        })
+        setMode = updateMode
+
+        return (
+          <InputBox
+            {...createProps({
+              onSend: async (message) => {
+                sent.push(message)
+              },
+              mode: mode(),
+            })}
+          />
+        )
+      },
+      { width: 80, height: 8 },
+    )
+
+    await testSetup.renderOnce()
+    await testSetup.mockInput.typeText("!echo hello")
+    await testSetup.renderOnce()
+
+    let frame = testSetup.captureCharFrame()
+    expect(frame).toContain("Bash Mode")
+    expect(frame).toContain("echo hello")
+
+    setMode?.({
+      id: "claude",
+      label: "Claude Code",
+      accentColor: "#FFA500",
+      pendingAction: true,
+      pendingActionAllowsTextInput: true,
+      pendingActionPlaceholder: "Type your answer...",
+      pendingActionHelperText: "Type your answer and press Enter",
+    })
+
+    await tick()
+    await testSetup.renderOnce()
+
+    frame = testSetup.captureCharFrame()
+    expect(frame).not.toContain("Bash Mode")
+    expect(frame).toContain("Type your answer...")
+    expect(frame).not.toContain("echo hello")
+
+    testSetup.mockInput.pressEnter()
+
+    await tick()
+    await testSetup.renderOnce()
+
+    expect(sent).toEqual([])
   })
 })
 

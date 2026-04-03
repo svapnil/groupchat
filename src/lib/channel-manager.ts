@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { Socket, Channel as PhoenixChannel } from "phoenix";
 import type {
+  BashEventMetadata,
   CcEventMetadata,
   CxEventMetadata,
   Message,
@@ -16,6 +17,7 @@ import type {
 } from "./types.js";
 import { applyPresenceDiff } from "./presence-utils.js";
 import { debugLog } from "./debug.js";
+import { BASH_OUTPUT_WIRE_TYPE, BASH_PROMPT_WIRE_TYPE } from "../bash/shared";
 
 /**
  * Internal state for each channel subscription.
@@ -52,6 +54,7 @@ function extractTimestampFromUUIDv7(uuid: string): string {
  * Prevents unbounded memory growth when viewing other channels.
  */
 const MAX_REALTIME_MESSAGES_PER_CHANNEL = 100;
+type OutgoingTypedMessage = "cc" | "cx" | typeof BASH_PROMPT_WIRE_TYPE | typeof BASH_OUTPUT_WIRE_TYPE
 
 /**
  * ChannelManager manages a single persistent WebSocket connection
@@ -641,6 +644,62 @@ export class ChannelManager {
   }
 
   /**
+   * Send a typed message to a specific channel or DM.
+   */
+  private async sendTypedMessage(
+    channelSlug: string,
+    type: OutgoingTypedMessage,
+    content: string,
+    attributes: MessageAttributes,
+  ): Promise<{ message_id: string }> {
+    const channelState = this.channelStates.get(channelSlug);
+    if (!this.socket || this.connectionStatus !== "connected") {
+      throw new Error("Connection lost");
+    }
+
+    if (channelState) {
+      return new Promise((resolve, reject) => {
+        try {
+          channelState.channel
+            .push("new_message", {
+              content,
+              type,
+              attributes,
+            })
+            .receive("ok", (resp: unknown) => {
+              const response = resp as { message_id: string };
+              resolve(response);
+            })
+            .receive("error", (err: unknown) => {
+              const error = err as { reason?: string };
+              const errorMsg = error.reason || `Failed to send ${type} message`;
+              this.callbacks.onError?.(errorMsg);
+              reject(new Error(errorMsg));
+            })
+            .receive("timeout", () => {
+              const errorMsg = `${type} message send timeout`;
+              this.callbacks.onError?.(errorMsg);
+              reject(new Error("timeout"));
+            });
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+
+    if (channelSlug.startsWith("dm:")) {
+      return this.sendDmMessage(
+        channelSlug,
+        content,
+        attributes,
+        type
+      );
+    }
+
+    throw new Error(`Not subscribed to channel: ${channelSlug}`);
+  }
+
+  /**
    * Send an ephemeral agent event message to a specific channel.
    * Fire-and-forget: errors are logged but not propagated to callers.
    */
@@ -678,7 +737,7 @@ export class ChannelManager {
     }
 
     if (channelSlug.startsWith("dm:")) {
-      this.sendDmMessage(
+      void this.sendDmMessage(
         channelSlug,
         content,
         {
@@ -689,6 +748,22 @@ export class ChannelManager {
         console.error(`Failed to send ${type} message to DM ${channelSlug}:`, error);
       });
     }
+  }
+
+  /**
+   * Reserved for future sanitized bash transport.
+   * The TUI currently keeps raw bash commands and output local until
+   * command/output sanitization and redaction are implemented.
+   */
+  async sendBashEvent(
+    channelSlug: string,
+    type: typeof BASH_PROMPT_WIRE_TYPE | typeof BASH_OUTPUT_WIRE_TYPE,
+    content: string,
+    metadata: BashEventMetadata,
+  ): Promise<{ message_id: string }> {
+    return this.sendTypedMessage(channelSlug, type, content, {
+      bash: metadata,
+    });
   }
 
   /**
@@ -936,7 +1011,7 @@ export class ChannelManager {
     dmSlug: string,
     content: string,
     attributes?: MessageAttributes,
-    type?: "cc" | "cx"
+    type?: OutgoingTypedMessage
   ): Promise<{ message_id: string }> {
     if (!this.userChannel) {
       throw new Error("User channel not connected");
@@ -950,7 +1025,7 @@ export class ChannelManager {
       dm_slug: string;
       content: string;
       attributes?: MessageAttributes;
-      type?: "cc" | "cx";
+      type?: OutgoingTypedMessage;
     } = {
       dm_slug: dmSlug,
       content,

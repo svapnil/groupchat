@@ -10,11 +10,14 @@ import { buildCodexDepthMap } from "../codex/helpers"
 import { CX_WIRE_TYPE } from "../codex/codex-event-message-mutations"
 import { CodexMessageItem } from "../codex/components/CodexMessageItem"
 import { CodexEventMessageItem } from "../codex/components/CodexEventMessageItem"
+import { BashEventMessageItem } from "../../bash/components/BashEventMessageItem"
+import { BASH_OUTPUT_WIRE_TYPE, BASH_PROMPT_WIRE_TYPE, getBashMetadata } from "../../bash/shared"
 
 export type AgentMessageRenderContext = {
   message: Message
   messagePaneWidth?: number
   isOwnMessage?: boolean
+  showHeader?: boolean
   agentDepth?: number
   pendingActionSelectedIndex?: number
   hiddenClaudeToolUseIds?: ReadonlySet<string>
@@ -51,10 +54,26 @@ const renderCodexEventMessage: AgentMessageRenderer = (context) => {
   return <CodexEventMessageItem message={context.message} isOwnMessage={context.isOwnMessage} messagePaneWidth={context.messagePaneWidth} />
 }
 
+const renderBashEventMessage: AgentMessageRenderer = (context) => {
+  const hasBashMetadata = getBashMetadata(context.message) !== null
+  if (!hasBashMetadata && context.message.type !== BASH_PROMPT_WIRE_TYPE && context.message.type !== BASH_OUTPUT_WIRE_TYPE) {
+    return null
+  }
+
+  return (
+    <BashEventMessageItem
+      message={context.message}
+      isOwnMessage={context.isOwnMessage}
+      showHeader={context.showHeader}
+    />
+  )
+}
+
 /**
  * Add renderers here as new local/remote agent message formats are introduced.
  */
 const AGENT_MESSAGE_RENDERERS: AgentMessageRenderer[] = [
+  renderBashEventMessage,
   renderClaudeMessage,
   renderClaudeEventMessage,
   renderCodexMessage,

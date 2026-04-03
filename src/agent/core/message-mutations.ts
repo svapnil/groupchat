@@ -3,6 +3,7 @@
 import type { Message } from "../../lib/types"
 import { isClaudeEventMessage, upsertClaudeEventMessage } from "../claude/claude-event-message-mutations"
 import { isCodexEventMessage, upsertCodexEventMessage } from "../codex/codex-event-message-mutations"
+import { isBashEventMessage, upsertBashEventMessage } from "../../bash/bash-event-message-mutations"
 
 type AgentMessageMutator = (
   messages: Message[],
@@ -20,10 +21,16 @@ const upsertCodexEventMutator: AgentMessageMutator = (messages, incoming, myUser
   return upsertCodexEventMessage(messages, incoming, myUsername)
 }
 
+const upsertBashEventMutator: AgentMessageMutator = (messages, incoming) => {
+  if (!isBashEventMessage(incoming)) return null
+  return upsertBashEventMessage(messages, incoming)
+}
+
 /**
  * Add mutators in priority order as new agent message formats are introduced.
  */
 const AGENT_MESSAGE_MUTATORS: AgentMessageMutator[] = [
+  upsertBashEventMutator,
   upsertClaudeEventMutator,
   upsertCodexEventMutator,
 ]

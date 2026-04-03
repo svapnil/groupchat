@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
-import { Show, createMemo, createSignal, onCleanup } from "solid-js"
+import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import type { InputRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { isCommandLikeInput, startsWithKnownCommand } from "../lib/command-input"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
 import type { BackgroundAgentMode, InputMode } from "../lib/input-mode"
+import { BASH_MODE_COLOR, extractBashCommand, isBashPrefixedMessage } from "../bash/shared"
 
 const FRAME_RULE = "─".repeat(512)
 
@@ -20,15 +22,29 @@ export type InputBoxProps = {
   mode?: InputMode | null
   backgroundMode?: BackgroundAgentMode | null
   tabCompletion?: string | null
+  onBashModeChange?: (active: boolean) => void
 }
 
 export function InputBox(props: InputBoxProps) {
   const [value, setValue] = createSignal("")
   const [isSending, setIsSending] = createSignal(false)
+  const [isBashMode, setIsBashMode] = createSignal(false)
 
   let typingTimeout: ReturnType<typeof setTimeout> | null = null
   let isTyping = false
   let isCommandMode = false
+  let inputRef: InputRenderable | undefined
+
+  const setBashMode = (active: boolean) => {
+    if (isBashMode() === active) return
+    if (active) {
+      stopTyping()
+      isCommandMode = false
+      props.onInputChange?.("")
+    }
+    setIsBashMode(active)
+    props.onBashModeChange?.(active)
+  }
 
   const stopTyping = () => {
     if (isTyping) {
@@ -38,13 +54,36 @@ export function InputBox(props: InputBoxProps) {
   }
 
   const handleChange = (newValue: string) => {
-    setValue(newValue)
-    const isCommandLike = isCommandLikeInput(newValue)
+    const bashAllowed = !props.mode?.pendingAction
+    let nextValue = newValue
+
+    if (bashAllowed) {
+      if (!isBashMode() && isBashPrefixedMessage(newValue)) {
+        setBashMode(true)
+        nextValue = newValue.slice(1).trimStart()
+      } else if (isBashMode() && newValue.startsWith("!")) {
+        nextValue = newValue.slice(1).trimStart()
+      }
+    } else if (isBashMode()) {
+      setBashMode(false)
+    }
+
+    setValue(nextValue)
+    if (nextValue !== newValue && inputRef && inputRef.value !== nextValue) {
+      inputRef.value = nextValue
+    }
+
+    if (isBashMode()) {
+      stopTyping()
+      return
+    }
+
+    const isCommandLike = isCommandLikeInput(nextValue)
 
     if (isCommandLike) {
       isCommandMode = true
       if (props.onInputChange) {
-        props.onInputChange(newValue)
+        props.onInputChange(nextValue)
       }
     } else if (isCommandMode) {
       isCommandMode = false
@@ -53,7 +92,7 @@ export function InputBox(props: InputBoxProps) {
       }
     }
 
-    if (!isTyping && newValue.length > 0) {
+    if (!isTyping && nextValue.length > 0) {
       isTyping = true
       props.onTypingStart()
     }
@@ -63,7 +102,7 @@ export function InputBox(props: InputBoxProps) {
       typingTimeout = null
     }
 
-    if (newValue.length > 0) {
+    if (nextValue.length > 0) {
       typingTimeout = setTimeout(() => {
         stopTyping()
       }, 2000)
@@ -74,7 +113,8 @@ export function InputBox(props: InputBoxProps) {
 
   const handleSubmit = async (submittedValue?: string) => {
     const candidate = submittedValue ?? value()
-    const trimmed = candidate.trim()
+    const bashCommand = isBashMode() ? extractBashCommand(`!${candidate}`) : null
+    const trimmed = bashCommand ? `!${bashCommand}` : candidate.trim()
     if (!trimmed || props.disabled || props.sendDisabled || isSending()) return
 
     if (props.mode?.pendingAction && !props.mode.pendingActionAllowsTextInput) {
@@ -92,6 +132,7 @@ export function InputBox(props: InputBoxProps) {
     try {
       await props.onSend(trimmed)
       setValue("")
+      setBashMode(false)
       isCommandMode = false
       if (props.onInputChange) {
         props.onInputChange("")
@@ -103,26 +144,51 @@ export function InputBox(props: InputBoxProps) {
     }
   }
 
+  createEffect(() => {
+    if (props.mode?.pendingAction && isBashMode()) {
+      setValue("")
+      if (inputRef && inputRef.value !== "") {
+        inputRef.value = ""
+      }
+      isCommandMode = false
+      props.onInputChange?.("")
+      setBashMode(false)
+    }
+  })
+
   onCleanup(() => {
     if (typingTimeout) {
       clearTimeout(typingTimeout)
       typingTimeout = null
     }
+    if (isBashMode()) {
+      props.onBashModeChange?.(false)
+    }
   })
 
   useKeyboard((key) => {
-    if (key.name === "tab" && props.tabCompletion) {
+    if (key.name === "backspace" && isBashMode() && value() === "") {
+      setBashMode(false)
+      return
+    }
+
+    if (key.name === "tab" && props.tabCompletion && !isBashMode()) {
       handleChange(props.tabCompletion)
     }
   })
 
-  const isKnownCommandPrefix = createMemo(() => startsWithKnownCommand(value(), props.commandNames || []))
+  const shouldShowBashMode = createMemo(() => isBashMode())
+  const isKnownCommandPrefix = createMemo(() => {
+    if (shouldShowBashMode()) return false
+    return startsWithKnownCommand(value(), props.commandNames || [])
+  })
   const inputTextColor = () => {
     return isKnownCommandPrefix() ? "cyan" : "#FFFFFF"
   }
   const frameColor = () => "gray"
   const placeholder = () => {
     if (props.disabled) return "Connecting..."
+    if (shouldShowBashMode()) return "Run a shell command..."
     if (props.mode?.pendingAction) {
       return props.mode.pendingActionPlaceholder || "Awaiting action..."
     }
@@ -132,6 +198,9 @@ export function InputBox(props: InputBoxProps) {
     return props.placeholder || "Type a message..."
   }
   const helperText = () => {
+    if (shouldShowBashMode()) {
+      return ""
+    }
     if (props.mode?.pendingAction) {
       return props.mode.pendingActionHelperText || "Complete the pending action in the message list."
     }
@@ -146,7 +215,7 @@ export function InputBox(props: InputBoxProps) {
       flexDirection="column"
       width="100%"
       height={
-        (props.mode || props.backgroundMode)
+        (props.mode || props.backgroundMode || shouldShowBashMode())
           ? (helperText() ? LAYOUT_HEIGHTS.inputBoxWithModeAndHelper : LAYOUT_HEIGHTS.inputBoxWithMode)
           : (helperText() ? LAYOUT_HEIGHTS.inputBoxWithHelper : LAYOUT_HEIGHTS.inputBox)
       }
@@ -154,7 +223,7 @@ export function InputBox(props: InputBoxProps) {
       flexShrink={0}
     >
       <box paddingLeft={1} paddingRight={1} width="100%" height="100%" flexDirection="column">
-        <Show when={props.mode}>
+        <Show when={props.mode && !shouldShowBashMode()}>
           <box height={2} paddingLeft={1} flexDirection="column" justifyContent="flex-end">
             <box height={1} flexDirection="row">
               <text fg={props.mode!.accentColor}>{"● "}</text>
@@ -163,7 +232,7 @@ export function InputBox(props: InputBoxProps) {
             </box>
           </box>
         </Show>
-        <Show when={!props.mode && props.backgroundMode}>
+        <Show when={!props.mode && props.backgroundMode && !shouldShowBashMode()}>
           <box height={2} paddingLeft={1} flexDirection="column" justifyContent="flex-end">
             <box height={1} flexDirection="row">
               <text fg="#888888">{"● "}</text>
@@ -171,11 +240,27 @@ export function InputBox(props: InputBoxProps) {
             </box>
           </box>
         </Show>
+        <Show when={shouldShowBashMode()}>
+          <box height={2} paddingLeft={1} flexDirection="column" justifyContent="flex-end">
+            <box height={1} flexDirection="row">
+              <text fg={BASH_MODE_COLOR}>{"● "}</text>
+              <text fg="#FFFFFF">{"Bash Mode"}</text>
+            </box>
+          </box>
+        </Show>
         <text fg={frameColor()} width="100%" height={1} truncate>{FRAME_RULE}</text>
         <box flexDirection="row" height={1} alignItems="center" paddingLeft={1} paddingRight={1}>
-          <text fg="#FFFFFF">{"❯ "}</text>
+          <Show
+            when={shouldShowBashMode()}
+            fallback={<text fg="#FFFFFF">{"❯ "}</text>}
+          >
+            <text fg={BASH_MODE_COLOR}>{"! "}</text>
+          </Show>
           <box flexGrow={1} minWidth={0} overflow="hidden">
             <input
+              ref={(ref) => {
+                inputRef = ref
+              }}
               value={value()}
               onInput={handleChange}
               onSubmit={(submitted) => {

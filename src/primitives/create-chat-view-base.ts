@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
+import { randomUUID } from "node:crypto"
 import { createEffect, createMemo, createSignal } from "solid-js"
 import type { Accessor } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { createLocalAgentSessions } from "../agent/core/local-agent-sessions"
+import { upsertAgentMessage } from "../agent/core/message-mutations"
 import type { LocalAgentSessionEntry } from "../agent/core/types"
 import {
   isAgentExitCommandEvent,
@@ -12,8 +14,10 @@ import {
 import { getAgentColorById, getAgentDisplayNameById } from "../lib/constants"
 import type { BackgroundAgentMode, InputMode } from "../lib/input-mode"
 import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
-import type { ConnectionStatus, Message } from "../lib/types"
+import type { BashEventMetadata, ConnectionStatus, Message } from "../lib/types"
 import type { ChannelManager } from "../lib/channel-manager"
+import { BASH_OUTPUT_WIRE_TYPE, BASH_PROMPT_WIRE_TYPE, isBashPrefixedMessage } from "../bash/shared"
+import { startBashCommand } from "../bash/run-bash-command"
 
 export type CreateChatViewBaseOptions = {
   baseMessages: Accessor<Message[]>
@@ -40,6 +44,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   const [pendingActionSelectedIndex, setPendingActionSelectedIndex] = createSignal(0)
   const [activeAgentId, setActiveAgentId] = createSignal<string | null>(null)
   const [isAgentInputSuspended, setIsAgentInputSuspended] = createSignal(false)
+  const [localBashMessageCache, setLocalBashMessageCache] = createSignal<Record<string, Message[]>>({})
 
   const agentSessions = createLocalAgentSessions(runtimeCapabilities)
   const defaultAgentSession = agentSessions[0]?.session ?? null
@@ -166,6 +171,12 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     return { label: getAgentDisplayNameById(active.id) }
   })
 
+  const localBashMessages = createMemo(() => {
+    const channel = options.currentChannel()
+    if (!channel) return [] as Message[]
+    return localBashMessageCache()[channel] ?? []
+  })
+
   createEffect(() => {
     if (!isAgentMode()) {
       agentEventChannelByTurnKey.clear()
@@ -176,6 +187,7 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
   const combinedMessages = createMemo(() =>
     [
       ...options.baseMessages(),
+      ...localBashMessages(),
       ...agentSessions.flatMap((entry) => entry.session.messages()),
     ].sort((a, b) => {
       const aThinking = agentSessions.some((entry) => entry.session.isThinkingMessage?.(a))
@@ -341,6 +353,29 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
     return false
   }
 
+  const appendLocalBashEvent = async (
+    channelSlug: string,
+    type: typeof BASH_PROMPT_WIRE_TYPE | typeof BASH_OUTPUT_WIRE_TYPE,
+    content: string,
+    metadata: BashEventMetadata,
+  ) => {
+    const nextMessage: Message = {
+      id: randomUUID(),
+      username: options.username() || "you",
+      content,
+      timestamp: new Date().toISOString(),
+      type,
+      attributes: {
+        bash: metadata,
+      },
+    }
+
+    setLocalBashMessageCache((prev) => ({
+      ...prev,
+      [channelSlug]: upsertAgentMessage(prev[channelSlug] ?? [], nextMessage, options.username()),
+    }))
+  }
+
   // Wraps a normal send function to route to the active local agent mode.
   const wrapSendMessage = (normalSend: (msg: string) => Promise<void>) => {
     return async (message: string) => {
@@ -350,6 +385,27 @@ export function createChatViewBase(options: CreateChatViewBaseOptions) {
       const currentPendingAction = pendingAction()
       if (pendingSession && currentPendingAction?.textInput) {
         await pendingSession.session.submitPendingActionInput?.(trimmed)
+        return
+      }
+      if (isBashPrefixedMessage(trimmed)) {
+        const channel = options.currentChannel()
+        if (!channel) {
+          throw new Error("No active chat")
+        }
+
+        await startBashCommand({
+          message: trimmed,
+          sendEvent: (type, content, metadata) => appendLocalBashEvent(channel, type, content, metadata),
+          onBackgroundError: (error) => {
+            console.error("Failed to complete local bash command:", error)
+          },
+        })
+
+        // Keep raw bash prompts/output local for now.
+        // We are intentionally not sending bash events to the server until
+        // we have a proper sanitization and redaction story for commands and output.
+        // Future re-enable point:
+        // sendEvent: (type, content, metadata) => manager.sendBashEvent(channel, type, content, metadata),
         return
       }
       const active = activeAgent()

@@ -5,6 +5,7 @@ import { createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import type { Message } from "../../src/lib/types"
 import { MessageList } from "../../src/components/MessageList"
+import { condenseAgentMessages } from "../../src/agent/core/message-mutations"
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null
 
@@ -222,5 +223,125 @@ describe("MessageList", () => {
     expect(frame).toContain("Terminal")
     expect(frame).toContain("$ echo hello")
     expect(frame.match(/\$ echo hello/g)?.length ?? 0).toBe(1)
+  })
+
+  test("renders grouped bash prompt and running output", async () => {
+    const messages = condenseAgentMessages([
+      {
+        id: "bash-prompt-1",
+        username: "alice",
+        content: "echo \"hello\"",
+        timestamp: "2024-01-01T00:00:00.000Z",
+        type: "bash_prompt",
+        attributes: {
+          bash: {
+            command_id: "cmd-1",
+            event: "prompt",
+          },
+        },
+      },
+      {
+        id: "bash-output-1",
+        username: "alice",
+        content: "",
+        timestamp: "2024-01-01T00:00:01.000Z",
+        type: "bash_output",
+        attributes: {
+          bash: {
+            command_id: "cmd-1",
+            event: "output",
+            status: "running",
+          },
+        },
+      },
+    ], "alice")
+
+    testSetup = await testRender(
+      () =>
+        <MessageList
+          messages={messages}
+          currentUsername="alice"
+          typingUsers={[]}
+          messagePaneWidth={80}
+          height={10}
+          isDetached={false}
+        />,
+      { width: 100, height: 14 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(messages).toHaveLength(1)
+    expect(frame).toContain("! echo \"hello\"")
+    expect(frame).toContain("Running..")
+  })
+
+  test("replaces running bash output with the final output", async () => {
+    const messages = condenseAgentMessages([
+      {
+        id: "bash-prompt-2",
+        username: "alice",
+        content: "echo \"hello\"",
+        timestamp: "2024-01-01T00:00:00.000Z",
+        type: "bash_prompt",
+        attributes: {
+          bash: {
+            command_id: "cmd-2",
+            event: "prompt",
+          },
+        },
+      },
+      {
+        id: "bash-output-running-2",
+        username: "alice",
+        content: "",
+        timestamp: "2024-01-01T00:00:01.000Z",
+        type: "bash_output",
+        attributes: {
+          bash: {
+            command_id: "cmd-2",
+            event: "output",
+            status: "running",
+          },
+        },
+      },
+      {
+        id: "bash-output-final-2",
+        username: "alice",
+        content: "hello",
+        timestamp: "2024-01-01T00:00:02.000Z",
+        type: "bash_output",
+        attributes: {
+          bash: {
+            command_id: "cmd-2",
+            event: "output",
+            status: "completed",
+            exit_code: 0,
+          },
+        },
+      },
+    ], "alice")
+
+    testSetup = await testRender(
+      () =>
+        <MessageList
+          messages={messages}
+          currentUsername="alice"
+          typingUsers={[]}
+          messagePaneWidth={80}
+          height={10}
+          isDetached={false}
+        />,
+      { width: 100, height: 14 },
+    )
+
+    await testSetup.renderOnce()
+    const frame = testSetup.captureCharFrame()
+
+    expect(messages).toHaveLength(1)
+    expect(frame).toContain("! echo \"hello\"")
+    expect(frame).toContain("⎿ hello")
+    expect(frame).not.toContain("Running..")
   })
 })

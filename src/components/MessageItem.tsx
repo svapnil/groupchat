@@ -58,6 +58,7 @@ export function MessageItem(props: MessageItemProps) {
       message: props.message,
       messagePaneWidth: props.messagePaneWidth,
       isOwnMessage: props.isOwnMessage,
+      showHeader: showHeader(),
       agentDepth: props.agentDepth,
       pendingActionSelectedIndex: props.pendingActionSelectedIndex,
       hiddenClaudeToolUseIds: props.hiddenClaudeToolUseIds,
