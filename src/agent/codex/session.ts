@@ -12,6 +12,7 @@ import type {
 import { getRuntimeCapabilities } from "../../lib/runtime-capabilities"
 import { getToolOneLiner } from "./helpers"
 import { AGENT_ID, CX_WIRE_TYPE } from "./codex-event-message-mutations"
+import { GROUPCHAT_SYSTEM_PROMPT } from "../core/system-prompt"
 
 type JsonRpcRequest = {
   method: string
@@ -1452,6 +1453,7 @@ export const createCodexSession = () => {
         cwd: process.cwd(),
         approvalPolicy: "never",
         sandbox: "workspace-write",
+        instructions: GROUPCHAT_SYSTEM_PROMPT,
       }) as { thread?: { id?: string } }
 
       threadId = typeof threadResult?.thread?.id === "string" ? threadResult.thread.id : null

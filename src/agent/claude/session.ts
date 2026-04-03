@@ -17,13 +17,14 @@ import {
 } from "./helpers"
 import { AGENT_ID, CC_WIRE_TYPE } from "./claude-event-message-mutations"
 import { getRuntimeCapabilities } from "../../lib/runtime-capabilities"
+import { GROUPCHAT_SYSTEM_PROMPT } from "../core/system-prompt"
 
 /**
  * Claude Code control_request subtypes from companion/WEBSOCKET_PROTOCOL_REVERSED.md (section 7).
  *
  * Current implementation coverage:
  * - Incoming handled: can_use_tool
- * - Outgoing sent: interrupt
+ * - Outgoing sent: initialize, interrupt
  * - All other subtypes are currently unhandled in the TUI session bridge.
  */
 const KNOWN_CONTROL_REQUEST_SUBTYPES = [
@@ -54,6 +55,7 @@ type ClaudeControlRequest = {
   request_id: string
   request: {
     subtype: KnownControlRequestSubtype | (string & {})
+    appendSystemPrompt?: string
     tool_name?: string
     input?: Record<string, unknown>
     description?: string
@@ -1473,6 +1475,15 @@ export const createClaudeSdkSession = () => {
     stdoutChunkCount = 0
     stderrChunkCount = 0
     log("start:begin", `routeId=${aRandomUUID}`)
+
+    sendToClaude({
+      type: "control_request",
+      request_id: randomUUID(),
+      request: {
+        subtype: "initialize",
+        appendSystemPrompt: GROUPCHAT_SYSTEM_PROMPT,
+      },
+    })
 
     try {
       server = Bun.serve<CLISocketData>({
