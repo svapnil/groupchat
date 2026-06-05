@@ -13,11 +13,12 @@ import { PRESENCE } from "../lib/colors"
 import { useChannelsStore } from "../stores/channel-store"
 import { getCommandAgentId, isAgentCommand } from "../lib/commands"
 import { useNavigation } from "../components/Router"
-import { fetchDmMessages } from "../lib/chat-client"
+import { createOrGetDm, fetchDmMessages } from "../lib/chat-client"
+import { truncatePreview } from "../lib/dm-utils"
 import { condenseAgentMessages, upsertAgentMessage } from "../agent/core/message-mutations"
 import { getConfig } from "../lib/config"
 import { calculateMiddleSectionHeight, LAYOUT_HEIGHTS } from "../lib/layout"
-import type { DmMessage, Message } from "../lib/types"
+import type { DmConversation, DmMessage, Message } from "../lib/types"
 import { createChatViewBase } from "../primitives/create-chat-view-base"
 
 export type DmChatViewProps = {
@@ -47,8 +48,14 @@ export function DmChatView(props: DmChatViewProps) {
   const [error, setError] = createSignal<string | null>(null)
   const [typingUsers, setTypingUsers] = createSignal<string[]>([])
   const [isBashMode, setIsBashMode] = createSignal(false)
+  const [materializing, setMaterializing] = createSignal(false)
+  // Slug of a DM that was just materialized from a draft. Its history GET would
+  // race the first message's realtime echo and could clobber it, so we skip the
+  // fetch once and let the echo populate the (otherwise empty) conversation.
+  let pendingMaterializedSlug: string | null = null
 
   const conversation = () => dms.currentDm()
+  const isDraft = () => Boolean(conversation()?.isDraft)
   const title = () => conversation()?.other_username || "DM"
   const topPadding = () => props.topPadding ?? 0
   const [listHeight, setListHeight] = createSignal(
@@ -105,6 +112,23 @@ export function DmChatView(props: DmChatViewProps) {
       return
     }
 
+    // A draft has no backend channel yet — nothing to fetch.
+    if (dm.isDraft) {
+      setMessages([])
+      setLoading(false)
+      setError(null)
+      return
+    }
+
+    // Just materialized from a draft: skip the history GET (which would race the
+    // first message's echo) and let the realtime callback populate it instead.
+    if (pendingMaterializedSlug === dm.slug) {
+      pendingMaterializedSlug = null
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -133,7 +157,7 @@ export function DmChatView(props: DmChatViewProps) {
     const manager = chat.channelManager()
     const dm = conversation()
 
-    if (!manager || !dm) return
+    if (!manager || !dm || dm.isDraft) return
 
     manager.markDmAsRead(dm.slug).catch(() => {})
     dms.clearUnreadCount(dm.slug)
@@ -208,14 +232,62 @@ export function DmChatView(props: DmChatViewProps) {
   })
 
   useKeyboard((key) => {
+    // Agents/bash need a real DM channel; a draft must be materialized by sending
+    // a plain first message before any agent session can start.
+    if (isDraft()) return
     if (base.handleAgentKeys(key)) return
   })
 
   const handleCommand = async (eventType: string, data: any) => {
+    if (isDraft()) {
+      base.appendAgentError("Send a message first to start this conversation.")
+      return
+    }
     try {
       await base.handleAgentCommand(eventType, data)
     } catch (error) {
       base.appendAgentError(`Command failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  // Turn a draft conversation into a real backend DM. Idempotent on the server
+  // (create_or_get_dm), but guarded here so a rapid second send awaits the first
+  // creation instead of racing a duplicate. Returns the materialized DM, or null
+  // on failure (leaving the draft open so the typed content isn't lost).
+  const ensureRealConversation = async (
+    dm: DmConversation,
+    preview: string,
+  ): Promise<DmConversation | null> => {
+    if (!dm.isDraft) return dm
+    if (materializing()) return null
+
+    const token = auth.token()
+    if (!token) return null
+
+    setMaterializing(true)
+    try {
+      const config = getConfig()
+      const created = await createOrGetDm(config.wsUrl, token, { user_id: dm.other_user_id })
+      const real: DmConversation = {
+        channel_id: created.channel_id,
+        slug: created.slug,
+        other_user_id: created.other_user_id,
+        other_username: created.other_username,
+        last_activity_at: new Date().toISOString(),
+        last_message_preview: truncatePreview(preview),
+        unread_count: 0,
+      }
+      // Mark before setCurrentDm so the history-fetch effect (which fires on the
+      // conversation change) skips the GET for this freshly created DM.
+      pendingMaterializedSlug = created.slug
+      dms.upsertConversation(real)
+      dms.setCurrentDm(real)
+      return real
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create DM")
+      return null
+    } finally {
+      setMaterializing(false)
     }
   }
 
@@ -224,29 +296,33 @@ export function DmChatView(props: DmChatViewProps) {
     const dm = conversation()
     if (!manager || !dm) return
 
-    manager.sendDmMessage(dm.slug, content).catch(() => {
+    const target = await ensureRealConversation(dm, content)
+    if (!target) return
+
+    manager.sendDmMessage(target.slug, content).catch(() => {
       setError("Failed to send message")
     })
+    void dms.refetch()
   })
 
   const handleTypingStart = base.wrapTypingStart(() => {
     const manager = chat.channelManager()
     const dm = conversation()
-    if (!manager || !dm) return
+    if (!manager || !dm || dm.isDraft) return
     manager.startDmTyping(dm.slug)
   })
 
   const handleTypingStop = base.wrapTypingStop(() => {
     const manager = chat.channelManager()
     const dm = conversation()
-    if (!manager || !dm) return
+    if (!manager || !dm || dm.isDraft) return
     manager.stopDmTyping(dm.slug)
   })
 
   onCleanup(() => {
     const manager = chat.channelManager()
     const dm = conversation()
-    if (manager && dm) {
+    if (manager && dm && !dm.isDraft) {
       manager.markDmAsRead(dm.slug).catch(() => {})
     }
   })

@@ -8,8 +8,6 @@ import { useNavigation } from "../components/Router"
 import { useDmStore } from "../stores/dm-store"
 import { useChatStore } from "../stores/chat-store"
 import { useAuth } from "../stores/auth-store"
-import { createOrGetDm } from "../lib/chat-client"
-import { getConfig } from "../lib/config"
 import { PRESENCE } from "../lib/colors"
 import { LAYOUT_HEIGHTS } from "../lib/layout"
 import type { DmConversation, UserSearchResult } from "../lib/types"
@@ -30,7 +28,6 @@ export function DmInbox(props: DmInboxProps) {
   const [searchQuery, setSearchQuery] = createSignal("")
   const [searchSelectedIndex, setSearchSelectedIndex] = createSignal(0)
   const [searchError, setSearchError] = createSignal<string | null>(null)
-  const [isCreating, setIsCreating] = createSignal(false)
 
   const userSearch = useUserSearch({
     token: auth.token,
@@ -73,44 +70,36 @@ export function DmInbox(props: DmInboxProps) {
     setSearchSelectedIndex((prev) => Math.min(prev, count - 1))
   })
 
-  const startDmWithUser = async (user: UserSearchResult) => {
+  const startDmWithUser = (user: UserSearchResult) => {
     const token = auth.token()
-    if (!token || isCreating()) return
+    if (!token) return
 
-    setIsCreating(true)
     setSearchError(null)
 
-    try {
-      const config = getConfig()
-      const dm = await createOrGetDm(config.wsUrl, token, { user_id: user.user_id })
-      const existing = dms.conversations().find((convo) => convo.slug === dm.slug)
-      const conversation: DmConversation = existing ?? {
-        channel_id: dm.channel_id,
-        slug: dm.slug,
-        other_user_id: dm.other_user_id,
-        other_username: dm.other_username,
-        last_activity_at: new Date().toISOString(),
-        last_message_preview: null,
-        unread_count: 0,
-      }
-
-      dms.upsertConversation(conversation)
-      dms.setCurrentDm(conversation)
-      dms.clearUnreadCount(conversation.slug)
-
-      if (chat.channelManager()) {
-        chat.channelManager()!.markDmAsRead(conversation.slug).catch(() => {})
-      }
-
-      dms.setShouldStartDmSearch(false)
-      setSearchQuery("")
-      void dms.refetch()
-      navigation.navigate("dm-chat")
-    } catch (err) {
-      setSearchError(err instanceof Error ? err.message : "Failed to create DM")
-    } finally {
-      setIsCreating(false)
+    // Reuse an existing conversation if one already exists; otherwise open a
+    // draft that isn't persisted on the backend until the first message is sent
+    // (see DmChatView's materialize-on-send). This avoids empty "ghost" DMs.
+    const existing = dms.conversations().find((convo) => convo.other_user_id === user.user_id)
+    const conversation: DmConversation = existing ?? {
+      channel_id: "",
+      slug: "",
+      other_user_id: user.user_id,
+      other_username: user.username,
+      last_activity_at: new Date().toISOString(),
+      last_message_preview: null,
+      unread_count: 0,
+      isDraft: true,
     }
+
+    if (existing) {
+      dms.clearUnreadCount(existing.slug)
+      chat.channelManager()?.markDmAsRead(existing.slug).catch(() => {})
+    }
+
+    dms.setCurrentDm(conversation)
+    dms.setShouldStartDmSearch(false)
+    setSearchQuery("")
+    navigation.navigate("dm-chat")
   }
 
   useKeyboard((key) => {
@@ -139,7 +128,7 @@ export function DmInbox(props: DmInboxProps) {
       if (key.name === "return" || key.name === "enter") {
         const selected = searchResults()[searchSelectedIndex()]
         if (selected) {
-          void startDmWithUser(selected)
+          startDmWithUser(selected)
         }
       }
 
@@ -240,7 +229,7 @@ export function DmInbox(props: DmInboxProps) {
 
                 <box marginTop={1}>
                   <text fg="#888888">
-                    {isCreating() ? "Starting DM..." : "[Enter] Start DM  [Esc] Cancel"}
+                    [Enter] Start DM  [Esc] Cancel
                   </text>
                 </box>
               </box>

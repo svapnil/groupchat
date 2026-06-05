@@ -318,6 +318,12 @@ export interface DmConversation {
   last_activity_at: string;
   last_message_preview: string | null;
   unread_count: number;
+  /**
+   * True for an unsent draft conversation that has no backend channel yet.
+   * Draft conversations have empty `slug`/`channel_id` and live only in local
+   * state until the first message is sent (which materializes the DM).
+   */
+  isDraft?: boolean;
 }
 
 export interface DmConversationsResponse {
