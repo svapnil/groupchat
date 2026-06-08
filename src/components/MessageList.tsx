@@ -6,6 +6,7 @@ import { MessageItem } from "./MessageItem"
 import type { Message } from "../lib/types"
 import { buildAgentDepthMap } from "../agent/core/message-renderers"
 import { sanitizePlainMessageText } from "../lib/content-sanitizer"
+import { formatFullDate, localDayKey } from "../lib/utils"
 
 export type MessageListProps = {
   messages: Message[]
@@ -40,6 +41,9 @@ export function MessageList(props: MessageListProps) {
   // Precompute which messages need headers in a single pass to avoid
   // repeated Date parsing inside each <For> iteration's reactive callback.
   const showHeaderSet = createMemo(() => buildShowHeaderSet(props.messages))
+  // Indices that begin a new local calendar day (and the first message), which
+  // get a date divider rendered above them.
+  const dayDividerSet = createMemo(() => buildDayDividerSet(props.messages))
 
   const footerLines = createMemo(() => {
     if (props.isDetached) return 1
@@ -70,17 +74,22 @@ export function MessageList(props: MessageListProps) {
           <For each={props.messages}>
             {(message, index) => {
               return (
-                <MessageItem
-                  message={message}
-                  isOwnMessage={message.username === props.currentUsername}
-                  messagePaneWidth={props.messagePaneWidth}
-                  showHeader={showHeaderSet().has(index())}
-                  agentDepth={agentDepthByMessageId().get(message.id) ?? 0}
-                  hiddenClaudeToolUseIds={hiddenClaudeToolUseIds()}
-                  pendingActionSelectedIndex={
-                    props.pendingActionMessageId === message.id ? props.pendingActionSelectedIndex : undefined
-                  }
-                />
+                <>
+                  <Show when={dayDividerSet().has(index())}>
+                    <DateDivider timestamp={message.timestamp} />
+                  </Show>
+                  <MessageItem
+                    message={message}
+                    isOwnMessage={message.username === props.currentUsername}
+                    messagePaneWidth={props.messagePaneWidth}
+                    showHeader={showHeaderSet().has(index())}
+                    agentDepth={agentDepthByMessageId().get(message.id) ?? 0}
+                    hiddenClaudeToolUseIds={hiddenClaudeToolUseIds()}
+                    pendingActionSelectedIndex={
+                      props.pendingActionMessageId === message.id ? props.pendingActionSelectedIndex : undefined
+                    }
+                  />
+                </>
               )
             }}
           </For>
@@ -110,6 +119,16 @@ export function MessageList(props: MessageListProps) {
   )
 }
 
+// A centered full date shown above the first message of each local calendar
+// day, e.g. "June 8th, 2026".
+function DateDivider(props: { timestamp: string }) {
+  return (
+    <box width="100%" alignItems="center" height={1}>
+      <text fg="#888888" height={1}>{formatFullDate(props.timestamp)}</text>
+    </box>
+  )
+}
+
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000
 
 export function buildShowHeaderSet(messages: Pick<Message, "username" | "timestamp">[]): Set<number> {
@@ -117,9 +136,23 @@ export function buildShowHeaderSet(messages: Pick<Message, "username" | "timesta
   for (let i = 0; i < messages.length; i++) {
     if (i === 0 || messages[i].username !== messages[i - 1].username) {
       set.add(i)
+    } else if (localDayKey(messages[i].timestamp) !== localDayKey(messages[i - 1].timestamp)) {
+      // A date break always starts a fresh header so the first message of a day
+      // never visually merges with the previous day's author.
+      set.add(i)
     } else if (
       new Date(messages[i].timestamp).getTime() - new Date(messages[i - 1].timestamp).getTime() > TWO_HOURS_MS
     ) {
+      set.add(i)
+    }
+  }
+  return set
+}
+
+export function buildDayDividerSet(messages: Pick<Message, "timestamp">[]): Set<number> {
+  const set = new Set<number>()
+  for (let i = 0; i < messages.length; i++) {
+    if (i === 0 || localDayKey(messages[i].timestamp) !== localDayKey(messages[i - 1].timestamp)) {
       set.add(i)
     }
   }
