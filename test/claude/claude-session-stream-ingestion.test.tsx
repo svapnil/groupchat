@@ -48,6 +48,7 @@ class MockClaudeTransport {
   private originalServe: typeof Bun.serve | null = null
   private originalSpawn: typeof Bun.spawn | null = null
   spawnCommand: string[] | null = null
+  spawnOptions: any = null
   sentLines: string[] = []
 
   install() {
@@ -63,8 +64,9 @@ class MockClaudeTransport {
       } as any
     }) as typeof Bun.serve
 
-    Bun.spawn = (((command: string[]) => {
+    Bun.spawn = (((command: string[], options?: any) => {
       this.spawnCommand = [...command]
+      this.spawnOptions = options
       let exited = false
       const exitPromise = new Promise<number>((resolve) => {
         this.resolveExit = (code: number) => {
@@ -203,6 +205,22 @@ describe("createClaudeSdkSession stream ingestion", () => {
 
     expect(transport.spawnCommand).toBeTruthy()
     expect(transport.spawnCommand).toContain("--include-partial-messages")
+  })
+
+  test("unsets CLAUDECODE when spawning Claude", async () => {
+    const previous = process.env.CLAUDECODE
+    process.env.CLAUDECODE = "1"
+    try {
+      const { transport } = await createStartedSession()
+
+      expect(transport.spawnOptions?.env?.CLAUDECODE).toBeUndefined()
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CLAUDECODE
+      } else {
+        process.env.CLAUDECODE = previous
+      }
+    }
   })
 
   test("ingests stream deltas, finalizes assistant output, and emits cc text/result events", async () => {

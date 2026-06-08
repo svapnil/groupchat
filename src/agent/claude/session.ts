@@ -1536,12 +1536,15 @@ export const createClaudeSdkSession = () => {
       ]
       log("process:spawn", `cmd=${runtimeCapabilities.claudePath}`, `args=${args.join(" ")}`)
 
+      const claudeEnv = {
+        ...process.env,
+        CLAUDECODE: undefined,
+      }
+
       claudeProcess = Bun.spawn([runtimeCapabilities.claudePath, ...args], {
         stdout: "pipe",
         stderr: "pipe",
-        env: {
-          ...process.env,
-        },
+        env: claudeEnv,
       })
       log("process:spawned", `pid=${claudeProcess.pid}`)
 
