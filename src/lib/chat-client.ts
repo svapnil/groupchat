@@ -12,6 +12,57 @@ import type {
 } from "./types.js";
 
 /**
+ * The organization slug all org-scoped requests are made for. Resolved once
+ * after login (see stores/org-store.tsx); null falls back to the backend
+ * default (the community org). A module-level scope keeps the many call
+ * sites unchanged — the TUI is a single-user process.
+ */
+let orgScope: string | null = null;
+
+export function setOrgScope(org: string | null): void {
+  orgScope = org;
+}
+
+/** Query-string suffix carrying the org scope, or "" when unscoped. */
+function orgQuery(): string {
+  return orgScope ? `?${new URLSearchParams({ org: orgScope }).toString()}` : "";
+}
+
+export interface Organization {
+  id: string;
+  slug: string;
+  name: string;
+  username: string;
+  role: "owner" | "admin" | "member";
+}
+
+/**
+ * Fetch the organizations the user is a member of.
+ */
+export async function fetchOrganizations(
+  wsUrl: string,
+  token: string
+): Promise<Organization[]> {
+  const backendUrl = wsUrl
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/socket$/, "");
+
+  const response = await fetch(`${backendUrl}/api/organizations`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch organizations: ${response.status}`);
+  }
+
+  const data = (await response.json()) as { organizations: Organization[] };
+  return data.organizations || [];
+}
+
+/**
  * Fetch channels from the backend API.
  * This is a standalone function since it doesn't require WebSocket connection.
  */
@@ -26,7 +77,7 @@ export async function fetchChannels(
     .replace(/^ws:/, "http:")
     .replace(/\/socket$/, "");
 
-  const url = `${backendUrl}/api/channels`;
+  const url = `${backendUrl}/api/channels${orgQuery()}`;
 
   const response = await fetch(url, {
     headers: {
@@ -53,7 +104,7 @@ export async function fetchUnreadCounts(
     .replace(/^ws:/, "http:")
     .replace(/\/socket$/, "");
 
-  const url = `${backendUrl}/api/unread-counts`;
+  const url = `${backendUrl}/api/unread-counts${orgQuery()}`;
 
   const response = await fetch(url, {
     headers: {
@@ -156,6 +207,9 @@ export async function searchUsers(
   if (channelSlug) {
     params.append("channel_slug", encodeURIComponent(channelSlug));
   }
+  if (orgScope) {
+    params.append("org", orgScope);
+  }
 
   const url = `${backendUrl}/api/users/search?${params.toString()}`;
 
@@ -189,9 +243,12 @@ export async function createChannel(
 
   const url = `${backendUrl}/api/channels`;
 
-  const body: { name: string; description?: string } = { name };
+  const body: { name: string; description?: string; org?: string } = { name };
   if (description) {
     body.description = description;
+  }
+  if (orgScope) {
+    body.org = orgScope;
   }
 
   const response = await fetch(url, {
@@ -227,7 +284,7 @@ export async function fetchDmConversations(
     .replace(/^ws:/, "http:")
     .replace(/\/socket$/, "");
 
-  const url = `${backendUrl}/api/dm`;
+  const url = `${backendUrl}/api/dm${orgQuery()}`;
 
   const response = await fetch(url, {
     headers: {
@@ -258,9 +315,12 @@ export async function createOrGetDm(
 
   const url = `${backendUrl}/api/dm`;
 
-  const body = "user_id" in otherUser
+  const body: Record<string, string | number> = "user_id" in otherUser
     ? { other_user_id: otherUser.user_id }
     : { other_username: otherUser.username };
+  if (orgScope) {
+    body.org = orgScope;
+  }
 
   const response = await fetch(url, {
     method: "POST",

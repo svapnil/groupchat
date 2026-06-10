@@ -8,6 +8,7 @@ import { sortConversationsByActivity, truncatePreview } from "../lib/dm-utils"
 import type { DmConversation, DmMessage } from "../lib/types"
 import { useAuth } from "./auth-store"
 import { useChatStore } from "./chat-store"
+import { useOrgStore } from "./org-store"
 
 export type DmContextValue = {
   conversations: () => DmConversation[]
@@ -29,6 +30,7 @@ const DmContext = createContext<DmContextValue>()
 export const DmProvider: ParentComponent = (props) => {
   const auth = useAuth()
   const chat = useChatStore()
+  const org = useOrgStore()
   const [conversations, setConversations] = createSignal<DmConversation[]>([])
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
@@ -154,12 +156,18 @@ export const DmProvider: ParentComponent = (props) => {
 
   createEffect(() => {
     const token = auth.token()
+    // Wait for the org scope to settle (and refetch if it ever changes).
+    const orgResolved = org.resolved()
+    org.currentOrg()
+
     if (!token) {
       setConversations([])
       setLoading(false)
       setError(null)
       return
     }
+
+    if (!orgResolved) return
 
     void fetchData()
   })

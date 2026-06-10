@@ -8,6 +8,7 @@ import {
   logout as authLogout,
   type AuthState,
 } from "../auth/auth-manager"
+import { clearOrg } from "../lib/org-storage"
 
 type AuthContextValue = {
   authState: () => AuthState
@@ -99,6 +100,8 @@ export const AuthProvider: ParentComponent<AuthProviderProps> = (props) => {
     try {
       await authLogout()
     } finally {
+      // Forget the org choice so the next login prompts again (when 2+ orgs).
+      clearOrg()
       setToken(null)
       setAuthState("unauthenticated")
       setAuthStatus("")

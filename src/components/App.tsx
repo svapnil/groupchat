@@ -4,11 +4,13 @@ import { Match, Switch, createEffect, createMemo, createSignal } from "solid-js"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { Router, useNavigation } from "./Router"
 import { AuthProvider, useAuth } from "../stores/auth-store"
+import { OrgProvider, useOrgStore } from "../stores/org-store"
 import { ChannelProvider, useChannelsStore } from "../stores/channel-store"
 import { ChatProvider, useChatStore } from "../stores/chat-store"
 import { DmProvider, useDmStore } from "../stores/dm-store"
 import { StatusMessageProvider, useStatusMessage } from "../stores/status-message-store"
 import { LoginScreen } from "../pages/LoginScreen"
+import { OrgSelectScreen } from "../pages/OrgSelectScreen"
 import { Menu } from "../pages/Menu"
 import { ChatView } from "../pages/ChatView"
 import { CreateChannelScreen } from "../pages/CreateChannelScreen"
@@ -19,6 +21,7 @@ const CTRL_C_TIMEOUT_MS = 3000
 
 function AppContent() {
   const auth = useAuth()
+  const org = useOrgStore()
   const navigation = useNavigation()
   const channels = useChannelsStore()
   const chat = useChatStore()
@@ -87,6 +90,11 @@ function AppContent() {
         />
       </Match>
 
+      {/* 2+ orgs and no stored choice: pick before the workspace loads. */}
+      <Match when={org.needsSelection()}>
+        <OrgSelectScreen width={width()} height={height()} topPadding={topPadding()} />
+      </Match>
+
       <Match when={navigation.route() === "menu"}>
         <Menu width={width()} height={height()} topPadding={topPadding()} />
       </Match>
@@ -117,17 +125,19 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider autoCheck>
-      <ChannelProvider>
-        <ChatProvider>
-          <DmProvider>
-            <StatusMessageProvider>
-              <Router initialRoute="menu">
-                <AppContent />
-              </Router>
-            </StatusMessageProvider>
-          </DmProvider>
-        </ChatProvider>
-      </ChannelProvider>
+      <OrgProvider>
+        <ChannelProvider>
+          <ChatProvider>
+            <DmProvider>
+              <StatusMessageProvider>
+                <Router initialRoute="menu">
+                  <AppContent />
+                </Router>
+              </StatusMessageProvider>
+            </DmProvider>
+          </ChatProvider>
+        </ChannelProvider>
+      </OrgProvider>
     </AuthProvider>
   )
 }
