@@ -6,6 +6,7 @@ import { fetchChannels, fetchUnreadCounts } from "../lib/chat-client"
 import { getConfig } from "../lib/config"
 import type { Channel, UnreadCounts } from "../lib/types"
 import { useAuth } from "./auth-store"
+import { useOrgStore } from "./org-store"
 
 export type ChannelContextValue = {
   currentChannel: () => string
@@ -28,7 +29,8 @@ const ChannelContext = createContext<ChannelContextValue>()
 
 export const ChannelProvider: ParentComponent = (props) => {
   const auth = useAuth()
-  const [currentChannel, setCurrentChannel] = createSignal("chat_room:global")
+  const org = useOrgStore()
+  const [currentChannel, setCurrentChannel] = createSignal("chat_room:groupchat-community:global")
   const [publicChannels, setPublicChannels] = createSignal<Channel[]>([])
   const [privateChannels, setPrivateChannels] = createSignal<Channel[]>([])
   const [unreadCounts, setUnreadCounts] = createStore<UnreadCounts>({})
@@ -74,6 +76,13 @@ export const ChannelProvider: ParentComponent = (props) => {
       setPublicChannels(channelsData.channels.public)
       setPrivateChannels(channelsData.channels.private)
       setUnreadCounts(unreadData)
+
+      // The default slug (or a previous org's selection) may not exist in this
+      // org — land on the first channel of the fetched list instead.
+      const all = [...channelsData.channels.public, ...channelsData.channels.private]
+      if (all.length > 0 && !all.some((channel) => channel.slug === currentChannel())) {
+        setCurrentChannel(all[0].slug)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data")
     } finally {
@@ -96,6 +105,11 @@ export const ChannelProvider: ParentComponent = (props) => {
 
   createEffect(() => {
     const token = auth.token()
+    // Wait for the org scope to settle (and refetch if it ever changes) so the
+    // first channel list is already scoped to the selected org.
+    const orgResolved = org.resolved()
+    org.currentOrg()
+
     if (!token) {
       setPublicChannels([])
       setPrivateChannels([])
@@ -104,6 +118,8 @@ export const ChannelProvider: ParentComponent = (props) => {
       setError(null)
       return
     }
+
+    if (!orgResolved) return
 
     void fetchData()
   })
