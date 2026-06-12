@@ -17,6 +17,10 @@ import type {
 
 export type MultiChannelChatOptions = {
   token: Accessor<string | null>
+  /** Org slug the session is scoped to; null = unscoped (backend default). */
+  currentOrg: Accessor<string | null>
+  /** Connection waits until the org scope is settled (see org-store). */
+  orgResolved: Accessor<boolean>
   currentChannel: Accessor<string>
   onChannelListChanged?: () => void
   incrementUnreadCount?: (channelSlug: string) => void
@@ -61,7 +65,12 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
 
   createEffect(() => {
     const token = options.token()
-    if (!token) {
+    // Tracked so the whole connection re-establishes when the org changes
+    // (status channel, channel list, and subscriptions are all org-scoped).
+    const orgSlug = options.currentOrg()
+    const orgResolved = options.orgResolved()
+
+    if (!token || !orgResolved) {
       if (managerSignal()) {
         managerSignal()!.disconnect()
       }
@@ -210,7 +219,7 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
     const init = async () => {
       try {
         await manager.connect()
-        await manager.joinStatusChannel()
+        await manager.joinStatusChannel(orgSlug)
 
         const channelsResponse = await fetchChannels(config.wsUrl, token)
         const allChannels = [

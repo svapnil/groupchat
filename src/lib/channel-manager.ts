@@ -185,37 +185,63 @@ export class ChannelManager {
   }
 
   /**
-   * Join the public:status channel for global presence tracking.
+   * Join the status channel for org-wide presence tracking.
    * Used by AtAGlance in Menu as a single source of presence truth.
+   *
+   * Presence is scoped to the org the session is using (`org_status:{slug}`).
+   * With no org slug — or against an old backend without org_status — falls
+   * back to the legacy `public:status` topic (which newer backends keep alive
+   * but report as empty).
    */
-  async joinStatusChannel(): Promise<void> {
+  async joinStatusChannel(orgSlug: string | null): Promise<void> {
     if (!this.socket) throw new Error("Socket not connected");
 
-    return new Promise((resolve, reject) => {
-      this.statusChannel = this.socket!.channel("public:status", {});
+    if (!orgSlug) {
+      return this.joinStatusTopic("public:status");
+    }
 
-      this.statusChannel.on("presence_state", (payload: unknown) => {
+    try {
+      await this.joinStatusTopic(`org_status:${orgSlug}`);
+    } catch {
+      await this.joinStatusTopic("public:status");
+    }
+  }
+
+  private joinStatusTopic(topic: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const channel = this.socket!.channel(topic, {});
+
+      channel.on("presence_state", (payload: unknown) => {
         this.globalPresence = payload as PresenceState;
         this.callbacks.onGlobalPresenceState?.(this.globalPresence);
       });
 
-      this.statusChannel.on("presence_diff", (payload: unknown) => {
+      channel.on("presence_diff", (payload: unknown) => {
         const diff = payload as PresenceDiff;
         this.globalPresence = applyPresenceDiff(this.globalPresence, diff);
         this.callbacks.onGlobalPresenceDiff?.(diff);
       });
 
-      this.statusChannel
+      channel
         .join()
-        .receive("ok", () => resolve())
-        .receive("error", (e) => reject(e))
-        .receive("timeout", () => reject(new Error("timeout")));
+        .receive("ok", () => {
+          this.statusChannel = channel;
+          resolve();
+        })
+        .receive("error", (e) => {
+          channel.leave();
+          reject(e);
+        })
+        .receive("timeout", () => {
+          channel.leave();
+          reject(new Error("timeout"));
+        });
     });
   }
 
   /**
-   * Get global presence from the status channel.
-   * Returns all online users across the system.
+   * Get presence from the status channel.
+   * Returns all online users in the session's org.
    */
   getGlobalPresence(): PresenceState {
     return this.globalPresence;

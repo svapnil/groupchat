@@ -7,6 +7,7 @@ import { createAgentDetection } from "../primitives/create-agent-detection"
 import { createMultiChannelChat } from "../primitives/create-multi-channel-chat"
 import { useAuth } from "./auth-store"
 import { useChannelsStore } from "./channel-store"
+import { useOrgStore } from "./org-store"
 
 export type ChatStoreValue = {
   messages: () => Message[]
@@ -29,10 +30,13 @@ const ChatContext = createContext<ChatStoreValue>()
 
 export const ChatProvider: ParentComponent = (props) => {
   const auth = useAuth()
+  const org = useOrgStore()
   const channels = useChannelsStore()
 
   const chat = createMultiChannelChat({
     token: auth.token,
+    currentOrg: org.currentOrg,
+    orgResolved: org.resolved,
     currentChannel: channels.currentChannel,
     incrementUnreadCount: channels.incrementUnreadCount,
   })
