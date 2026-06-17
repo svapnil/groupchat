@@ -92,7 +92,7 @@ export class ChannelManager {
 
     // Create socket connection
     this.socket = new Socket(this.wsUrl, {
-      params: { token: this.token },
+      params: { token: this.token, client: "tui" },
       reconnectAfterMs: (tries: number) => {
         return [1000, 2000, 5000, 10000][tries - 1] || 10000;
       },
