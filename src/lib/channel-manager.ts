@@ -62,6 +62,21 @@ type OutgoingTypedMessage = "cc" | "cx" | typeof BASH_PROMPT_WIRE_TYPE | typeof 
  *
  * This allows real-time message delivery to all subscribed channels
  * while only fetching history when the user navigates to a specific channel.
+ *
+ * Wire event names, by transport. Rooms and DMs carry the same message payload
+ * but use different event names because they ride different Phoenix topics:
+ *
+ *                client -> server   server -> client
+ *   Room channel  "new_message"      "new_message"
+ *   DM (user ch.) "dm:send"          "dm:new_message"
+ *
+ * A room channel *is* the conversation, so the same event name echoes both
+ * ways. A DM has no shared topic: the client pushes an imperative "dm:send" to
+ * its own `user:<id>` channel, and the server fans a "dm:new_message"
+ * notification out to each participant's user channel. The `dm:` prefix also
+ * keeps these from colliding with the other events the user channel multiplexes
+ * (dm:typing_*, dm:mark_read, presence, reacts). So `dm:send`'s real
+ * counterpart is `dm:new_message`, not `new_message`.
  */
 export class ChannelManager {
   private socket: Socket | null = null;
