@@ -406,7 +406,27 @@ function buildWorkspaceWriteSandboxPolicy(cwd: string) {
   }
 }
 
-export const createCodexSession = () => {
+export type CreateCodexSessionOptions = {
+  /** System instructions for thread/start. Defaults to GROUPCHAT_SYSTEM_PROMPT. */
+  instructions?: string
+  /**
+   * Observe every raw app-server notification (method + params) before local
+   * rendering. The `--remote` runner uses this to forward the native stream
+   * true-to-source; the local /codex UI leaves it unset.
+   */
+  onNotification?: (method: string, params: Record<string, unknown>) => void
+  /**
+   * Resume an existing Codex thread (multi-turn conversation) instead of
+   * starting a fresh one. Rollouts persist on disk, so this works long after
+   * the original process died. When the resume fails (rollout gone/corrupt),
+   * the session falls back to a fresh thread/start —
+   * `didFallbackToFreshThread()` reports it so callers can tell the user the
+   * prior context was lost.
+   */
+  resumeThreadId?: string
+}
+
+export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   const [isActive, setIsActive] = createSignal(false)
   const [isConnecting, setIsConnecting] = createSignal(false)
   const [messages, setMessages] = createSignal<Message[]>([])
@@ -416,6 +436,7 @@ export const createCodexSession = () => {
   let transport: StdioJsonRpcTransport | null = null
   let isTearingDown = false
   let threadId: string | null = null
+  let fellBackToFreshThread = false
   let currentTurnId: string | null = null
   let currentRpcTurnId: string | null = null
   let streamingMessageId: string | null = null
@@ -1307,6 +1328,10 @@ export const createCodexSession = () => {
   }
 
   const handleNotification = (method: string, params: Record<string, unknown>) => {
+    // Forward the raw notification true-to-source before local interpretation
+    // (used by the --remote runner; unset for local /codex).
+    options?.onNotification?.(method, params)
+
     switch (method) {
       case "item/started":
         handleItemStarted(params)
@@ -1377,6 +1402,7 @@ export const createCodexSession = () => {
     setIsConnecting(true)
     setLastError(null)
     threadId = null
+    fellBackToFreshThread = false
     currentTurnId = null
     currentRpcTurnId = null
     latestOutputTokens = undefined
@@ -1449,12 +1475,36 @@ export const createCodexSession = () => {
       })
       await transport.notify("initialized", {})
 
-      const threadResult = await transport.call("thread/start", {
-        cwd: process.cwd(),
-        approvalPolicy: "never",
-        sandbox: "workspace-write",
-        instructions: GROUPCHAT_SYSTEM_PROMPT,
-      }) as { thread?: { id?: string } }
+      const startFreshThread = () =>
+        transport!.call("thread/start", {
+          cwd: process.cwd(),
+          approvalPolicy: "never",
+          sandbox: "workspace-write",
+          instructions: options?.instructions ?? GROUPCHAT_SYSTEM_PROMPT,
+        }) as Promise<{ thread?: { id?: string } }>
+
+      // Multi-turn: resume the conversation's existing thread when asked
+      // (rollouts persist on disk, so this works across process restarts).
+      // A failed resume — rollout gone/corrupt — falls back to a fresh
+      // thread rather than failing the run; the new thread id heals the
+      // conversation chain upstream. Transport-level deaths still throw.
+      let threadResult: { thread?: { id?: string } }
+      if (options?.resumeThreadId) {
+        try {
+          threadResult = await transport.call("thread/resume", {
+            threadId: options.resumeThreadId,
+            cwd: process.cwd(),
+            approvalPolicy: "never",
+            sandbox: "workspace-write",
+          }) as { thread?: { id?: string } }
+        } catch (error) {
+          if (!transport || !transport.isConnected()) throw error
+          fellBackToFreshThread = true
+          threadResult = await startFreshThread()
+        }
+      } else {
+        threadResult = await startFreshThread()
+      }
 
       threadId = typeof threadResult?.thread?.id === "string" ? threadResult.thread.id : null
       if (!threadId) {
@@ -1560,6 +1610,28 @@ export const createCodexSession = () => {
     }
   }
 
+  /**
+   * Inject additional user input into the RUNNING turn (codex turn/steer).
+   * Returns false when there is no active turn or the steer is rejected —
+   * typically the turn completed first (the steer race); callers fall back to
+   * a follow-up turn.
+   */
+  const steer = async (content: string): Promise<boolean> => {
+    const trimmed = content.trim()
+    if (!trimmed || !transport || !threadId || !currentRpcTurnId || !isActive()) return false
+
+    try {
+      await transport.call("turn/steer", {
+        threadId,
+        expectedTurnId: currentRpcTurnId,
+        input: [{ type: "text", text: trimmed }],
+      })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const interrupt = () => {
     if (!transport || !threadId || !currentRpcTurnId) return
 
@@ -1601,8 +1673,13 @@ export const createCodexSession = () => {
     start,
     stop,
     sendMessage,
+    steer,
     interrupt,
     appendError,
     onCxEvent,
+    /** The live thread id (null before start / after stop). */
+    getThreadId: () => threadId,
+    /** True when a requested resume failed and a fresh thread was started. */
+    didFallbackToFreshThread: () => fellBackToFreshThread,
   }
 }

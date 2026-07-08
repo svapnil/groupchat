@@ -13,6 +13,16 @@ export interface MessageAttributes {
   cc?: CcEventMetadata;
   cx?: CxEventMetadata;
   bash?: BashEventMetadata;
+  /**
+   * Thread replies on a top-level message — the TUI only reads the length to
+   * show a "{N} replies" indicator (no thread view). Server-managed.
+   */
+  thread_replies?: ThreadReply[];
+}
+
+export interface ThreadReply {
+  username: string;
+  message_id: string;
 }
 
 export type BashEventKind = "prompt" | "output"
@@ -67,6 +77,56 @@ export interface CxEventMetadata {
   stop_reason?: string | null;
   events?: CxEventMetadata[];
   contents?: string[];
+}
+
+/**
+ * `agent:run` push from the backend on the `user:{id}` topic — sent when one
+ * of the user's agents is @-mentioned and this TUI is connected with
+ * `--remote`. `run_id` is the correlation id for all subsequent
+ * `agent:event` pushes.
+ */
+export interface AgentRunRequest {
+  run_id: string;
+  agent: { id: string; name: string; harness: string; prompt: string | null };
+  prompt: string;
+  room: string;
+  root_message_id: string;
+  run_message_id: string;
+  /** "start" = fresh conversation; "continue" = follow-up turn in an existing one. */
+  mode: "start" | "continue";
+  /**
+   * The conversation's harness thread to resume on "continue" (codex
+   * thread/resume). Null = no prior session ever started; begin fresh, still
+   * threaded under the same conversation root.
+   */
+  resume_thread_id: string | null;
+}
+
+/**
+ * `agent:steer` push from the backend on the `user:{id}` topic — inject
+ * `prompt` into the RUNNING turn of run `run_id` (the requester replied in
+ * the conversation thread while the agent was still working). If the turn
+ * already ended, the TUI answers with the control event `run/steer_rejected`
+ * (echoing the prompt) and the backend re-dispatches it as a continuation.
+ */
+export interface AgentSteerRequest {
+  run_id: string;
+  prompt: string;
+}
+
+/**
+ * `agent:event` push from the TUI to the backend on the `user:{id}` topic — a
+ * native harness app-server notification forwarded true-to-source (`{method,
+ * params}`), correlated by `run_id`. The backend validates+bounds it per-harness
+ * (Chat.Harness): the method is whitelisted and `params` is size/length/depth-
+ * capped, then persisted (durable methods) and broadcast verbatim. The
+ * harness-agnostic control method `run/failed` (`params: { message }`)
+ * terminates the run.
+ */
+export interface AgentRunEventPayload {
+  run_id: string;
+  method: string;
+  params: Record<string, unknown>;
 }
 
 export type AgentContentBlock =
@@ -169,6 +229,13 @@ export interface Message {
 
   /** Message type - defaults to "user" for regular messages */
   type?: "user" | "system" | "claude-response" | "codex-response" | "cc" | "cx" | "bash_prompt" | "bash_output";
+
+  /**
+   * Set when this message is a thread reply: the id of the top-level message it
+   * replies to. The TUI filters replies out of the top-level list (it has no
+   * thread view) but still shows a "{N} replies" indicator on the parent.
+   */
+  parent_thread_id?: string;
 
   /** Optional attributes - only present when message has attributes */
   attributes?: MessageAttributes;
@@ -286,6 +353,10 @@ export interface ChannelManagerCallbacks {
   onUserRemovedFromChannel?: (channelSlug: string, username: string, removedBy: string) => void;
   onChannelListChanged?: () => void;
 
+  // Agent-run callbacks (user channel, `--remote` mode)
+  onAgentRun?: (run: AgentRunRequest) => void;
+  onAgentSteer?: (steer: AgentSteerRequest) => void;
+
   // DM callbacks
   onDmMessage?: (message: DmMessage) => void;
   onDmTypingStart?: (dmSlug: string, username: string) => void;
@@ -307,6 +378,8 @@ export interface DmMessage {
   content: string;
   sender_id: number;
   type?: "cc" | "cx" | "bash_prompt" | "bash_output";
+  /** Set when this DM message is a thread reply (filtered from the top-level list). */
+  parent_thread_id?: string;
   attributes?: MessageAttributes;
 }
 

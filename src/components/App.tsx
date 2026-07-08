@@ -1,31 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
-import { Match, Switch, createEffect, createMemo, createSignal } from "solid-js"
+import { Match, Switch, createMemo, createSignal } from "solid-js"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { Router, useNavigation } from "./Router"
 import { AuthProvider, useAuth } from "../stores/auth-store"
 import { OrgProvider, useOrgStore } from "../stores/org-store"
-import { ChannelProvider, useChannelsStore } from "../stores/channel-store"
+import { ChannelProvider } from "../stores/channel-store"
 import { ChatProvider, useChatStore } from "../stores/chat-store"
-import { DmProvider, useDmStore } from "../stores/dm-store"
 import { StatusMessageProvider, useStatusMessage } from "../stores/status-message-store"
 import { LoginScreen } from "../pages/LoginScreen"
 import { OrgSelectScreen } from "../pages/OrgSelectScreen"
-import { Menu } from "../pages/Menu"
-import { ChatView } from "../pages/ChatView"
-import { CreateChannelScreen } from "../pages/CreateChannelScreen"
-import { DmInbox } from "../pages/DmInbox"
-import { DmChatView } from "../pages/DmChatView"
+import { RemoteControlView } from "../pages/RemoteControlView"
 
 const CTRL_C_TIMEOUT_MS = 3000
 
 function AppContent() {
   const auth = useAuth()
   const org = useOrgStore()
-  const navigation = useNavigation()
-  const channels = useChannelsStore()
   const chat = useChatStore()
-  const dms = useDmStore()
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
   const statusMessage = useStatusMessage()
@@ -61,28 +52,11 @@ function AppContent() {
       }
       return
     }
-
-    if (key.name === "escape") {
-      navigation.navigate("menu")
-    }
-  })
-
-  createEffect(() => {
-    if (navigation.route() === "menu") {
-      void channels.refetchUnreadCounts()
-      void dms.refetch()
-    }
-  })
-
-  createEffect(() => {
-    if (navigation.route() !== "dm-inbox") {
-      dms.setShouldStartDmSearch(false)
-    }
   })
 
   return (
     <Switch>
-      <Match when={auth.authState() !== "authenticated" || navigation.route() === "login"}>
+      <Match when={auth.authState() !== "authenticated"}>
         <LoginScreen
           onLogin={auth.login}
           status={auth.authStatus()}
@@ -90,33 +64,17 @@ function AppContent() {
         />
       </Match>
 
-      {/* 2+ orgs and no stored choice: pick before the workspace loads. */}
+      {/* 2+ orgs and no stored choice: pick before the remote goes online. */}
       <Match when={org.needsSelection()}>
         <OrgSelectScreen width={width()} height={height()} topPadding={topPadding()} />
       </Match>
 
-      <Match when={navigation.route() === "menu"}>
-        <Menu width={width()} height={height()} topPadding={topPadding()} />
-      </Match>
-
-      <Match when={navigation.route() === "chat"}>
-        <ChatView width={width()} height={height()} topPadding={topPadding()} />
-      </Match>
-
-      <Match when={navigation.route() === "create-channel"}>
-        <CreateChannelScreen width={width()} height={height()} topPadding={topPadding()} />
-      </Match>
-
-      <Match when={navigation.route() === "dm-inbox"}>
-        <DmInbox width={width()} height={height()} topPadding={topPadding()} />
-      </Match>
-
-      <Match when={navigation.route() === "dm-chat"}>
-        <DmChatView width={width()} height={height()} topPadding={topPadding()} />
-      </Match>
-
+      {/* The whole product: the remote control panel. The socket/user-channel
+          machinery (and the agent runner it feeds) lives in ChatProvider, so
+          it serves agent:run pushes underneath this view. The old full chat
+          UI is preserved under archived/chat-ui/. */}
       <Match when={true}>
-        <Menu width={width()} height={height()} topPadding={topPadding()} />
+        <RemoteControlView width={width()} height={height()} topPadding={topPadding()} />
       </Match>
     </Switch>
   )
@@ -128,13 +86,9 @@ export default function App() {
       <OrgProvider>
         <ChannelProvider>
           <ChatProvider>
-            <DmProvider>
-              <StatusMessageProvider>
-                <Router initialRoute="menu">
-                  <AppContent />
-                </Router>
-              </StatusMessageProvider>
-            </DmProvider>
+            <StatusMessageProvider>
+              <AppContent />
+            </StatusMessageProvider>
           </ChatProvider>
         </ChannelProvider>
       </OrgProvider>

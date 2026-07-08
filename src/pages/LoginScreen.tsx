@@ -15,7 +15,7 @@ export function LoginScreen(props: LoginScreenProps) {
   const hasStatus = createMemo(() => props.status.trim().length > 0)
 
   onMount(() => {
-    renderer.setTerminalTitle("Welcome to Groupchatty")
+    renderer.setTerminalTitle("○ Groupchat — log in")
   })
 
   useKeyboard((key) => {

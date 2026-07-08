@@ -2,9 +2,9 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { Socket, Channel as PhoenixChannel } from "phoenix";
 import type {
-  BashEventMetadata,
-  CcEventMetadata,
-  CxEventMetadata,
+  AgentRunEventPayload,
+  AgentRunRequest,
+  AgentSteerRequest,
   Message,
   MessageAttributes,
   PresenceState,
@@ -17,7 +17,32 @@ import type {
 } from "./types.js";
 import { applyPresenceDiff } from "./presence-utils.js";
 import { debugLog } from "./debug.js";
-import { BASH_OUTPUT_WIRE_TYPE, BASH_PROMPT_WIRE_TYPE } from "../bash/shared";
+
+// Mirror of Chat.Harness.Codex's caps so forwarded agent:event params pass the
+// backend's bounded sanitizer rather than being rejected. Recursively caps
+// string length, array length, and nesting depth; scalars pass through.
+const AGENT_EVENT_MAX_STRING = 4000;
+const AGENT_EVENT_MAX_ARRAY = 256;
+const AGENT_EVENT_MAX_DEPTH = 8;
+
+function boundParams(value: unknown, depth: number): unknown {
+  if (typeof value === "string") {
+    return value.length > AGENT_EVENT_MAX_STRING ? value.slice(0, AGENT_EVENT_MAX_STRING) : value;
+  }
+  if (Array.isArray(value)) {
+    if (depth > AGENT_EVENT_MAX_DEPTH) return [];
+    return value.slice(0, AGENT_EVENT_MAX_ARRAY).map((item) => boundParams(item, depth + 1));
+  }
+  if (value && typeof value === "object") {
+    if (depth > AGENT_EVENT_MAX_DEPTH) return {};
+    const out: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = boundParams(val, depth + 1);
+    }
+    return out;
+  }
+  return value;
+}
 
 /**
  * Internal state for each channel subscription.
@@ -54,7 +79,6 @@ function extractTimestampFromUUIDv7(uuid: string): string {
  * Prevents unbounded memory growth when viewing other channels.
  */
 const MAX_REALTIME_MESSAGES_PER_CHANNEL = 100;
-type OutgoingTypedMessage = "cc" | "cx" | typeof BASH_PROMPT_WIRE_TYPE | typeof BASH_OUTPUT_WIRE_TYPE
 
 /**
  * ChannelManager manages a single persistent WebSocket connection
@@ -105,9 +129,13 @@ export class ChannelManager {
   async connect(): Promise<void> {
     this.setConnectionStatus("connecting");
 
-    // Create socket connection
+    // Create socket connection. `remote: "true"` marks this TUI as willing
+    // to accept agent:run pushes — always true now that the TUI is the
+    // remote agent client.
+    const params: Record<string, string> = { token: this.token, client: "tui", remote: "true" };
+
     this.socket = new Socket(this.wsUrl, {
-      params: { token: this.token, client: "tui" },
+      params,
       reconnectAfterMs: (tries: number) => {
         return [1000, 2000, 5000, 10000][tries - 1] || 10000;
       },
@@ -290,6 +318,34 @@ export class ChannelManager {
     this.userChannel.on("dm:typing_stop", (payload: unknown) => {
       const { dm_slug, username } = payload as { dm_slug: string; username: string };
       this.callbacks.onDmTypingStop?.(dm_slug, username);
+    });
+
+    // Handle agent:run pushes (an agent of ours was @-mentioned; only sent by
+    // the backend when this socket connected with `remote: "true"` — other
+    // clients ignore this event).
+    this.userChannel.on("agent:run", (payload: unknown) => {
+      const run = payload as AgentRunRequest;
+      debugLog("agent-run", {
+        source: "agent:run",
+        runId: run.run_id,
+        agentId: run.agent?.id,
+        agentName: run.agent?.name,
+        room: run.room,
+        mode: run.mode,
+      });
+      this.callbacks.onAgentRun?.(run);
+    });
+
+    // Handle agent:steer pushes (the requester replied in a conversation
+    // thread while its run's turn was still streaming — inject the prompt
+    // into that turn).
+    this.userChannel.on("agent:steer", (payload: unknown) => {
+      const steer = payload as AgentSteerRequest;
+      debugLog("agent-run", {
+        source: "agent:steer",
+        runId: steer.run_id,
+      });
+      this.callbacks.onAgentSteer?.(steer);
     });
 
     // Handle channel_added (user subscribed to a new channel via web/invite)
@@ -685,126 +741,50 @@ export class ChannelManager {
   }
 
   /**
-   * Send a typed message to a specific channel or DM.
+   * Push a native harness notification (`agent:event`) to the backend on the
+   * user channel. Used by the `--remote` headless runner to forward a run's
+   * harness app-server events true-to-source (`{run_id, method, params}`) for a
+   * run kicked off via `agent:run`.
+   *
+   * Fire-and-forget: errors are logged but never thrown. `params` is bounded to
+   * match the backend's per-harness caps (strings <=4000 chars, arrays <=256,
+   * depth <=8) so typical payloads pass validation rather than being rejected.
    */
-  private async sendTypedMessage(
-    channelSlug: string,
-    type: OutgoingTypedMessage,
-    content: string,
-    attributes: MessageAttributes,
-  ): Promise<{ message_id: string }> {
-    const channelState = this.channelStates.get(channelSlug);
-    if (!this.socket || this.connectionStatus !== "connected") {
-      throw new Error("Connection lost");
-    }
-
-    if (channelState) {
-      return new Promise((resolve, reject) => {
-        try {
-          channelState.channel
-            .push("new_message", {
-              content,
-              type,
-              attributes,
-            })
-            .receive("ok", (resp: unknown) => {
-              const response = resp as { message_id: string };
-              resolve(response);
-            })
-            .receive("error", (err: unknown) => {
-              const error = err as { reason?: string };
-              const errorMsg = error.reason || `Failed to send ${type} message`;
-              this.callbacks.onError?.(errorMsg);
-              reject(new Error(errorMsg));
-            })
-            .receive("timeout", () => {
-              const errorMsg = `${type} message send timeout`;
-              this.callbacks.onError?.(errorMsg);
-              reject(new Error("timeout"));
-            });
-        } catch (error) {
-          reject(error);
-        }
+  sendAgentRunEvent(payload: AgentRunEventPayload): void {
+    if (!this.userChannel || this.connectionStatus !== "connected") {
+      debugLog("agent-run", "Dropping agent:event — user channel not ready", {
+        runId: payload.run_id,
+        method: payload.method,
       });
+      return;
     }
 
-    if (channelSlug.startsWith("dm:")) {
-      return this.sendDmMessage(
-        channelSlug,
-        content,
-        attributes,
-        type
+    const wirePayload: AgentRunEventPayload = {
+      run_id: payload.run_id,
+      method: payload.method,
+      params: boundParams(payload.params ?? {}, 1) as Record<string, unknown>,
+    };
+
+    try {
+      this.userChannel
+        .push("agent:event", wirePayload as unknown as Record<string, unknown>)
+        .receive("error", (err: unknown) => {
+          console.error(
+            `Failed to send agent:event (${wirePayload.method}) for run ${wirePayload.run_id}:`,
+            err
+          );
+        })
+        .receive("timeout", () => {
+          console.error(
+            `agent:event send timeout (${wirePayload.method}) for run ${wirePayload.run_id}`
+          );
+        });
+    } catch (error) {
+      console.error(
+        `Failed to send agent:event (${wirePayload.method}) for run ${wirePayload.run_id}:`,
+        error
       );
     }
-
-    throw new Error(`Not subscribed to channel: ${channelSlug}`);
-  }
-
-  /**
-   * Send an ephemeral agent event message to a specific channel.
-   * Fire-and-forget: errors are logged but not propagated to callers.
-   */
-  async sendAgentEvent(
-    channelSlug: string,
-    type: "cc" | "cx",
-    content: string,
-    metadata: CcEventMetadata | CxEventMetadata,
-  ): Promise<void> {
-    const channelState = this.channelStates.get(channelSlug);
-    if (!this.socket || this.connectionStatus !== "connected") {
-      return;
-    }
-
-    if (channelState) {
-      try {
-        channelState.channel
-          .push("new_message", {
-            content,
-            type,
-            attributes: {
-              [type]: metadata,
-            },
-          })
-          .receive("error", (err: unknown) => {
-            console.error(`Failed to send ${type} message to ${channelSlug}:`, err);
-          })
-          .receive("timeout", () => {
-            console.error(`${type.toUpperCase()} message send timeout for ${channelSlug}`);
-          });
-      } catch (error) {
-        console.error(`Failed to send ${type} message to ${channelSlug}:`, error);
-      }
-      return;
-    }
-
-    if (channelSlug.startsWith("dm:")) {
-      void this.sendDmMessage(
-        channelSlug,
-        content,
-        {
-          [type]: metadata,
-        },
-        type
-      ).catch((error) => {
-        console.error(`Failed to send ${type} message to DM ${channelSlug}:`, error);
-      });
-    }
-  }
-
-  /**
-   * Reserved for future sanitized bash transport.
-   * The TUI currently keeps raw bash commands and output local until
-   * command/output sanitization and redaction are implemented.
-   */
-  async sendBashEvent(
-    channelSlug: string,
-    type: typeof BASH_PROMPT_WIRE_TYPE | typeof BASH_OUTPUT_WIRE_TYPE,
-    content: string,
-    metadata: BashEventMetadata,
-  ): Promise<{ message_id: string }> {
-    return this.sendTypedMessage(channelSlug, type, content, {
-      bash: metadata,
-    });
   }
 
   /**
@@ -1051,8 +1031,7 @@ export class ChannelManager {
   async sendDmMessage(
     dmSlug: string,
     content: string,
-    attributes?: MessageAttributes,
-    type?: OutgoingTypedMessage
+    attributes?: MessageAttributes
   ): Promise<{ message_id: string }> {
     if (!this.userChannel) {
       throw new Error("User channel not connected");
@@ -1066,7 +1045,6 @@ export class ChannelManager {
       dm_slug: string;
       content: string;
       attributes?: MessageAttributes;
-      type?: OutgoingTypedMessage;
     } = {
       dm_slug: dmSlug,
       content,
@@ -1074,9 +1052,6 @@ export class ChannelManager {
 
     if (attributes && Object.keys(attributes).length > 0) {
       payload.attributes = attributes;
-    }
-    if (type) {
-      payload.type = type;
     }
 
     return new Promise((resolve, reject) => {

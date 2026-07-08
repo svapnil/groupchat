@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
-import { condenseAgentMessages, upsertAgentMessage } from "../agent/core/message-mutations"
+import { handleAgentMention, handleAgentSteer } from "../agent/core/remote-agent-runner"
 import { ChannelManager } from "../lib/channel-manager"
 import { fetchChannels } from "../lib/chat-client"
 import { getConfig } from "../lib/config"
@@ -88,7 +88,14 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
 
     const manager = new ChannelManager(config.wsUrl, token, {
       onMessage: (channelSlug, message) => {
-        setMessageCache(channelSlug, (prev) => upsertAgentMessage(prev || [], message, myUsername))
+        // Plain upsert by id. The old chat UI's agent-event condensing lived
+        // here (archived/chat-ui); nothing renders this cache in remote mode.
+        setMessageCache(channelSlug, (prev) => {
+          const list = prev || []
+          return list.some((m) => m.id === message.id)
+            ? list.map((m) => (m.id === message.id ? message : m))
+            : [...list, message]
+        })
 
         if (myUsername && message.username !== myUsername) {
           getNotificationManager().notify("bell")
@@ -210,6 +217,15 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
           options.onChannelListChanged()
         }
       },
+      // agent:run/agent:steer only arrive on the user channel (joined lazily
+      // after the first presence_state containing our own meta), and the
+      // backend only pushes them to sockets connected with `remote: "true"`.
+      onAgentRun: (run) => {
+        handleAgentMention(run, manager)
+      },
+      onAgentSteer: (steer) => {
+        handleAgentSteer(steer, manager)
+      },
     })
 
     setManagerSignal(manager)
@@ -292,11 +308,10 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
         })
 
         deduplicated.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
-        const condensed = condenseAgentMessages(deduplicated, myUsername)
 
         setMessageCache((prev) => ({
           ...prev,
-          [currentChannel]: condensed,
+          [currentChannel]: deduplicated,
         }))
 
         manager.clearRealtimeMessages(currentChannel)
