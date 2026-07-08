@@ -43,6 +43,8 @@ export function MessageItem(props: MessageItemProps) {
   const safeUsername = () => sanitizePlainMessageText(props.message.username)
   const safeContent = () => sanitizePlainMessageText(props.message.content)
   const usernameColor = () => getUsernameColor(props.message.username)
+  const replyCount = () => props.message.attributes?.thread_replies?.length ?? 0
+  const replyLabel = () => `↳ ${replyCount()} ${replyCount() === 1 ? "reply" : "replies"}`
   const content = createMemo(() => {
     if (props.message.type === "system") {
       return (
@@ -81,6 +83,11 @@ export function MessageItem(props: MessageItemProps) {
             <box paddingLeft={2}>
               <text>{safeContent()}</text>
             </box>
+            {replyCount() > 0 && (
+              <box paddingLeft={2}>
+                <text fg="#666666">{replyLabel()}</text>
+              </box>
+            )}
           </box>
         </box>
       )
@@ -101,6 +108,11 @@ export function MessageItem(props: MessageItemProps) {
           <box paddingLeft={2}>
             <text>{safeContent()}</text>
           </box>
+          {replyCount() > 0 && (
+            <box paddingLeft={2}>
+              <text fg="#666666">{replyLabel()}</text>
+            </box>
+          )}
         </box>
       </box>
     )

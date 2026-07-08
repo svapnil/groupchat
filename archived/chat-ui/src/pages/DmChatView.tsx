@@ -190,6 +190,7 @@ export function DmChatView(props: DmChatViewProps) {
           content: msg.content,
           timestamp: extractTimestampFromUUIDv7(msg.id),
           type: msg.type,
+          parent_thread_id: msg.parent_thread_id,
           attributes: msg.attributes,
         }
 

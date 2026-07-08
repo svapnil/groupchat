@@ -24,14 +24,17 @@ export type MessageListProps = {
 }
 
 export function MessageList(props: MessageListProps) {
+  // Thread replies never show in the top-level list (the TUI has no thread
+  // view); the parent message carries a "{N} replies" indicator instead.
+  const messages = createMemo(() => props.messages.filter((m) => !m.parent_thread_id))
   const othersTyping = createMemo(() =>
     props.typingUsers.filter((user) => user !== props.currentUsername)
   )
   const safeTypingUsers = createMemo(() => othersTyping().map((user) => sanitizePlainMessageText(user)))
-  const agentDepthByMessageId = createMemo(() => buildAgentDepthMap(props.messages))
+  const agentDepthByMessageId = createMemo(() => buildAgentDepthMap(messages()))
   const hiddenClaudeToolUseIds = createMemo(() => {
     const ids = new Set<string>()
-    for (const message of props.messages) {
+    for (const message of messages()) {
       const toolUseId = message.attributes?.claude?.permissionRequest?.toolUseId
       if (toolUseId) ids.add(toolUseId)
     }
@@ -40,10 +43,10 @@ export function MessageList(props: MessageListProps) {
 
   // Precompute which messages need headers in a single pass to avoid
   // repeated Date parsing inside each <For> iteration's reactive callback.
-  const showHeaderSet = createMemo(() => buildShowHeaderSet(props.messages))
+  const showHeaderSet = createMemo(() => buildShowHeaderSet(messages()))
   // Indices that begin a new local calendar day (and the first message), which
   // get a date divider rendered above them.
-  const dayDividerSet = createMemo(() => buildDayDividerSet(props.messages))
+  const dayDividerSet = createMemo(() => buildDayDividerSet(messages()))
 
   const footerLines = createMemo(() => {
     if (props.isDetached) return 1
@@ -64,14 +67,14 @@ export function MessageList(props: MessageListProps) {
         ref={props.scrollRef}
       >
         <Show
-          when={props.messages.length > 0}
+          when={messages().length > 0}
           fallback={
             <box justifyContent="center" alignItems="center" height={scrollHeight()}>
               <text fg="#888888">No messages yet. Say hello!</text>
             </box>
           }
         >
-          <For each={props.messages}>
+          <For each={messages()}>
             {(message, index) => {
               return (
                 <>

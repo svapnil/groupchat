@@ -94,6 +94,10 @@ export const DmProvider: ParentComponent = (props) => {
   }
 
   const handleDmMessage = (msg: DmMessage) => {
+    // Thread replies don't show in the top-level conversation, so they must not
+    // bump the inbox preview or unread count (the TUI has no thread view).
+    if (msg.parent_thread_id) return
+
     const now = new Date().toISOString()
     const preview = truncatePreview(msg.content)
 
