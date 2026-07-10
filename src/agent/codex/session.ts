@@ -436,6 +436,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   let transport: StdioJsonRpcTransport | null = null
   let isTearingDown = false
   let threadId: string | null = null
+  let activeModel: string | null = null
   let fellBackToFreshThread = false
   let currentTurnId: string | null = null
   let currentRpcTurnId: string | null = null
@@ -1402,6 +1403,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     setIsConnecting(true)
     setLastError(null)
     threadId = null
+    activeModel = null
     fellBackToFreshThread = false
     currentTurnId = null
     currentRpcTurnId = null
@@ -1488,7 +1490,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
       // A failed resume — rollout gone/corrupt — falls back to a fresh
       // thread rather than failing the run; the new thread id heals the
       // conversation chain upstream. Transport-level deaths still throw.
-      let threadResult: { thread?: { id?: string } }
+      let threadResult: { thread?: { id?: string }; model?: string }
       if (options?.resumeThreadId) {
         try {
           threadResult = await transport.call("thread/resume", {
@@ -1496,7 +1498,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
             cwd: process.cwd(),
             approvalPolicy: "never",
             sandbox: "workspace-write",
-          }) as { thread?: { id?: string } }
+          }) as { thread?: { id?: string }; model?: string }
         } catch (error) {
           if (!transport || !transport.isConnected()) throw error
           fellBackToFreshThread = true
@@ -1507,6 +1509,9 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
       }
 
       threadId = typeof threadResult?.thread?.id === "string" ? threadResult.thread.id : null
+      activeModel = typeof threadResult?.model === "string" && threadResult.model.trim()
+        ? threadResult.model.trim()
+        : null
       if (!threadId) {
         throw new Error("Codex did not return a thread id")
       }
@@ -1545,6 +1550,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     }
 
     threadId = null
+    activeModel = null
     currentTurnId = null
     currentRpcTurnId = null
     latestOutputTokens = undefined
@@ -1679,6 +1685,8 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     onCxEvent,
     /** The live thread id (null before start / after stop). */
     getThreadId: () => threadId,
+    /** The model resolved by Codex for the live thread. */
+    getActiveModel: () => activeModel,
     /** True when a requested resume failed and a fresh thread was started. */
     didFallbackToFreshThread: () => fellBackToFreshThread,
   }

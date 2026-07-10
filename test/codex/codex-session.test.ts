@@ -9,6 +9,7 @@ type CodexSessionHandle = {
   stop: (reason?: string) => void
   sendMessage: (content: string, username: string) => Promise<void>
   messages: () => Message[]
+  getActiveModel: () => string | null
 }
 
 function closedStream(): ReadableStream<Uint8Array> {
@@ -97,7 +98,10 @@ class MockCodexTransport {
         this.pushServerMessage({ id: payload.id, result: {} })
         break
       case "thread/start":
-        this.pushServerMessage({ id: payload.id, result: { thread: { id: "thread-1" } } })
+        this.pushServerMessage({
+          id: payload.id,
+          result: { thread: { id: "thread-1" }, model: "gpt-5.4-codex" },
+        })
         break
       case "turn/start":
         this.turnStartCount += 1
@@ -185,6 +189,12 @@ afterEach(() => {
 })
 
 describe("createCodexSession", () => {
+  test("retains the model resolved by thread/start", async () => {
+    const { session } = await createStartedSession()
+
+    expect(session.getActiveModel()).toBe("gpt-5.4-codex")
+  })
+
   test("clears the empty thinking placeholder when a turn completes without output", async () => {
     const { session, transport } = await createStartedSession()
 

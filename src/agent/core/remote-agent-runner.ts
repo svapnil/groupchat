@@ -297,9 +297,11 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
         // Codex is up — resolve the init status (it drops into web's timeline as
         // dim history; the run's reasoning/tools take over the live status).
         sendSystemStatus(
-          resumeThreadId && !codexSession.didFallbackToFreshThread()
+          `${resumeThreadId && !codexSession.didFallbackToFreshThread()
             ? `Resumed local Codex agent in ${initTarget}`
-            : `Started local Codex agent in ${initTarget}`,
+            : `Started local Codex agent in ${initTarget}`}${
+            codexSession.getActiveModel() ? ` using ${codexSession.getActiveModel()}` : ""
+          }`,
           "done",
         )
 
