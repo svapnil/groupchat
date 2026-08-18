@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
+import { basename } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
 import type { JSX } from "solid-js"
 import { testRender } from "@opentui/solid"
@@ -50,7 +51,9 @@ describe("RemoteControlView", () => {
     expect(frame).toContain("remote offline")
     // Either "codex available" or "codex not found in PATH" depending on host.
     expect(frame).toContain("codex")
-    expect(frame).toContain("idle — waiting for @mentions")
+    // Idle names the working directory agent runs execute in, home-shortened.
+    expect(frame).toContain("working in")
+    expect(frame).toContain(basename(process.cwd()))
   })
 
   test("shows an active run and then the recent list", async () => {
@@ -78,7 +81,7 @@ describe("RemoteControlView", () => {
     await testSetup.renderOnce()
     frame = testSetup.captureCharFrame()
 
-    expect(frame).toContain("idle — waiting for @mentions")
+    expect(frame).toContain("working in")
     expect(frame).toContain("recent")
     expect(frame).toContain("✓ @Codex in #general")
   })

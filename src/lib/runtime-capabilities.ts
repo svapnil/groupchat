@@ -5,6 +5,11 @@ export type RuntimeCapabilities = {
   hasClaude: boolean
   codexPath: string | null
   hasCodex: boolean
+  /**
+   * The directory `groupchat` was launched from — the working directory agent
+   * runs execute in. Captured once because nothing ever chdir's.
+   */
+  workspaceDir: string
 }
 
 let cachedCapabilities: RuntimeCapabilities | null = null
@@ -33,6 +38,7 @@ function detectRuntimeCapabilities(): RuntimeCapabilities {
     hasClaude: claudePath !== null,
     codexPath,
     hasCodex: codexPath !== null,
+    workspaceDir: process.cwd(),
   }
 }
 

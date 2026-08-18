@@ -148,6 +148,9 @@ async function createStartedSession(): Promise<{ session: CodexSessionHandle; tr
     getRuntimeCapabilities: () => ({
       hasCodex: true,
       codexPath: "codex",
+      hasClaude: false,
+      claudePath: null,
+      workspaceDir: process.cwd(),
     }),
   }))
 
