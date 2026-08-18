@@ -6,12 +6,12 @@
  * and what the runner is doing right now. The connection machinery keeps
  * running in ChatProvider underneath; this view only reads.
  */
-import { homedir } from "node:os"
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { useRenderer } from "@opentui/solid"
 import { useChatStore } from "../stores/chat-store"
 import { useOrgStore } from "../stores/org-store"
 import { getRuntimeCapabilities } from "../lib/runtime-capabilities"
+import { workspaceLabel } from "../lib/workspace"
 import { PRESENCE } from "../lib/colors"
 import {
   remoteActiveRuns,
@@ -57,13 +57,6 @@ function truncate(text: string, max: number): string {
 /** Drops the leading path so the tail — the part that identifies the dir — survives. */
 function truncateStart(text: string, max: number): string {
   return text.length > max ? `…${text.slice(text.length - max + 1)}` : text
-}
-
-/** "/Users/svapnil/code/groupchat" -> "~/code/groupchat". */
-function shortenHome(path: string): string {
-  const home = homedir()
-  if (!home || (path !== home && !path.startsWith(`${home}/`))) return path
-  return `~${path.slice(home.length)}`
 }
 
 function describeEvent(event: RemoteRunEventInfo): string {
@@ -173,7 +166,7 @@ export function RemoteControlView(props: RemoteControlViewProps) {
             <text>
               <span style={{ fg: FAINT }}>▸</span>
               <span style={{ fg: DIM }}> working in </span>
-              {truncateStart(shortenHome(capabilities.workspaceDir), lineWidth() - 12)}
+              {truncateStart(workspaceLabel(), lineWidth() - 12)}
             </text>
           }
         >

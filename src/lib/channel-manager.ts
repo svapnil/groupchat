@@ -17,6 +17,7 @@ import type {
 } from "./types.js";
 import { applyPresenceDiff } from "./presence-utils.js";
 import { debugLog } from "./debug.js";
+import { workspaceLabel } from "./workspace.js";
 
 // Mirror of Chat.Harness.Codex's caps so forwarded agent:event params pass the
 // backend's bounded sanitizer rather than being rejected. Recursively caps
@@ -131,8 +132,14 @@ export class ChannelManager {
 
     // Create socket connection. `remote: "true"` marks this TUI as willing
     // to accept agent:run pushes — always true now that the TUI is the
-    // remote agent client.
-    const params: Record<string, string> = { token: this.token, client: "tui", remote: "true" };
+    // remote agent client. `working_dir` is display-only presence state: web
+    // shows it so the user knows which checkout an @mention will run in.
+    const params: Record<string, string> = {
+      token: this.token,
+      client: "tui",
+      remote: "true",
+      working_dir: workspaceLabel(),
+    };
 
     this.socket = new Socket(this.wsUrl, {
       params,
