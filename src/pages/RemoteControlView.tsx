@@ -149,13 +149,27 @@ export function RemoteControlView(props: RemoteControlViewProps) {
           fallback={
             <text>
               <span style={{ fg: ERROR_COLOR }}>●</span> codex not found in PATH
-              <span style={{ fg: DIM }}> — install codex to serve @mentions</span>
+              <span style={{ fg: DIM }}> — install codex to serve @codex mentions</span>
             </text>
           }
         >
           <text>
             <span style={{ fg: PRESENCE.online }}>●</span> codex available
             <span style={{ fg: DIM }}> {truncate(capabilities.codexPath ?? "", lineWidth() - 18)}</span>
+          </text>
+        </Show>
+        <Show
+          when={capabilities.hasClaude}
+          fallback={
+            <text>
+              <span style={{ fg: ERROR_COLOR }}>●</span> claude not found in PATH
+              <span style={{ fg: DIM }}> — install claude to serve @claude mentions</span>
+            </text>
+          }
+        >
+          <text>
+            <span style={{ fg: PRESENCE.online }}>●</span> claude available
+            <span style={{ fg: DIM }}> {truncate(capabilities.claudePath ?? "", lineWidth() - 19)}</span>
           </text>
         </Show>
         <text> </text>

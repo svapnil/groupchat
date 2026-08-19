@@ -4,20 +4,19 @@
  * Headless agent runner for `groupchat --remote`.
  *
  * When the backend pushes `agent:run` on the user channel (one of the user's
- * agents was @-mentioned from another client), this module runs the harness
- * locally — one Codex session per run (killed after its single turn) — and
- * streams every harness event back to the backend as `agent:event` pushes
- * correlated by `run_id`. Multi-turn conversations chain runs: a "continue"
- * run cold-resumes the conversation's thread (`thread/resume` from the
- * on-disk rollout), and `agent:steer` injects a prompt into a RUNNING run's
- * turn (`turn/steer`) — no keep-warm process management needed.
+ * agents was @-mentioned from another client), this module runs the agent's
+ * harness locally — one session per run (killed after its single turn) — and
+ * streams every native harness event back to the backend as `agent:event`
+ * pushes correlated by `run_id`. The runner itself is harness-neutral: each
+ * harness (codex app-server, claude stream-json) registers a HarnessAdapter
+ * (see harness-registry.ts) that owns session creation, the forwarded-method
+ * whitelist, and terminal-outcome detection.
  *
- * No UI is involved: the session's local message signals are simply ignored.
- * createCodexSession uses createSignal/onCleanup, so each session lives
- * inside its own solid-js createRoot.
+ * Multi-turn conversations chain runs: a "continue" run cold-resumes the
+ * conversation's harness thread/session, and `agent:steer` injects a prompt
+ * into a RUNNING run's turn — no keep-warm process management needed.
  */
-import { createRoot } from "solid-js"
-import { createCodexSession } from "../codex/session"
+import { getHarnessAdapter } from "./harness-registry"
 import { GROUPCHAT_SYSTEM_PROMPT } from "./system-prompt"
 import {
   trackRunEvent,
@@ -25,8 +24,8 @@ import {
   trackRunRejected,
   trackRunStarted,
 } from "./remote-run-store"
-import { getRuntimeCapabilities } from "../../lib/runtime-capabilities"
 import { debugLog } from "../../lib/debug"
+import type { RemoteHarnessSession } from "./harness-session"
 import type { ChannelManager } from "../../lib/channel-manager"
 import type { AgentRunRequest, AgentSteerRequest } from "../../lib/types"
 
@@ -34,36 +33,12 @@ import type { AgentRunRequest, AgentSteerRequest } from "../../lib/types"
 const RUN_TIMEOUT_MS = 30 * 60 * 1000
 
 /**
- * Native harness notification methods forwarded over `agent:event` — the
- * whitelist mirrors the backend's `Chat.Harness.Codex.@allowed_methods`, so we
- * don't spam the backend with rejections for the many app-server notifications
- * we don't render (thread lifecycle, account/model, fuzzy search, ...).
- */
-const FORWARDED_METHODS = new Set<string>([
-  "item/started",
-  "item/completed",
-  "item/agentMessage/delta",
-  "item/reasoning/textDelta",
-  "item/reasoning/summaryTextDelta",
-  "item/reasoning/summaryPartAdded",
-  "item/reasoning/delta",
-  "item/commandExecution/outputDelta",
-  "item/commandExecution/terminalInteraction",
-  "item/mcpToolCall/progress",
-  "item/plan/delta",
-  "turn/started",
-  "turn/completed",
-  "turn/plan/updated",
-  "thread/tokenUsage/updated",
-])
-
-/**
  * Concurrent runs per agent (agent id -> set of active run ids). Each run is a
- * fully isolated Codex session — its own app-server process, transport, and
- * per-run event bookkeeping — and its `agent:event`s carry that run's own
- * `run_id`, so streams never cross. We cap the fan-out only because every run
- * for a given `--remote` shares one working directory; unbounded parallel edits
- * to a single tree would race. (Worktree isolation is planned as a per-agent
+ * fully isolated session — its own harness process, transport, and per-run
+ * event bookkeeping — and its `agent:event`s carry that run's own `run_id`, so
+ * streams never cross. We cap the fan-out only because every run for a given
+ * `--remote` shares one working directory; unbounded parallel edits to a
+ * single tree would race. (Worktree isolation is planned as a per-agent
  * prompt setting; until then this cap is the guard.)
  */
 const MAX_CONCURRENT_RUNS_PER_AGENT = 10
@@ -74,7 +49,7 @@ const activeRunsByAgentId = new Map<string, Set<string>>()
  * whose turn is currently streaming). Entries live exactly as long as the
  * run's concurrency slot.
  */
-const activeSessionsByRunId = new Map<string, ReturnType<typeof createCodexSession>>()
+const activeSessionsByRunId = new Map<string, RemoteHarnessSession>()
 
 /**
  * The git "{owner}/{repo}" for `cwd` from its `origin` remote (e.g.
@@ -98,8 +73,8 @@ function gitRepoSlug(cwd: string): string | null {
 }
 
 /**
- * Handle an inbound `agent:run` push: run Codex headlessly for `run.prompt` and
- * forward its native app-server notifications back through `manager` as
+ * Handle an inbound `agent:run` push: run the agent's harness headlessly for
+ * `run.prompt` and forward its native notifications back through `manager` as
  * `agent:event` (`{run_id, method, params}`), true-to-source. Never throws;
  * failures surface to the backend as the control method `run/failed`.
  */
@@ -127,8 +102,8 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
   const initTarget =
     gitRepoSlug(process.cwd()) || process.cwd().split("/").filter(Boolean).pop() || "workspace"
 
-  // Multi-turn continuation: resume the conversation's existing Codex thread
-  // (cold resume from the on-disk rollout) instead of starting fresh.
+  // Multi-turn continuation: resume the conversation's existing harness
+  // thread/session (cold resume from disk) instead of starting fresh.
   const resumeThreadId =
     run.mode === "continue" && typeof run.resume_thread_id === "string" && run.resume_thread_id
       ? run.resume_thread_id
@@ -151,6 +126,12 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
     sendRunFailed(reason)
   }
 
+  const adapter = getHarnessAdapter(run.agent.harness)
+  if (!adapter) {
+    rejectRun(`This machine's groupchat build doesn't support the "${run.agent.harness}" harness. Update groupchat and try again.`)
+    return
+  }
+
   if ((activeRunsByAgentId.get(agentId)?.size ?? 0) >= MAX_CONCURRENT_RUNS_PER_AGENT) {
     rejectRun(
       `Agent is already handling ${MAX_CONCURRENT_RUNS_PER_AGENT} requests at once. Try again once one finishes.`,
@@ -158,8 +139,9 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
     return
   }
 
-  if (!getRuntimeCapabilities().hasCodex) {
-    rejectRun("Codex executable not found on the remote machine. Install Codex and try again.")
+  const unavailable = adapter.unavailableReason()
+  if (unavailable) {
+    rejectRun(unavailable)
     return
   }
 
@@ -174,24 +156,26 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
   runsForAgent.add(run.run_id)
   activeRunsByAgentId.set(agentId, runsForAgent)
   trackRunStarted(runInfo)
-  // Tell web the run is spinning up immediately (before Codex even starts).
+  // Tell web the run is spinning up immediately (before the harness even starts).
   sendSystemStatus(
     resumeThreadId
-      ? `Resuming local Codex agent in ${initTarget}`
-      : `Initializing local Codex agent in ${initTarget}`,
+      ? `Resuming local ${adapter.label} agent in ${initTarget}`
+      : `Initializing local ${adapter.label} agent in ${initTarget}`,
     "in_progress",
   )
   debugLog("remote-agent-runner", "Starting run", {
     runId: run.run_id,
     agentId,
     agentName: run.agent.name,
+    harness: run.agent.harness,
     room: run.room,
   })
 
-  let session: ReturnType<typeof createCodexSession> | null = null
-  let disposeRoot: (() => void) | null = null
+  let session: RemoteHarnessSession | null = null
+  let disposeSession: (() => void) | null = null
   let safetyTimer: ReturnType<typeof setTimeout> | null = null
   let finished = false
+  let threadReported = false
 
   const cleanup = () => {
     if (finished) return
@@ -213,12 +197,12 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
       // ignore teardown failures
     }
     try {
-      disposeRoot?.()
+      disposeSession?.()
     } catch {
       // ignore teardown failures
     }
     session = null
-    disposeRoot = null
+    disposeSession = null
     debugLog("remote-agent-runner", "Run finished", { runId: run.run_id, agentId })
   }
 
@@ -234,19 +218,54 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
     cleanup()
   }
 
-  // Forward one native app-server notification true-to-source, and drive run
-  // lifecycle off it: turn/completed ends the run (status from turn.status).
+  // The session's conversation handle (codex thread id / claude session id) —
+  // the run row's conversation pointer for follow-up turns. Codex reports it
+  // during start; Claude only after the first prompt triggers system/init. On
+  // a resume that fell back to a fresh session this carries the NEW id,
+  // healing the conversation chain. Also resolves the init status line.
+  const handleThreadStarted = (threadId: string) => {
+    if (finished || threadReported) return
+    threadReported = true
+
+    manager.sendAgentRunEvent({
+      run_id: run.run_id,
+      method: "run/thread_started",
+      params: { thread_id: threadId },
+    })
+
+    const fellBack = session?.didFallbackToFreshThread() ?? false
+    const model = session?.getActiveModel()
+    sendSystemStatus(
+      `${resumeThreadId && !fellBack
+        ? `Resumed local ${adapter.label} agent in ${initTarget}`
+        : `Started local ${adapter.label} agent in ${initTarget}`}${
+        model ? ` using ${model}` : ""
+      }`,
+      "done",
+    )
+
+    if (resumeThreadId && fellBack) {
+      sendSystemStatus(
+        "Previous conversation context could not be restored — starting fresh.",
+        "done",
+        "resume",
+      )
+    }
+  }
+
+  // Forward one native harness notification true-to-source, and drive run
+  // lifecycle off it: the adapter says which notification is terminal (codex
+  // turn/completed, claude result) and whether it failed.
   const forwardNotification = (method: string, params: Record<string, unknown>) => {
     if (finished) return
 
-    if (FORWARDED_METHODS.has(method)) {
+    if (adapter.forwardedMethods.has(method)) {
       manager.sendAgentRunEvent({ run_id: run.run_id, method, params })
     }
 
-    if (method === "turn/completed") {
-      const turn = (params.turn ?? {}) as { status?: string; error?: { message?: string } }
-      const failed = typeof turn.status === "string" && turn.status !== "completed"
-      trackRunFinished(run.run_id, failed ? "failed" : "completed", turn.error?.message)
+    const outcome = adapter.turnOutcome(method, params)
+    if (outcome) {
+      trackRunFinished(run.run_id, outcome.failed ? "failed" : "completed", outcome.error)
       cleanup()
     } else {
       trackRunEvent(run.run_id, { event: method, content: "" })
@@ -254,20 +273,17 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
   }
 
   try {
-    // createRoot runs its callback synchronously and returns its value.
-    const codexSession = createRoot((dispose) => {
-      disposeRoot = dispose
-      const instructions = run.agent.prompt?.trim()
-        ? run.agent.prompt
-        : GROUPCHAT_SYSTEM_PROMPT
-      return createCodexSession({
-        instructions,
-        onNotification: forwardNotification,
-        resumeThreadId,
-      })
+    const instructions = run.agent.prompt?.trim() ? run.agent.prompt : GROUPCHAT_SYSTEM_PROMPT
+    const handle = adapter.createSession({
+      instructions,
+      resumeThreadId,
+      onNotification: forwardNotification,
+      onThreadStarted: handleThreadStarted,
+      onFatal: (message) => failRun(message),
     })
-    session = codexSession
-    activeSessionsByRunId.set(run.run_id, codexSession)
+    session = handle.session
+    disposeSession = handle.dispose
+    activeSessionsByRunId.set(run.run_id, handle.session)
 
     safetyTimer = setTimeout(() => {
       failRun("Agent run timed out.")
@@ -275,53 +291,21 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
 
     void (async () => {
       try {
-        await codexSession.start()
+        await handle.session.start()
         if (finished) return
-        if (!codexSession.isActive()) {
-          failRun(codexSession.lastError() || "Failed to start Codex.")
+        if (!handle.session.isActive()) {
+          failRun(handle.session.lastError() || `Failed to start ${adapter.label}.`)
           return
         }
 
-        // Report the session's actual thread id — the run row's conversation
-        // handle. On a resume that fell back to a fresh thread this carries
-        // the NEW id, healing the conversation chain for the next turn.
-        const threadId = codexSession.getThreadId()
-        if (threadId) {
-          manager.sendAgentRunEvent({
-            run_id: run.run_id,
-            method: "run/thread_started",
-            params: { thread_id: threadId },
-          })
-        }
-
-        // Codex is up — resolve the init status (it drops into web's timeline as
-        // dim history; the run's reasoning/tools take over the live status).
-        sendSystemStatus(
-          `${resumeThreadId && !codexSession.didFallbackToFreshThread()
-            ? `Resumed local Codex agent in ${initTarget}`
-            : `Started local Codex agent in ${initTarget}`}${
-            codexSession.getActiveModel() ? ` using ${codexSession.getActiveModel()}` : ""
-          }`,
-          "done",
-        )
-
-        if (resumeThreadId && codexSession.didFallbackToFreshThread()) {
-          sendSystemStatus(
-            "Previous conversation context could not be restored — starting fresh.",
-            "done",
-            "resume",
-          )
-        }
-
-        // The username arg only labels the local (unrendered) message record.
-        await codexSession.sendMessage(run.prompt, "remote")
+        await handle.session.sendMessage(run.prompt)
         if (finished) return
 
-        // sendMessage swallows turn/start failures into lastError; without a
-        // started turn no result event will ever arrive, so fail now.
-        const sendError = codexSession.lastError()
+        // sendMessage swallows failures into lastError; without a started
+        // turn no terminal event will ever arrive, so fail now.
+        const sendError = handle.session.lastError()
         if (sendError) {
-          failRun(`Failed to send prompt to Codex: ${sendError}`)
+          failRun(`Failed to send prompt to ${adapter.label}: ${sendError}`)
         }
       } catch (error) {
         failRun(
@@ -338,10 +322,11 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
 
 /**
  * Handle an inbound `agent:steer` push: inject the prompt into the targeted
- * run's RUNNING turn (codex turn/steer — the turn keeps streaming into the
- * same run). When the run is gone or the turn just completed (the steer
- * race), answer with `run/steer_rejected` so the backend re-dispatches the
- * prompt as a normal continuation run. Never throws.
+ * run's RUNNING turn (codex turn/steer; claude: another stdin user message —
+ * the turn keeps streaming into the same run). When the run is gone or the
+ * turn just completed (the steer race), answer with `run/steer_rejected` so
+ * the backend re-dispatches the prompt as a normal continuation run. Never
+ * throws.
  */
 export function handleAgentSteer(steer: AgentSteerRequest, manager: ChannelManager): void {
   const sendSteerRejected = () => {
