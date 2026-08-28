@@ -27,6 +27,8 @@ class MockCodexTransport {
   private inputBuffer = ""
   spawnCommand: string[] | null = null
   turnStartCount = 0
+  threadStartParams: Record<string, unknown> | null = null
+  threadResumeParams: Record<string, unknown> | null = null
 
   install() {
     this.originalSpawn = Bun.spawn
@@ -98,6 +100,14 @@ class MockCodexTransport {
         this.pushServerMessage({ id: payload.id, result: {} })
         break
       case "thread/start":
+        this.threadStartParams = payload.params ?? {}
+        this.pushServerMessage({
+          id: payload.id,
+          result: { thread: { id: "thread-1" }, model: "gpt-5.4-codex" },
+        })
+        break
+      case "thread/resume":
+        this.threadResumeParams = payload.params ?? {}
         this.pushServerMessage({
           id: payload.id,
           result: { thread: { id: "thread-1" }, model: "gpt-5.4-codex" },
@@ -143,7 +153,9 @@ async function waitForQueue() {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-async function createStartedSession(): Promise<{ session: CodexSessionHandle; transport: MockCodexTransport }> {
+async function createStartedSession(
+  options?: { instructions?: string; resumeThreadId?: string },
+): Promise<{ session: CodexSessionHandle; transport: MockCodexTransport }> {
   mock.module("../../src/lib/runtime-capabilities", () => ({
     getRuntimeCapabilities: () => ({
       hasCodex: true,
@@ -163,7 +175,7 @@ async function createStartedSession(): Promise<{ session: CodexSessionHandle; tr
 
   createRoot((rootDispose) => {
     dispose = rootDispose
-    session = createCodexSession() as unknown as CodexSessionHandle
+    session = createCodexSession(options) as unknown as CodexSessionHandle
   })
 
   await session.start()
@@ -192,6 +204,23 @@ afterEach(() => {
 })
 
 describe("createCodexSession", () => {
+  // app-server silently ignores params it doesn't know, so a wrong key here
+  // fails open: the agent runs with no prompt at all and nothing reports it.
+  test("sends the agent prompt as developerInstructions on thread/start", async () => {
+    const { transport } = await createStartedSession({ instructions: "Be a pirate." })
+
+    expect(transport.threadStartParams?.developerInstructions).toBe("Be a pirate.")
+  })
+
+  test("carries the agent prompt into a resumed thread", async () => {
+    const { transport } = await createStartedSession({
+      instructions: "Be a pirate.",
+      resumeThreadId: "thread-0",
+    })
+
+    expect(transport.threadResumeParams?.developerInstructions).toBe("Be a pirate.")
+  })
+
   test("retains the model resolved by thread/start", async () => {
     const { session } = await createStartedSession()
 

@@ -1477,12 +1477,19 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
       })
       await transport.notify("initialized", {})
 
+      // `developerInstructions` layers on top of Codex's own base prompt, the
+      // same shape as claude's `--append-system-prompt`. (`baseInstructions`
+      // would REPLACE the base prompt, dropping Codex's tool instructions; and
+      // app-server silently ignores unknown params, so a wrong key here fails
+      // open — the agent just runs with no prompt.)
+      const developerInstructions = options?.instructions ?? GROUPCHAT_SYSTEM_PROMPT
+
       const startFreshThread = () =>
         transport!.call("thread/start", {
           cwd: process.cwd(),
           approvalPolicy: "never",
           sandbox: "workspace-write",
-          instructions: options?.instructions ?? GROUPCHAT_SYSTEM_PROMPT,
+          developerInstructions,
         }) as Promise<{ thread?: { id?: string } }>
 
       // Multi-turn: resume the conversation's existing thread when asked
@@ -1498,6 +1505,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
             cwd: process.cwd(),
             approvalPolicy: "never",
             sandbox: "workspace-write",
+            developerInstructions,
           }) as { thread?: { id?: string }; model?: string }
         } catch (error) {
           if (!transport || !transport.isConnected()) throw error
