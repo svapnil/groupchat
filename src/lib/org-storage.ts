@@ -6,8 +6,9 @@
 import { homedir } from "os"
 import { join } from "path"
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from "fs"
+import { resolveStorageProfile } from "./storage-profile.js"
 
-const PROFILE = process.env.GROUPCHAT_PROFILE
+const PROFILE = resolveStorageProfile()
 const CONFIG_DIR = join(homedir(), ".config", "groupchat")
 const ORG_FILE = join(CONFIG_DIR, PROFILE ? `org-${PROFILE}.json` : "org.json")
 

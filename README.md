@@ -62,7 +62,7 @@ Useful environment variables:
 | --- | --- |
 | `GROUPCHAT_CONSOLE_URL` | Browser login and HTTP API base URL. |
 | `GROUPCHAT_WS_URL` | Phoenix socket URL. |
-| `GROUPCHAT_PROFILE` | Separate keychain/config profile, useful for multiple test users. |
+| `GROUPCHAT_PROFILE` | Override the keychain/config profile, useful for multiple test users. Dev launches default to `dev`; production keeps the unprofiled store. |
 | `GROUPCHAT_DEBUG=1` | Enable debug logging. |
 | `GROUPCHAT_DEBUG_FILE` | Override the debug log path. Defaults to `.logs/tui-debug.log`. |
 | `GROUPCHAT_DEBUG_STDERR=1` | Also write debug logs to stderr. |

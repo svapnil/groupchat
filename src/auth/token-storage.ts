@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Svapnil Ankolkar
+import { resolveStorageProfile } from "../lib/storage-profile.js";
+
 const SERVICE_NAME = "groupchat";
-const PROFILE = process.env.GROUPCHAT_PROFILE;
+const PROFILE = resolveStorageProfile();
 const CREDENTIAL_NAME = PROFILE ? `auth-credentials-${PROFILE}` : "auth-credentials";
 
 export interface StoredToken {
