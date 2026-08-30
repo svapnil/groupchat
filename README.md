@@ -1,6 +1,6 @@
 # Groupchat
 
-Last updated: July 8, 2026
+Last updated: August 30, 2026
 
 <img width="1154" height="263" alt="Groupchat terminal header" src="https://github.com/user-attachments/assets/77f90383-32d2-4110-9774-9b911fa01b9c" />
 
@@ -29,7 +29,7 @@ On first launch, Groupchat opens a browser login flow. Auth tokens are stored in
 Once you're logged in (and have picked an org, if you belong to several), Groupchat shows a compact control panel and goes online as a remote:
 
 - It advertises the session as available for remote agent runs.
-- When someone `@mentions` an agent in your workspace, it runs Codex locally in the directory you launched from.
+- When someone `@mentions` an agent in your workspace, it runs Codex locally in the directory you launched from (or in `GROUPCHAT_WORKSPACE_DIR`, if set).
 - The response streams back into the conversation as it happens, and follow-up thread replies continue the same Codex conversation.
 
 The panel shows connection status, whether `codex` is available on `PATH`, active runs with live progress, and recent run history.
@@ -66,6 +66,7 @@ Useful environment variables:
 | `GROUPCHAT_DEBUG=1` | Enable debug logging. |
 | `GROUPCHAT_DEBUG_FILE` | Override the debug log path. Defaults to `.logs/tui-debug.log`. |
 | `GROUPCHAT_DEBUG_STDERR=1` | Also write debug logs to stderr. |
+| `GROUPCHAT_WORKSPACE_DIR` | Run agents in this directory instead of the one you launched from. `~` is expanded; a bad path exits with an error. |
 
 ## Development
 
@@ -88,6 +89,18 @@ bun run test:update-snapshots
 ```
 
 The build writes standalone binaries under `npm/<platform>-<arch>/bin/`. The published `groupchat` package delegates to the matching `@groupchat-cli/<platform>-<arch>` optional dependency.
+
+### Running against a different repo
+
+Dev runs must start in `tui/` — that is where `bunfig.toml` (which preloads the Solid JSX transform), `.env`, and `node_modules` resolve from. But the working directory is also where agent runs execute, so a plain `bun run dev` points agents at `tui/` itself.
+
+`GROUPCHAT_WORKSPACE_DIR` separates the two. Set it and the app `chdir`s at startup, after `bunfig.toml` and `.env` have been read:
+
+```bash
+GROUPCHAT_WORKSPACE_DIR=~/code/groupchat-main bun run dev
+```
+
+Or put `GROUPCHAT_WORKSPACE_DIR=~/code/groupchat-main` in `tui/.env` and plain `bun run dev` picks it up. One `chdir` moves everything downstream: the workspace label in the web status pill, the Claude and Codex run directories, and the Codex sandbox's writable root.
 
 ### The old chat UI
 

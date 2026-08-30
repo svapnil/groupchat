@@ -3,7 +3,7 @@
 import { render } from "@opentui/solid"
 import App from "./components/App"
 import { checkForUpdate, performUpdate, shouldSelfUpdate } from "./lib/update-checker"
-import { initializeRuntimeCapabilities } from "./lib/runtime-capabilities"
+import { applyWorkspaceOverride, initializeRuntimeCapabilities } from "./lib/runtime-capabilities"
 
 async function main() {
   // Check if terminal supports our requirements
@@ -12,6 +12,8 @@ async function main() {
     process.exit(1)
   }
 
+  // Safe here: bunfig preload and `.env` were both consumed at import time.
+  applyWorkspaceOverride()
   initializeRuntimeCapabilities()
 
   // Auto-update silently in the background (takes effect next launch).
