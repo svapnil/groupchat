@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test"
 import { createRoot } from "solid-js"
 import type { Message } from "../../src/lib/types"
+import type { CreateCodexSessionOptions } from "../../src/agent/codex/session"
 
 type CodexSessionHandle = {
   start: () => Promise<void>
@@ -10,6 +11,8 @@ type CodexSessionHandle = {
   sendMessage: (content: string, username: string) => Promise<void>
   messages: () => Message[]
   getActiveModel: () => string | null
+  steer: (content: string) => Promise<boolean>
+  isActive: () => boolean
 }
 
 function closedStream(): ReadableStream<Uint8Array> {
@@ -27,6 +30,7 @@ class MockCodexTransport {
   private inputBuffer = ""
   spawnCommand: string[] | null = null
   turnStartCount = 0
+  completeBeforeResponse = false
   threadStartParams: Record<string, unknown> | null = null
   threadResumeParams: Record<string, unknown> | null = null
 
@@ -115,6 +119,12 @@ class MockCodexTransport {
         break
       case "turn/start":
         this.turnStartCount += 1
+        if (this.completeBeforeResponse) {
+          this.emitNotification("turn/completed", {
+            threadId: "thread-1",
+            turn: { id: `turn-${this.turnStartCount}`, status: "completed" },
+          })
+        }
         this.pushServerMessage({ id: payload.id, result: { turn: { id: `turn-${this.turnStartCount}` } } })
         break
       case "turn/interrupt":
@@ -128,6 +138,11 @@ class MockCodexTransport {
 
   emitNotification(method: string, params: Record<string, unknown>) {
     this.pushServerMessage({ method, params })
+  }
+
+  closeOutput() {
+    this.stdoutController?.close()
+    this.stdoutController = null
   }
 
   private pushServerMessage(payload: unknown) {
@@ -154,7 +169,7 @@ async function waitForQueue() {
 }
 
 async function createStartedSession(
-  options?: { instructions?: string; resumeThreadId?: string },
+  options?: CreateCodexSessionOptions,
 ): Promise<{ session: CodexSessionHandle; transport: MockCodexTransport }> {
   mock.module("../../src/lib/runtime-capabilities", () => ({
     getRuntimeCapabilities: () => ({
@@ -204,6 +219,53 @@ afterEach(() => {
 })
 
 describe("createCodexSession", () => {
+  test("headless sessions support repeated turns without retaining UI history or stale completions", async () => {
+    const notifications: string[] = []
+    const { session, transport } = await createStartedSession({
+      headless: true,
+      onNotification: (method) => notifications.push(method),
+    })
+    await session.sendMessage("first", "remote")
+    transport.emitNotification("turn/completed", { threadId: "child", turn: { id: "child-turn", status: "completed" } })
+    await waitForQueue()
+    expect(notifications).toEqual([])
+    expect(await session.steer("still working")).toBe(true)
+    transport.emitNotification("turn/completed", { threadId: "thread-1", turn: { id: "turn-1", status: "completed" } })
+    await waitForQueue()
+    expect(await session.steer("too late")).toBe(false)
+    await session.sendMessage("second", "remote")
+    transport.emitNotification("turn/completed", { threadId: "thread-1", turn: { id: "turn-1", status: "completed" } })
+    transport.emitNotification("item/agentMessage/delta", { threadId: "thread-1", turnId: "turn-1", delta: "stale" })
+    await waitForQueue()
+    expect(notifications).toEqual(["turn/completed"])
+    expect(await session.steer("second turn")).toBe(true)
+    transport.emitNotification("turn/completed", { threadId: "thread-1", turn: { id: "turn-2", status: "completed" } })
+    await waitForQueue()
+    expect(notifications).toEqual(["turn/completed", "turn/completed"])
+    expect(transport.turnStartCount).toBe(2)
+    expect(session.messages()).toEqual([])
+    expect(session.isActive()).toBe(true)
+  })
+
+  test("a late turn/start response cannot resurrect a completed turn", async () => {
+    const { session, transport } = await createStartedSession({ headless: true })
+    transport.completeBeforeResponse = true
+    await session.sendMessage("first", "remote")
+    expect(await session.steer("too late")).toBe(false)
+    await session.sendMessage("second", "remote")
+    expect(await session.steer("also too late")).toBe(false)
+    expect(transport.turnStartCount).toBe(2)
+  })
+
+  test("a broken output stream reports a fatal error and deactivates the session", async () => {
+    const fatals: string[] = []
+    const { session, transport } = await createStartedSession({ headless: true, onFatal: message => fatals.push(message) })
+    transport.closeOutput()
+    await waitForQueue()
+    expect(fatals).toEqual(["Codex output stream closed unexpectedly."])
+    expect(session.isActive()).toBe(false)
+  })
+
   // app-server silently ignores params it doesn't know, so a wrong key here
   // fails open: the agent runs with no prompt at all and nothing reports it.
   test("sends the agent prompt as developerInstructions on thread/start", async () => {

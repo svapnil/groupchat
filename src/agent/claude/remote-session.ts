@@ -121,6 +121,7 @@ function lastNonEmptyLine(text: string): string | null {
 function consumeStream(
   stream: ReadableStream<Uint8Array> | number | null | undefined,
   onChunk: (chunk: string) => void,
+  onEnd?: () => void,
 ) {
   if (!stream || typeof stream === "number") return
   void (async () => {
@@ -139,6 +140,7 @@ function consumeStream(
       // ignore read failures during shutdown
     } finally {
       reader.releaseLock()
+      onEnd?.()
     }
   })()
 }
@@ -160,13 +162,9 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
   let sentThisProcess: string[] = []
 
   /**
-   * True from a user-message write until the next `result`. Steering is only
-   * valid while a turn is active; after `result` the backend re-dispatches
-   * the prompt as a continuation instead. (There is an unavoidable ms-level
-   * race — Claude may emit `result` while our steer write is in flight; in
-   * that case the queued message would start an extra turn in a process the
-   * runner is about to kill. The window is the pipe latency only, and the
-   * backend's steer-rejected path covers every observable variant.)
+   * True from a user-message write until the next result. The runner retires
+   * a session if a turn completes with a steer write still in flight, so an
+   * ambiguously queued input cannot leak into a reused process.
    */
   let turnActive = false
 
@@ -175,7 +173,7 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
   // Set per spawn: Bun gives a FileSink for stdin: "pipe", but tests (and
   // other runtimes) may hand a WritableStream — support both, like the codex
   // transport does.
-  let writeChunk: ((data: Uint8Array) => void) | null = null
+  let writeChunk: ((data: Uint8Array) => void | Promise<void>) | null = null
   let closeStdin: (() => void) | null = null
 
   const bindStdin = (stdin: Bun.Subprocess["stdin"]) => {
@@ -184,19 +182,19 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
     }
     const sinkLike = stdin as unknown as {
       write?: (data: Uint8Array) => number
-      flush?: () => void
+      flush?: () => void | number | Promise<number>
       end?: () => void
     }
     if (typeof sinkLike.write === "function") {
-      writeChunk = (data) => {
+      writeChunk = async (data) => {
         sinkLike.write!(data)
-        sinkLike.flush?.()
+        await sinkLike.flush?.()
       }
       closeStdin = () => sinkLike.end?.()
     } else {
       const writer = (stdin as unknown as WritableStream<Uint8Array>).getWriter()
       writeChunk = (data) => {
-        void writer.write(data)
+        return writer.write(data)
       }
       closeStdin = () => {
         void writer.close().catch(() => {})
@@ -204,20 +202,28 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
     }
   }
 
-  const writeLine = (payload: Record<string, unknown>) => {
+  const writeLine = async (payload: Record<string, unknown>) => {
     if (!writeChunk) {
       throw new Error("Claude stdin is not available")
     }
-    writeChunk(encoder.encode(`${JSON.stringify(payload)}\n`))
+    await writeChunk(encoder.encode(`${JSON.stringify(payload)}\n`))
   }
 
-  const writeUserMessage = (prompt: string) => {
-    writeLine({
-      type: "user",
-      message: { role: "user", content: [{ type: "text", text: prompt }] },
-    })
-    sentThisProcess.push(prompt)
+  const writeUserMessage = async (prompt: string) => {
+    const target = proc
+    if (!initSeen) sentThisProcess.push(prompt)
     turnActive = true
+    try {
+      await writeLine({
+        type: "user",
+        message: { role: "user", content: [{ type: "text", text: prompt }] },
+      })
+    } catch (error) {
+      // Resume fallback already replays pre-init input on the replacement.
+      // A late rejection from the old stdin must not fail that new process.
+      if (target !== proc && proc && fellBack && !tearingDown) return
+      throw error
+    }
   }
 
   const handleEvent = (event: Record<string, unknown>) => {
@@ -237,6 +243,7 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
     if (type === "system" && event.subtype === "init") {
       // init recurs across top-level inputs — treat it as idempotent.
       initSeen = true
+      sentThisProcess = []
       if (typeof event.model === "string" && event.model.trim()) {
         sessionModel = event.model.trim()
       }
@@ -305,12 +312,14 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
         // already gone
       }
     }
-    try {
-      for (const prompt of pending) writeUserMessage(prompt)
-    } catch (error) {
-      lastErr = error instanceof Error ? error.message : String(error)
-      return false
-    }
+    void (async () => {
+      try {
+        for (const prompt of pending) await writeUserMessage(prompt)
+      } catch (error) {
+        lastErr = error instanceof Error ? error.message : String(error)
+        if (!tearingDown) options.onFatal(lastErr)
+      }
+    })()
     return true
   }
 
@@ -412,6 +421,15 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
         }
         if (isRecord(event)) handleEvent(event)
       }
+    }, () => {
+      queueMicrotask(() => {
+        if (tearingDown || proc !== spawned || !active) return
+        if (resumeAttempted && !initSeen && fallbackToFresh()) return
+        active = false
+        turnActive = false
+        lastErr = "Claude output stream closed unexpectedly."
+        options.onFatal(lastErr)
+      })
     })
     consumeStream(spawned.stderr, (chunk) => {
       if (proc !== spawned) return
@@ -438,7 +456,8 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
         return
       }
       try {
-        writeUserMessage(prompt)
+        lastErr = null
+        await writeUserMessage(prompt)
       } catch (error) {
         lastErr = error instanceof Error ? error.message : String(error)
       }
@@ -447,7 +466,7 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
     steer: async (prompt: string) => {
       if (!active || !turnActive) return false
       try {
-        writeUserMessage(prompt)
+        await writeUserMessage(prompt)
         return true
       } catch {
         return false

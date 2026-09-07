@@ -17,6 +17,9 @@ type MockProc = {
   writtenLines: () => Array<Record<string, unknown>>
   emit: (event: Record<string, unknown>) => void
   exit: (code: number) => void
+  failWrites: () => void
+  closeOutput: () => void
+  pauseNextWrite: () => (error: Error) => void
 }
 
 class MockClaudeSpawner {
@@ -30,15 +33,21 @@ class MockClaudeSpawner {
       let stdoutController: ReadableStreamDefaultController<Uint8Array> | null = null
       const rawLines: string[] = []
       let inputBuffer = ""
+      let failWrites = false
+      let pendingWrite: Promise<void> | null = null
 
       const stdin = new WritableStream<Uint8Array>({
         write: (chunk) => {
+          if (failWrites) throw new Error("stdin closed")
           inputBuffer += new TextDecoder().decode(chunk)
           const lines = inputBuffer.split("\n")
           inputBuffer = lines.pop() || ""
           for (const line of lines) {
             if (line.trim()) rawLines.push(line.trim())
           }
+          const pending = pendingWrite
+          pendingWrite = null
+          return pending ?? undefined
         },
       })
 
@@ -71,6 +80,13 @@ class MockClaudeSpawner {
           stdoutController?.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`))
         },
         exit: (code) => resolveExit?.(code),
+        failWrites: () => { failWrites = true },
+        closeOutput: () => { stdoutController?.close() },
+        pauseNextWrite: () => {
+          let reject!: (error: Error) => void
+          pendingWrite = new Promise<void>((_resolve, rejectPromise) => { reject = rejectPromise })
+          return reject
+        },
       }
       this.procs.push(mockProc)
 
@@ -155,6 +171,55 @@ afterEach(() => {
 })
 
 describe("createClaudeSession", () => {
+  test("a late old-process write failure cannot fail the resume fallback", async () => {
+    const { session, spawner, fatals } = await createStartedSession({ resumeThreadId: "missing" })
+    const rejectOldWrite = spawner.procs[0].pauseNextWrite()
+    const sent = session.sendMessage("continue")
+    await waitForQueue()
+    spawner.procs[0].emit({ type: "result", subtype: "error_during_execution", is_error: true })
+    await waitForQueue()
+    expect(spawner.procs).toHaveLength(2)
+    rejectOldWrite(new Error("old stdin closed"))
+    await sent
+    expect(session.lastError()).toBeNull()
+    expect(fatals).toEqual([])
+    expect(spawner.procs[1].writtenLines()).toHaveLength(1)
+    expect(session.isActive()).toBe(true)
+  })
+
+  test("accepts another turn on the same process after result", async () => {
+    const { session, spawner, threadIds, notifications } = await createStartedSession()
+    await session.sendMessage("first")
+    spawner.procs[0].emit({ type: "system", subtype: "init", session_id: "sess-abc" })
+    spawner.procs[0].emit({ type: "result", subtype: "success", is_error: false })
+    await waitForQueue()
+    expect(await session.steer("too late")).toBe(false)
+    await session.sendMessage("second")
+    spawner.procs[0].emit({ type: "system", subtype: "init", session_id: "sess-abc" })
+    spawner.procs[0].emit({ type: "result", subtype: "success", is_error: false })
+    await waitForQueue()
+    expect(spawner.procs).toHaveLength(1)
+    expect(spawner.procs[0].writtenLines()).toHaveLength(2)
+    expect(threadIds).toEqual(["sess-abc"])
+    expect(notifications.filter(n => n.method === "result")).toHaveLength(2)
+    expect(session.isActive()).toBe(true)
+  })
+
+  test("surfaces asynchronous stdin failures to the runner", async () => {
+    const { session, spawner } = await createStartedSession()
+    spawner.procs[0].failWrites()
+    await session.sendMessage("first")
+    expect(session.lastError()).toBe("stdin closed")
+  })
+
+  test("reports a closed output stream even if the process has not exited", async () => {
+    const { session, spawner, fatals } = await createStartedSession()
+    spawner.procs[0].closeOutput()
+    await waitForQueue()
+    expect(fatals).toEqual(["Claude output stream closed unexpectedly."])
+    expect(session.isActive()).toBe(false)
+  })
+
   test("spawns the stream-json protocol with no prompt argument and a scrubbed env", async () => {
     const { spawner } = await createStartedSession()
 

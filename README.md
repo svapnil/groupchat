@@ -34,6 +34,8 @@ Once you're logged in (and have picked an org, if you belong to several), Groupc
 
 The panel shows connection status, whether `codex` is available on `PATH`, active runs with live progress, and recent run history.
 
+Codex and Claude sessions stay available for five minutes after a successful turn, so nearby follow-ups can reuse the running process. Later replies resume the saved conversation. See [remote session lifecycle](docs/remote-sessions.md) for limits and implementation details.
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |

@@ -27,7 +27,7 @@ export type RemoteSessionOptions = {
    * The session's conversation handle (codex thread id / claude session id)
    * once known. Codex knows it during start(); Claude only learns it from the
    * system/init that follows the first prompt — so the runner must treat this
-   * as asynchronous. Fired at most once per run.
+   * as asynchronous. Fired at most once per session; the pool reports the cached id to new runs.
    */
   onThreadStarted: (threadId: string) => void
   /**
@@ -38,6 +38,7 @@ export type RemoteSessionOptions = {
 }
 
 export interface RemoteHarnessSession {
+  /** Start once per process; subsequent turns use sendMessage directly. */
   start(): Promise<void>
   sendMessage(prompt: string): Promise<void>
   /**

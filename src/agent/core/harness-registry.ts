@@ -57,6 +57,8 @@ const codexAdapter: HarnessAdapter = {
         instructions: options.instructions,
         onNotification: options.onNotification,
         resumeThreadId: options.resumeThreadId,
+        headless: true,
+        onFatal: options.onFatal,
       })
     })
 

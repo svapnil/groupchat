@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
-import { handleAgentMention, handleAgentSteer } from "../agent/core/remote-agent-runner"
+import { handleAgentMention, handleAgentSteer, shutdownRemoteAgentRunner } from "../agent/core/remote-agent-runner"
 import { ChannelManager } from "../lib/channel-manager"
 import { fetchChannels } from "../lib/chat-client"
 import { getConfig } from "../lib/config"
@@ -72,6 +72,7 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
 
     if (!token || !orgResolved) {
       if (managerSignal()) {
+        shutdownRemoteAgentRunner(managerSignal()!)
         managerSignal()!.disconnect()
       }
       setManagerSignal(null)
@@ -141,6 +142,7 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
       onConnectionChange: (status) => {
         setConnectionStatus(status)
         if (status === "disconnected" || status === "error") {
+          shutdownRemoteAgentRunner(manager)
           setError(null)
         }
       },
@@ -255,6 +257,7 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
     void init()
 
     onCleanup(() => {
+      shutdownRemoteAgentRunner(manager)
       manager.disconnect()
       setChannelsReady(false)
       setManagerSignal(null)

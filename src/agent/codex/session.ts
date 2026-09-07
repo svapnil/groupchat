@@ -228,6 +228,7 @@ class StdioJsonRpcTransport {
   private requestHandler: ((method: string, id: number, params: Record<string, unknown>) => void) | null = null
   private rawIncomingHandler: ((chunk: string) => void) | null = null
   private writer: WritableStreamDefaultWriter<Uint8Array>
+  private closeHandler: (() => void) | null = null
   private connected = true
   private buffer = ""
 
@@ -270,9 +271,12 @@ class StdioJsonRpcTransport {
         this.buffer += trailing
         this.processBuffer()
       }
+    } catch {
+      // Broken stdout is reported through onClose, just like EOF.
     } finally {
       this.dispose()
       reader.releaseLock()
+      this.closeHandler?.()
     }
   }
 
@@ -365,6 +369,10 @@ class StdioJsonRpcTransport {
     await this.writer.write(new TextEncoder().encode(`${JSON.stringify({ id, result })}\n`))
   }
 
+  onClose(handler: () => void) {
+    this.closeHandler = handler
+  }
+
   onNotification(handler: (method: string, params: Record<string, unknown>) => void) {
     this.notificationHandler = handler
   }
@@ -424,6 +432,9 @@ export type CreateCodexSessionOptions = {
    * prior context was lost.
    */
   resumeThreadId?: string
+  /** Remote runs forward native events without accumulating invisible UI history. */
+  headless?: boolean
+  onFatal?: (message: string) => void
 }
 
 export const createCodexSession = (options?: CreateCodexSessionOptions) => {
@@ -440,6 +451,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   let fellBackToFreshThread = false
   let currentTurnId: string | null = null
   let currentRpcTurnId: string | null = null
+  const completedRpcTurnIds = new Set<string>()
   let streamingMessageId: string | null = null
   let thinkingMessageId: string | null = null
   let liveThinkingText = ""
@@ -1329,6 +1341,30 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   }
 
   const handleNotification = (method: string, params: Record<string, unknown>) => {
+    if (options?.headless) {
+      const turn = isRecord(params.turn) ? params.turn : null
+      const rpcTurnId = typeof params.turnId === "string" ? params.turnId : turn?.id
+      if (typeof rpcTurnId === "string" && completedRpcTurnIds.has(rpcTurnId)) return
+      const mainThread = !params.threadId || params.threadId === threadId
+      if (method === "turn/completed" || method === "turn/started") {
+        // A subagent finishing must never finish the parent run.
+        if (!mainThread || !currentTurnId) return
+        if (method === "turn/started" && typeof rpcTurnId === "string") {
+          currentRpcTurnId = rpcTurnId
+        } else if (method === "turn/completed") {
+          if (typeof rpcTurnId === "string") {
+            completedRpcTurnIds.add(rpcTurnId)
+            if (completedRpcTurnIds.size > 64) {
+              completedRpcTurnIds.delete(completedRpcTurnIds.values().next().value!)
+            }
+          }
+          currentTurnId = null
+          currentRpcTurnId = null
+        }
+      }
+      options.onNotification?.(method, params)
+      return
+    }
     // Forward the raw notification true-to-source before local interpretation
     // (used by the --remote runner; unset for local /codex).
     options?.onNotification?.(method, params)
@@ -1385,7 +1421,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   }
 
   const handleRequest = (method: string, id: number, _params: Record<string, unknown>) => {
-    appendSystemMessage(`Codex requested unsupported operation: ${method}`)
+    if (!options?.headless) appendSystemMessage(`Codex requested unsupported operation: ${method}`)
     void transport?.respond(id, { error: `Unsupported Codex request: ${method}` })
   }
 
@@ -1454,15 +1490,26 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
         processStderrTail = appendTail(processStderrTail, chunk)
       })
 
+      const spawned = codexProcess
+      transport.onClose(() => {
+        queueMicrotask(() => {
+          if (isTearingDown || codexProcess !== spawned) return
+          const message = "Codex output stream closed unexpectedly."
+          setLastError(message)
+          stop(message)
+          options?.onFatal?.(message)
+        })
+      })
       codexProcess.exited.then((exitCode) => {
-        if (isTearingDown) return
+        if (isTearingDown || codexProcess !== spawned) return
         const detailRaw = extractLastNonEmptyLine(processStderrTail) || extractLastNonEmptyLine(processStdoutTail)
         const detail = detailRaw ? sanitizeProcessLine(detailRaw) : null
-        stop(
-          detail
-            ? `Codex process exited (code ${exitCode}). ${detail}`
-            : `Codex process exited (code ${exitCode}).`,
-        )
+        const message = detail
+          ? `Codex process exited (code ${exitCode}). ${detail}`
+          : `Codex process exited (code ${exitCode}).`
+        setLastError(message)
+        stop(message)
+        options?.onFatal?.(message)
       })
 
       await transport.call("initialize", {
@@ -1526,7 +1573,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
 
       setIsActive(true)
       setIsConnecting(false)
-      appendSystemMessage("Codex mode enabled. Type /exit to return to normal mode. Ctrl+C to interrupt.")
+      if (!options?.headless) appendSystemMessage("Codex mode enabled. Type /exit to return to normal mode. Ctrl+C to interrupt.")
     } catch (error) {
       setLastError(error instanceof Error ? error.message : String(error))
       stop(`Failed to start Codex mode. ${error instanceof Error ? error.message : String(error)}`)
@@ -1573,7 +1620,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     parentToolUseByThreadId.clear()
     isTearingDown = false
 
-    if (reason) {
+    if (reason && !options?.headless) {
       appendSystemMessage(reason)
     }
   }
@@ -1582,28 +1629,32 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     const trimmed = content.trim()
     if (!trimmed || !transport || !threadId || !isActive()) return
 
+    const sendingTurnId = generateUuidV7()
     try {
+      setLastError(null)
       liveThinkingText = ""
       liveStreamingText = ""
       latestStopReason = null
-      currentTurnId = generateUuidV7()
+      currentTurnId = sendingTurnId
       currentRpcTurnId = null
       emittedToolCallIds.clear()
 
-      emitCxEvent({
-        event: "question",
-        content: trimmed,
-      })
+      if (!options?.headless) {
+        emitCxEvent({
+          event: "question",
+          content: trimmed,
+        })
 
-      appendMessage({
-        id: nextId("codex-user"),
-        username,
-        content: trimmed,
-        timestamp: nowIso(),
-        type: CX_WIRE_TYPE,
-      })
+        appendMessage({
+          id: nextId("codex-user"),
+          username,
+          content: trimmed,
+          timestamp: nowIso(),
+          type: CX_WIRE_TYPE,
+        })
 
-      appendThinkingMessage()
+        appendThinkingMessage()
+      }
 
       const result = await transport.call("turn/start", {
         threadId,
@@ -1613,12 +1664,16 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
         sandboxPolicy: buildWorkspaceWriteSandboxPolicy(process.cwd()),
       }) as { turn?: { id?: string } }
 
-      currentRpcTurnId = typeof result?.turn?.id === "string" ? result.turn.id : null
+      // Completion can arrive before the RPC response. Never resurrect that turn.
+      if (currentTurnId === sendingTurnId) {
+        currentRpcTurnId = typeof result?.turn?.id === "string" ? result.turn.id : null
+      }
     } catch (error) {
+      if (currentTurnId !== sendingTurnId) return
       removeThinkingMessage()
       const message = error instanceof Error ? error.message : String(error)
       setLastError(message)
-      appendSystemMessage(`Failed to send message to Codex: ${message}`)
+      if (!options?.headless) appendSystemMessage(`Failed to send message to Codex: ${message}`)
       currentTurnId = null
       currentRpcTurnId = null
     }
