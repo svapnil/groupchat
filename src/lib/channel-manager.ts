@@ -19,10 +19,11 @@ import { applyPresenceDiff } from "./presence-utils.js";
 import { debugLog } from "./debug.js";
 import { workspaceLabel } from "./workspace.js";
 
-// Mirror of Chat.Harness.Codex's caps so forwarded agent:event params pass the
-// backend's bounded sanitizer rather than being rejected. Recursively caps
-// string length, array length, and nesting depth; scalars pass through.
-const AGENT_EVENT_MAX_STRING = 4000;
+// Match the Codex and Claude backend harness limits for strings, arrays, and
+// nesting depth. JS counts UTF-16 code units, so its string cap is conservative
+// relative to the backend's grapheme count. The backend separately enforces
+// a 262,144-byte total sanitized payload limit before persistence/broadcast.
+const AGENT_EVENT_MAX_STRING = 65_536;
 const AGENT_EVENT_MAX_ARRAY = 256;
 const AGENT_EVENT_MAX_DEPTH = 8;
 
@@ -754,8 +755,8 @@ export class ChannelManager {
    * run kicked off via `agent:run`.
    *
    * Fire-and-forget: errors are logged but never thrown. `params` is bounded to
-   * match the backend's per-harness caps (strings <=4000 chars, arrays <=256,
-   * depth <=8) so typical payloads pass validation rather than being rejected.
+   * cap strings at 65,536 UTF-16 code units, arrays at 256 entries, and nesting
+   * depth at 8. The backend can still reject the total payload if it is too large.
    */
   sendAgentRunEvent(payload: AgentRunEventPayload): void {
     if (!this.userChannel || this.connectionStatus !== "connected") {
