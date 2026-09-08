@@ -321,16 +321,6 @@ export const COMMANDS: Command[] = [
     ],
     eventType: "remove_user",
   },
-  {
-    name: "/invite_link",
-    syntax: "/invite_link",
-    description: "Create an invite link for this channel",
-    privateOnly: true,
-    adminOnly: false,
-    channelOnly: true,
-    parameters: [],
-    eventType: "create_invite_link",
-  },
   // Easy to add more commands:
   // {
   //   name: "/topic",

@@ -190,28 +190,14 @@ describe("tab completion", () => {
     eventType: "local_agent_enter:claude",
   }
 
-  const inviteLinkCommand: Command = {
-    name: "/invite_link",
-    syntax: "/invite_link",
-    description: "Create an invite link",
-    privateOnly: true,
-    parameters: [],
-    eventType: "create_invite_link",
-  }
-
-  const allCommands = [claudeCommand, noopCommand, inviteSearchCommand, inviteLinkCommand, modeCommand]
+  const allCommands = [claudeCommand, noopCommand, inviteSearchCommand, modeCommand]
 
   test("completes partial command to first matching command", () => {
     expect(getTabCompletion("/cl", allCommands)).toBe("/claude")
   })
 
   test("completes /inv to first match in command list order", () => {
-    // /invite comes before /invite_link in the array, and has params
     expect(getTabCompletion("/inv", allCommands)).toBe("/invite ")
-  })
-
-  test("completes /invite_ to /invite_link (no params, no trailing space)", () => {
-    expect(getTabCompletion("/invite_", allCommands)).toBe("/invite_link")
   })
 
   test("returns null for non-command input", () => {
