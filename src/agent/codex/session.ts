@@ -1544,7 +1544,8 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
       const startFreshThread = () =>
         transport!.call("thread/start", {
           cwd: process.cwd(),
-          approvalPolicy: "never",
+          approvalPolicy: "on-request",
+          approvalsReviewer: "auto_review",
           sandbox: "workspace-write",
           developerInstructions,
         }) as Promise<{ thread?: { id?: string; name?: string | null } }>
@@ -1560,7 +1561,8 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
           threadResult = await transport.call("thread/resume", {
             threadId: options.resumeThreadId,
             cwd: process.cwd(),
-            approvalPolicy: "never",
+            approvalPolicy: "on-request",
+            approvalsReviewer: "auto_review",
             sandbox: "workspace-write",
             developerInstructions,
           }) as { thread?: { id?: string; name?: string | null }; model?: string }
@@ -1676,7 +1678,8 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
         threadId,
         input: [{ type: "text", text: trimmed }],
         cwd: process.cwd(),
-        approvalPolicy: "never",
+        approvalPolicy: "on-request",
+        approvalsReviewer: "auto_review",
         sandboxPolicy: buildWorkspaceWriteSandboxPolicy(process.cwd()),
       }) as { turn?: { id?: string } }
 

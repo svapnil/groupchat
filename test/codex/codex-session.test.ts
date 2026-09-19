@@ -37,6 +37,7 @@ class MockCodexTransport {
   titleThreadParams: Record<string, unknown> | null = null
   holdTitle = false
   turnStartCount = 0
+  turnStartParams: Record<string, unknown> | null = null
   completeBeforeResponse = false
   threadStartParams: Record<string, unknown> | null = null
   threadResumeParams: Record<string, unknown> | null = null
@@ -148,6 +149,7 @@ class MockCodexTransport {
           break
         }
         this.turnStartCount += 1
+        this.turnStartParams = payload.params ?? {}
         if (this.completeBeforeResponse) {
           this.emitNotification("turn/completed", {
             threadId: "thread-1",
@@ -252,6 +254,32 @@ afterEach(() => {
 })
 
 describe("createCodexSession", () => {
+  for (const resumeThreadId of [undefined, "thread-0"]) {
+    test(`headless ${resumeThreadId ? "resumed" : "new"} sessions route approvals to automatic review and retain the sandbox`, async () => {
+      const { session, transport } = await createStartedSession({ headless: true, resumeThreadId })
+      const approvalSettings = {
+        approvalPolicy: "on-request",
+        approvalsReviewer: "auto_review",
+      }
+      const threadParams = resumeThreadId ? transport.threadResumeParams : transport.threadStartParams
+      expect(threadParams).toMatchObject({ ...approvalSettings, sandbox: "workspace-write" })
+
+      await session.sendMessage("first", "remote")
+      expect(transport.turnStartParams).toMatchObject({
+        ...approvalSettings,
+        sandboxPolicy: {
+          type: "workspaceWrite",
+          writableRoots: [process.cwd()],
+          networkAccess: true,
+        },
+      })
+      transport.emitNotification("turn/completed", { threadId: "thread-1", turn: { id: "turn-1", status: "completed" } })
+      await waitForQueue()
+      await session.sendMessage("second", "remote")
+      expect(transport.turnStartParams).toMatchObject(approvalSettings)
+    })
+  }
+
   test("headless sessions support repeated turns without retaining UI history or stale completions", async () => {
     const notifications: string[] = []
     const { session, transport } = await createStartedSession({
