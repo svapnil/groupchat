@@ -25,6 +25,7 @@
  * pre-approved is denied without hanging (there is no prompt to answer), and
  * denials surface in the result. bypassPermissions is never used.
  */
+import { createClaudeTitleResolver } from "./session-title"
 import { getRuntimeCapabilities } from "../../lib/runtime-capabilities"
 import { debugLog } from "../../lib/debug"
 import type { RemoteHarnessSession, RemoteSessionOptions } from "../core/harness-session"
@@ -146,6 +147,9 @@ function consumeStream(
 }
 
 export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnessSession {
+  const sessionWorkingDirectory = process.cwd()
+  const resolveTitle = createClaudeTitleResolver(sessionWorkingDirectory)
+  let sessionId: string | null = null
   let proc: Bun.Subprocess | null = null
   let active = false
   let tearingDown = false
@@ -248,6 +252,7 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
         sessionModel = event.model.trim()
       }
       const sid = typeof event.session_id === "string" ? event.session_id : null
+      if (sid) sessionId = sid
       if (sid && !threadStartedFired) {
         threadStartedFired = true
         try {
@@ -351,6 +356,7 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
     }
 
     // Reset per-process state.
+    sessionId = null
     initSeen = false
     resumeAttempted = resumeThreadId !== undefined
     stderrTail = ""
@@ -439,6 +445,7 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
   }
 
   return {
+    getTitle: () => sessionId ? resolveTitle(sessionId) : Promise.resolve(null),
     start: async () => {
       try {
         spawnProcess(options.resumeThreadId)

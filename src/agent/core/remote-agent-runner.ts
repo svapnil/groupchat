@@ -16,6 +16,8 @@
  * conversation's harness thread/session on a cache miss. Cached sessions receive
  * another input directly. `agent:steer` injects a prompt into a RUNNING turn.
  */
+import { isDurableAgentEvent } from "../../lib/agent-event-delivery"
+import { pollThreadTitle } from "./thread-title"
 import { getHarnessAdapter } from "./harness-registry"
 import { GROUPCHAT_SYSTEM_PROMPT } from "./system-prompt"
 import {
@@ -76,7 +78,9 @@ export function createRemoteAgentRunner(
   const pool = new RemoteSessionPool(options)
   const activeRunsByAgentId = new Map<string, Set<string>>()
   const activeSessionsByRunId = new Map<string, PooledSession>()
+  const pendingDeliveriesByRunId = new Map<string, () => Promise<void>>()
   const resolveAdapter = options.getAdapter ?? getHarnessAdapter
+  const titlePolls = new Map<PooledSession, () => void>()
   let closed = false
   const schedule = options.schedule ?? ((callback: () => void, ms: number) => {
     const timer = setTimeout(callback, ms)
@@ -126,11 +130,7 @@ export function createRemoteAgentRunner(
       status: "in_progress" | "done",
       id: string = "init",
     ) => {
-      manager.sendAgentRunEvent({
-        run_id: run.run_id,
-        method: "system/status",
-        params: { id, text, status },
-      })
+      enqueueEvent("system/status", { id, text, status })
     }
 
     const rejectRun = (reason: string) => {
@@ -181,6 +181,21 @@ export function createRemoteAgentRunner(
     let cancelSafetyTimer: (() => void) | null = null
     let finished = false
     let threadReported = false
+    let terminalReceived = false
+    let delivery: Promise<void> = Promise.resolve()
+
+    const enqueueEvent = (method: string, params: Record<string, unknown>, after?: () => void) => {
+      const snapshot = structuredClone(params)
+      delivery = delivery.then(async () => {
+        if (finished) return
+        await manager.sendAgentRunEventAcknowledged({ run_id: run.run_id, method, params: snapshot }, isDurableAgentEvent(method))
+        if (!finished) after?.()
+      }).catch((error: unknown) => {
+        failRun(`Agent output was not saved: ${error instanceof Error ? error.message : "delivery failed"}`)
+      })
+    }
+
+    pendingDeliveriesByRunId.set(run.run_id, () => delivery)
 
     const cleanup = (keepAlive = false) => {
       if (finished) return
@@ -194,6 +209,7 @@ export function createRemoteAgentRunner(
         if (runsForAgent.size === 0) activeRunsByAgentId.delete(agentId)
       }
       activeSessionsByRunId.delete(run.run_id)
+      pendingDeliveriesByRunId.delete(run.run_id)
       if (owned) pool.release(owned, keepAlive)
       debugLog("remote-agent-runner", "Run finished", { runId: run.run_id, agentId })
     }
@@ -219,11 +235,25 @@ export function createRemoteAgentRunner(
       if (finished || threadReported) return
       threadReported = true
 
-      manager.sendAgentRunEvent({
-        run_id: run.run_id,
-        method: "run/thread_started",
-        params: { thread_id: threadId },
-      })
+      enqueueEvent("run/thread_started", { thread_id: threadId })
+
+      const entry = owned
+      if (entry?.handle.session.getTitle && !titlePolls.has(entry)) {
+        const stop = pollThreadTitle({
+          read: () => entry.handle.session.getTitle!(),
+          publish: async (title) => {
+            if (closed) return
+            await manager.sendAgentRunEventAcknowledged({
+              run_id: run.run_id,
+              method: "system/thread_metadata",
+              params: { title },
+            })
+          },
+          schedule,
+          onDone: () => { titlePolls.delete(entry) },
+        })
+        titlePolls.set(entry, stop)
+      }
 
       // Warm follow-ups still report their thread, but need no startup artifact.
       if (reused) return
@@ -252,19 +282,16 @@ export function createRemoteAgentRunner(
     // lifecycle off it: the adapter says which notification is terminal (codex
     // turn/completed, claude result) and whether it failed.
     const forwardNotification = (method: string, params: Record<string, unknown>) => {
-      if (finished) return
-
-      if (adapter.forwardedMethods.has(method)) {
-        manager.sendAgentRunEvent({ run_id: run.run_id, method, params })
-      }
-
+      if (finished || terminalReceived) return
       const outcome = adapter.turnOutcome(method, params)
-      if (outcome) {
-        trackRunFinished(run.run_id, outcome.failed ? "failed" : "completed", outcome.error)
-        cleanup(!outcome.failed)
-      } else {
-        trackRunEvent(run.run_id, { event: method, content: "" })
+      if (outcome) terminalReceived = true
+      if (adapter.forwardedMethods.has(method)) {
+        enqueueEvent(method, params, outcome ? () => {
+          trackRunFinished(run.run_id, outcome.failed ? "failed" : "completed", outcome.error)
+          cleanup(!outcome.failed)
+        } : undefined)
       }
+      if (!outcome) trackRunEvent(run.run_id, { event: method, content: "" })
     }
 
     try {
@@ -277,7 +304,17 @@ export function createRemoteAgentRunner(
           resumeThreadId,
           onNotification: forwardNotification,
           onThreadStarted: handleThreadStarted,
-          onFatal: (message) => failRun(message),
+          onFatal: (message) => {
+            if (closed) { failRun(message); return }
+            // Stdout may close immediately after the final notification. Drain
+            // queued output before failing, and honor an already received result.
+            if (finished || terminalReceived) return
+            terminalReceived = true
+            enqueueEvent("run/failed", { message }, () => {
+              trackRunFinished(run.run_id, "failed", message)
+              cleanup()
+            })
+          },
         },
       )
       owned = acquired.entry
@@ -340,7 +377,11 @@ export function createRemoteAgentRunner(
    * throws.
    */
   function handleAgentSteer(steer: AgentSteerRequest): void {
-    const sendSteerRejected = () => {
+    const sendSteerRejected = async () => {
+      // A completed harness turn may still be waiting for durable delivery.
+      // Reopen only after that terminal event, or it could close the new segment.
+      await pendingDeliveriesByRunId.get(steer.run_id)?.()
+
       manager.sendAgentRunEvent({
         run_id: steer.run_id,
         method: "run/steer_rejected",
@@ -353,7 +394,7 @@ export function createRemoteAgentRunner(
       debugLog("remote-agent-runner", "Steer target not active, rejecting", {
         runId: steer.run_id,
       })
-      sendSteerRejected()
+      void sendSteerRejected()
       return
     }
 
@@ -364,10 +405,10 @@ export function createRemoteAgentRunner(
         if (steered) {
           debugLog("remote-agent-runner", "Steered run", { runId: steer.run_id })
         } else {
-          sendSteerRejected()
+          await sendSteerRejected()
         }
       } catch {
-        sendSteerRejected()
+        await sendSteerRejected()
       } finally {
         entry.pendingSteers -= 1
       }
@@ -378,6 +419,8 @@ export function createRemoteAgentRunner(
     if (closed) return
     closed = true
     process.off("exit", shutdown)
+    for (const stop of titlePolls.values()) stop()
+    titlePolls.clear()
     pool.shutdown()
   }
   // Includes the TUI's explicit process.exit() path after Ctrl+C.

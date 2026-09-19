@@ -13,6 +13,7 @@ import { getRuntimeCapabilities } from "../../lib/runtime-capabilities"
 import { getToolOneLiner } from "./helpers"
 import { AGENT_ID, CX_WIRE_TYPE } from "./codex-event-message-mutations"
 import { GROUPCHAT_SYSTEM_PROMPT } from "../core/system-prompt"
+import { createCodexTitleGenerator } from "./thread-title"
 
 type JsonRpcRequest = {
   method: string
@@ -447,6 +448,9 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   let transport: StdioJsonRpcTransport | null = null
   let isTearingDown = false
   let threadId: string | null = null
+  let threadTitle: string | null = null
+  let openingPrompt: string | null = null
+  let titleGenerator: ReturnType<typeof createCodexTitleGenerator> | null = null
   let activeModel: string | null = null
   let fellBackToFreshThread = false
   let currentTurnId: string | null = null
@@ -1341,6 +1345,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   }
 
   const handleNotification = (method: string, params: Record<string, unknown>) => {
+    if (titleGenerator?.handleNotification(method, params)) return
     if (options?.headless) {
       const turn = isRecord(params.turn) ? params.turn : null
       const rpcTurnId = typeof params.turnId === "string" ? params.turnId : turn?.id
@@ -1439,6 +1444,10 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     setIsConnecting(true)
     setLastError(null)
     threadId = null
+    threadTitle = null
+    openingPrompt = null
+    titleGenerator?.cancel()
+    titleGenerator = null
     activeModel = null
     fellBackToFreshThread = false
     currentTurnId = null
@@ -1480,6 +1489,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
         codexProcess.stdin as WritableStream<Uint8Array> | { write(data: Uint8Array): number },
         codexProcess.stdout as ReadableStream<Uint8Array>,
       )
+      titleGenerator = createCodexTitleGenerator(transport)
       transport.onNotification(handleNotification)
       transport.onRequest(handleRequest)
       transport.onRawIncoming((chunk) => {
@@ -1537,14 +1547,14 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
           approvalPolicy: "never",
           sandbox: "workspace-write",
           developerInstructions,
-        }) as Promise<{ thread?: { id?: string } }>
+        }) as Promise<{ thread?: { id?: string; name?: string | null } }>
 
       // Multi-turn: resume the conversation's existing thread when asked
       // (rollouts persist on disk, so this works across process restarts).
       // A failed resume — rollout gone/corrupt — falls back to a fresh
       // thread rather than failing the run; the new thread id heals the
       // conversation chain upstream. Transport-level deaths still throw.
-      let threadResult: { thread?: { id?: string }; model?: string }
+      let threadResult: { thread?: { id?: string; name?: string | null }; model?: string }
       if (options?.resumeThreadId) {
         try {
           threadResult = await transport.call("thread/resume", {
@@ -1553,7 +1563,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
             approvalPolicy: "never",
             sandbox: "workspace-write",
             developerInstructions,
-          }) as { thread?: { id?: string }; model?: string }
+          }) as { thread?: { id?: string; name?: string | null }; model?: string }
         } catch (error) {
           if (!transport || !transport.isConnected()) throw error
           fellBackToFreshThread = true
@@ -1564,6 +1574,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
       }
 
       threadId = typeof threadResult?.thread?.id === "string" ? threadResult.thread.id : null
+      threadTitle = null
       activeModel = typeof threadResult?.model === "string" && threadResult.model.trim()
         ? threadResult.model.trim()
         : null
@@ -1590,6 +1601,9 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     removeThinkingMessage()
     removeStreamingMessage()
 
+    titleGenerator?.cancel()
+    titleGenerator = null
+    openingPrompt = null
     if (transport) {
       transport.dispose()
       transport = null
@@ -1605,6 +1619,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     }
 
     threadId = null
+    threadTitle = null
     activeModel = null
     currentTurnId = null
     currentRpcTurnId = null
@@ -1628,6 +1643,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   const sendMessage = async (content: string, username: string) => {
     const trimmed = content.trim()
     if (!trimmed || !transport || !threadId || !isActive()) return
+    openingPrompt ??= trimmed
 
     const sendingTurnId = generateUuidV7()
     try {
@@ -1748,6 +1764,26 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     onCxEvent,
     /** The live thread id (null before start / after stop). */
     getThreadId: () => threadId,
+    getTitle: async (): Promise<string | null> => {
+      // Cache of this thread's generated name, not of whatever Codex called it.
+      if (threadTitle) return threadTitle
+      if (!threadId || !transport || !titleGenerator) return null
+      const id = threadId
+      const titleTransport = transport
+      const generator = titleGenerator
+      // thread/read is the Codex equivalent of Claude's firstPrompt: it is the
+      // only way to name a resumed thread that has taken no new message yet.
+      const result = await titleTransport.call("thread/read", { threadId: id, includeTurns: false }) as { thread?: { preview?: string } }
+      if (threadId !== id || transport !== titleTransport) return null
+      const prompt = result.thread?.preview?.trim() || openingPrompt
+      if (!prompt) return null
+      const generated = await generator.generate(id, prompt)
+      if (threadId !== id || transport !== titleTransport || !generated) return null
+      await titleTransport.call("thread/name/set", { threadId: id, name: generated })
+      if (threadId !== id || transport !== titleTransport) return null
+      threadTitle = generated
+      return threadTitle
+    },
     /** The model resolved by Codex for the live thread. */
     getActiveModel: () => activeModel,
     /** True when a requested resume failed and a fresh thread was started. */

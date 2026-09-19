@@ -80,6 +80,7 @@ const codexAdapter: HarnessAdapter = {
         lastError: () => codexSession.lastError(),
         didFallbackToFreshThread: () => codexSession.didFallbackToFreshThread(),
         getActiveModel: () => codexSession.getActiveModel(),
+        getTitle: () => codexSession.getTitle(),
       },
     }
   },

@@ -11,6 +11,7 @@ type CodexSessionHandle = {
   sendMessage: (content: string, username: string) => Promise<void>
   messages: () => Message[]
   getActiveModel: () => string | null
+  getTitle: () => Promise<string | null>
   steer: (content: string) => Promise<boolean>
   isActive: () => boolean
 }
@@ -29,6 +30,12 @@ class MockCodexTransport {
   private resolveExit: ((code: number) => void) | null = null
   private inputBuffer = ""
   spawnCommand: string[] | null = null
+  threadName: string | null = null
+  titleTurnCount = 0
+  titleOutput = JSON.stringify({ title: "Conversation Title Generation" })
+  titleTurnParams: Record<string, unknown> | null = null
+  titleThreadParams: Record<string, unknown> | null = null
+  holdTitle = false
   turnStartCount = 0
   completeBeforeResponse = false
   threadStartParams: Record<string, unknown> | null = null
@@ -104,6 +111,12 @@ class MockCodexTransport {
         this.pushServerMessage({ id: payload.id, result: {} })
         break
       case "thread/start":
+        if (payload.params?.ephemeral) {
+          this.titleThreadParams = payload.params
+          this.emitNotification("thread/started", { thread: { id: "title-thread", ephemeral: true, cwd: payload.params.cwd } })
+          this.pushServerMessage({ id: payload.id, result: { thread: { id: "title-thread" } } })
+          break
+        }
         this.threadStartParams = payload.params ?? {}
         this.pushServerMessage({
           id: payload.id,
@@ -117,7 +130,23 @@ class MockCodexTransport {
           result: { thread: { id: "thread-1" }, model: "gpt-5.4-codex" },
         })
         break
+      case "thread/read":
+        this.pushServerMessage({ id: payload.id, result: { thread: { id: "thread-1", name: this.threadName } } })
+        break
       case "turn/start":
+        if (payload.params?.threadId === "title-thread") {
+          this.titleTurnCount++
+          this.titleTurnParams = payload.params
+          if (this.holdTitle) {
+            this.pushServerMessage({ id: payload.id, result: { turn: { id: "title-turn" } } })
+            break
+          }
+          this.emitNotification("item/agentMessage/delta", { threadId: "title-thread", delta: this.titleOutput })
+          this.emitNotification("item/completed", { threadId: "title-thread", item: { type: "agentMessage", text: this.titleOutput } })
+          this.emitNotification("turn/completed", { threadId: "title-thread", turn: { id: "title-turn", status: "completed" } })
+          this.pushServerMessage({ id: payload.id, result: { turn: { id: "title-turn" } } })
+          break
+        }
         this.turnStartCount += 1
         if (this.completeBeforeResponse) {
           this.emitNotification("turn/completed", {
@@ -128,6 +157,10 @@ class MockCodexTransport {
         this.pushServerMessage({ id: payload.id, result: { turn: { id: `turn-${this.turnStartCount}` } } })
         break
       case "turn/interrupt":
+        this.pushServerMessage({ id: payload.id, result: {} })
+        break
+      case "thread/name/set":
+        this.threadName = payload.params?.name as string
         this.pushServerMessage({ id: payload.id, result: {} })
         break
       default:
@@ -281,6 +314,72 @@ describe("createCodexSession", () => {
     })
 
     expect(transport.threadResumeParams?.developerInstructions).toBe("Be a pirate.")
+  })
+
+  test("generates and persists a missing title without forwarding its output or ending the working turn", async () => {
+    const notifications: string[] = []
+    const { session, transport } = await createStartedSession({ headless: true, onNotification: method => notifications.push(method) })
+    expect(await session.getTitle()).toBeNull()
+    await session.sendMessage("Investigate conversation title generation", "remote")
+    expect(await Promise.all([session.getTitle(), session.getTitle()])).toEqual([
+      "Conversation Title Generation", "Conversation Title Generation",
+    ])
+    expect(transport.threadName).toBe("Conversation Title Generation")
+    expect(transport.titleTurnCount).toBe(1)
+    expect(transport.turnStartCount).toBe(1)
+    expect(transport.titleThreadParams?.ephemeral).toBe(true)
+    expect(transport.titleThreadParams?.sandbox).toBe("read-only")
+    expect(transport.titleTurnParams?.input).toEqual([{ type: "text", text: "Name this conversation from its opening message:\nInvestigate conversation title generation", text_elements: [] }])
+    expect(notifications).toEqual([])
+    expect(await session.steer("keep working")).toBe(true)
+  })
+
+  test("invalid title output is nonfatal and never starts another naming turn", async () => {
+    const { session, transport } = await createStartedSession({ headless: true })
+    transport.titleOutput = "I can't help with that.\nWhat else would you like?"
+    await session.sendMessage("Investigate titles", "remote")
+    expect(await session.getTitle()).toBeNull()
+    expect(await session.getTitle()).toBeNull()
+    expect(transport.titleTurnCount).toBe(1)
+    expect(transport.threadName).toBeNull()
+    expect(await session.steer("keep working")).toBe(true)
+  })
+
+  test("a name notification arriving mid-generation does not displace the generated title", async () => {
+    const { session, transport } = await createStartedSession({ headless: true })
+    transport.holdTitle = true
+    await session.sendMessage("Investigate titles", "remote")
+    const title = session.getTitle()
+    for (let i = 0; i < 100 && !transport.titleTurnCount; i++) await waitForQueue()
+    expect(transport.titleTurnCount).toBe(1)
+    transport.emitNotification("thread/name/updated", { threadId: "thread-1", threadName: "Codex chosen title" })
+    transport.emitNotification("item/completed", { threadId: "title-thread", item: { type: "agentMessage", text: transport.titleOutput } })
+    transport.emitNotification("turn/completed", { threadId: "title-thread", turn: { id: "title-turn", status: "completed" } })
+    expect(await title).toBe("Conversation Title Generation")
+    expect(transport.threadName).toBe("Conversation Title Generation")
+  })
+
+  test("stopping cancels an in-flight naming turn without publishing a title", async () => {
+    const { session, transport } = await createStartedSession({ headless: true })
+    transport.holdTitle = true
+    await session.sendMessage("Investigate titles", "remote")
+    const title = session.getTitle()
+    for (let i = 0; i < 100 && !transport.titleTurnCount; i++) await waitForQueue()
+    expect(transport.titleTurnCount).toBe(1)
+    session.stop()
+    expect(await title).toBeNull()
+    expect(transport.threadName).toBeNull()
+  })
+
+  test("overwrites a name Codex chose for itself and forgets the title on stop", async () => {
+    const { session, transport } = await createStartedSession({ headless: true })
+    transport.threadName = "Codex chosen title"
+    await session.sendMessage("Investigate titles", "remote")
+    expect(await session.getTitle()).toBe("Conversation Title Generation")
+    expect(transport.titleTurnCount).toBe(1)
+    expect(transport.threadName).toBe("Conversation Title Generation")
+    session.stop()
+    expect(await session.getTitle()).toBeNull()
   })
 
   test("retains the model resolved by thread/start", async () => {

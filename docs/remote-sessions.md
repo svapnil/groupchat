@@ -69,3 +69,42 @@ Tests cover both harnesses through the shared runner, including reuse, event
 rebinding, expiry, eviction, configuration changes, failures, shutdown, concurrent
 conversations, and the steer/completion race. Transport tests verify successive
 turns, stale Codex events, broken stdout, and asynchronous Claude input failures.
+
+## Thread titles
+
+The executable remains the harness for both providers, and both follow the same
+rule: reuse a native name when the harness has one, otherwise make one separate
+ephemeral naming turn from the opening prompt (up to 6,000 characters) and
+persist the result back into the harness's own session. Naming adds a model
+request using the executable's configured provider. It runs in a temporary
+directory with tools, web search, project configuration, and configured
+integrations disabled, and treats the opening prompt as data rather than
+instructions. Naming output is isolated from the working run; failures leave the
+conversation untitled and do not interrupt it.
+
+Claude's documented `getSessionInfo(sessionId, { dir })` SDK helper reads the
+executable's saved session. SDK 0.3.270 returns native generated and explicit
+names in `customTitle`; prompt-only `summary` fallbacks are not published.
+Claude Code only writes a native name for some sessions — it stopped doing so
+for SDK-driven sessions as of CLI 2.1.278 — so an unnamed session is named from
+`firstPrompt` and persisted with `renameSession()`. The naming turn is the one
+place Groupchat calls `query()`; it uses the same executable as the run, a
+separate cheap model, and no saved session of its own.
+
+Codex reads `thread.name` through `thread/read` and caches main-thread
+`thread/name/updated` notifications. Native names from start/resume responses
+are reused. The app-server does not automatically name new threads, so an
+unnamed thread is named on an ephemeral thread and persisted with
+`thread/name/set`.
+
+After the session ID is known, metadata reads retry up to 30 times, three
+seconds apart. Polling and acknowledged `system/thread_metadata` delivery are
+independent of run completion and are cancelled on connection shutdown. Titles
+are normalized to a single line and capped at 120 Unicode code points.
+
+The backend resolves the root from the owned run, checks conversation access,
+and fills `attributes.thread_title` only when empty, preserving other message
+attributes. Late metadata is accepted for completed runs. The first title wins
+across competing agents. A `message_metadata_updated` patch (or
+`dm:message_metadata_updated`) refreshes the web message list without creating a
+message, changing unread state, or marking the original prompt as edited.

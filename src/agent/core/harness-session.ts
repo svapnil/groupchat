@@ -53,6 +53,13 @@ export interface RemoteHarnessSession {
   didFallbackToFreshThread(): boolean
   /** The model the harness resolved for this session, once known. */
   getActiveModel(): string | null
+  /**
+   * Resolve this thread's title, naming it with an isolated one-shot turn the
+   * first time. Never reads back whatever the harness called itself, so every
+   * harness produces titles the same way. Safe to call repeatedly: it is
+   * single-flighted per thread and never disturbs the working run.
+   */
+  getTitle?(): Promise<string | null>
 }
 
 export type RemoteSessionHandle = {

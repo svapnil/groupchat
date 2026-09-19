@@ -19,32 +19,7 @@ import { applyPresenceDiff } from "./presence-utils.js";
 import { debugLog } from "./debug.js";
 import { workspaceLabel } from "./workspace.js";
 
-// Match the Codex and Claude backend harness limits for strings, arrays, and
-// nesting depth. JS counts UTF-16 code units, so its string cap is conservative
-// relative to the backend's grapheme count. The backend separately enforces
-// a 262,144-byte total sanitized payload limit before persistence/broadcast.
-const AGENT_EVENT_MAX_STRING = 65_536;
-const AGENT_EVENT_MAX_ARRAY = 256;
-const AGENT_EVENT_MAX_DEPTH = 8;
-
-function boundParams(value: unknown, depth: number): unknown {
-  if (typeof value === "string") {
-    return value.length > AGENT_EVENT_MAX_STRING ? value.slice(0, AGENT_EVENT_MAX_STRING) : value;
-  }
-  if (Array.isArray(value)) {
-    if (depth > AGENT_EVENT_MAX_DEPTH) return [];
-    return value.slice(0, AGENT_EVENT_MAX_ARRAY).map((item) => boundParams(item, depth + 1));
-  }
-  if (value && typeof value === "object") {
-    if (depth > AGENT_EVENT_MAX_DEPTH) return {};
-    const out: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = boundParams(val, depth + 1);
-    }
-    return out;
-  }
-  return value;
-}
+import { deliverAgentEvent } from "./agent-event-delivery.js";
 
 /**
  * Internal state for each channel subscription.
@@ -737,45 +712,22 @@ export class ChannelManager {
    * harness app-server events true-to-source (`{run_id, method, params}`) for a
    * run kicked off via `agent:run`.
    *
-   * Fire-and-forget: errors are logged but never thrown. `params` is bounded to
-   * cap strings at 65,536 UTF-16 code units, arrays at 256 entries, and nesting
-   * depth at 8. The backend can still reject the total payload if it is too large.
+   * Fire-and-forget: errors are logged but never thrown. Oversized payloads fail explicitly.
+   * The remote runner uses the acknowledged method to gate completion.
    */
   sendAgentRunEvent(payload: AgentRunEventPayload): void {
-    if (!this.userChannel || this.connectionStatus !== "connected") {
-      debugLog("agent-run", "Dropping agent:event — user channel not ready", {
-        runId: payload.run_id,
-        method: payload.method,
-      });
-      return;
-    }
+    void this.sendAgentRunEventAcknowledged(payload).catch((error: unknown) => {
+      console.error(`Failed to deliver agent event (${payload.method}):`, error instanceof Error ? error.message : "delivery failed");
+    });
+  }
 
-    const wirePayload: AgentRunEventPayload = {
-      run_id: payload.run_id,
-      method: payload.method,
-      params: boundParams(payload.params ?? {}, 1) as Record<string, unknown>,
-    };
-
-    try {
-      this.userChannel
-        .push("agent:event", wirePayload as unknown as Record<string, unknown>)
-        .receive("error", (err: unknown) => {
-          console.error(
-            `Failed to send agent:event (${wirePayload.method}) for run ${wirePayload.run_id}:`,
-            err
-          );
-        })
-        .receive("timeout", () => {
-          console.error(
-            `agent:event send timeout (${wirePayload.method}) for run ${wirePayload.run_id}`
-          );
-        });
-    } catch (error) {
-      console.error(
-        `Failed to send agent:event (${wirePayload.method}) for run ${wirePayload.run_id}:`,
-        error
-      );
-    }
+  sendAgentRunEventAcknowledged(payload: AgentRunEventPayload, waitForAcknowledgment = true): Promise<void> {
+    return deliverAgentEvent(
+      () => this.connectionStatus === "connected" ? this.userChannel : null,
+      payload,
+      undefined,
+      waitForAcknowledgment,
+    );
   }
 
   /**

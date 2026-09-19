@@ -6,6 +6,8 @@
  */
 
 export interface MessageAttributes {
+  /** Native harness title attached to a thread root. */
+  thread_title?: string;
   /** Extensible map for message metadata */
   [key: string]: unknown;
   claude?: ClaudeMessageMetadata;
@@ -124,6 +126,7 @@ export interface AgentSteerRequest {
  * terminates the run.
  */
 export interface AgentRunEventPayload {
+  event_id?: string;
   run_id: string;
   method: string;
   params: Record<string, unknown>;
