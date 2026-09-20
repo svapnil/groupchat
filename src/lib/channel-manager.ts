@@ -106,14 +106,11 @@ export class ChannelManager {
   async connect(): Promise<void> {
     this.setConnectionStatus("connecting");
 
-    // Create socket connection. `remote: "true"` marks this TUI as willing
-    // to accept agent:run pushes — always true now that the TUI is the
-    // remote agent client. `working_dir` is display-only presence state: web
-    // shows it so the user knows which checkout an @mention will run in.
+    // A connected TUI accepts agent runs. The working directory is a display
+    // label so web can show which checkout an @mention will run in.
     const params: Record<string, string> = {
       token: this.token,
       client: "tui",
-      remote: "true",
       working_dir: workspaceLabel(),
     };
 
@@ -304,8 +301,7 @@ export class ChannelManager {
     });
 
     // Handle agent:run pushes (an agent of ours was @-mentioned; only sent by
-    // the backend when this socket connected with `remote: "true"` — other
-    // clients ignore this event).
+    // the backend when a TUI is connected; other clients ignore this event).
     this.userChannel.on("agent:run", (payload: unknown) => {
       const run = payload as AgentRunRequest;
       debugLog("agent-run", {
@@ -708,7 +704,7 @@ export class ChannelManager {
 
   /**
    * Push a native harness notification (`agent:event`) to the backend on the
-   * user channel. Used by the `--remote` headless runner to forward a run's
+   * user channel. Used by the TUI agent runner to forward a run's
    * harness app-server events true-to-source (`{run_id, method, params}`) for a
    * run kicked off via `agent:run`.
    *

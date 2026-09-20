@@ -220,8 +220,8 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
         }
       },
       // agent:run/agent:steer only arrive on the user channel (joined lazily
-      // after the first presence_state containing our own meta), and the
-      // backend only pushes them to sockets connected with `remote: "true"`.
+      // after the first presence_state containing our own meta). The backend
+      // dispatches runs when the user has a connected TUI.
       onAgentRun: (run) => {
         handleAgentMention(run, manager)
       },

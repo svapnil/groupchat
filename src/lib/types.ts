@@ -83,8 +83,7 @@ export interface CxEventMetadata {
 
 /**
  * `agent:run` push from the backend on the `user:{id}` topic — sent when one
- * of the user's agents is @-mentioned and this TUI is connected with
- * `--remote`. `run_id` is the correlation id for all subsequent
+ * of the user's agents is @-mentioned and this TUI is connected. `run_id` is the correlation id for all subsequent
  * `agent:event` pushes.
  */
 export interface AgentRunRequest {
@@ -356,7 +355,7 @@ export interface ChannelManagerCallbacks {
   onUserRemovedFromChannel?: (channelSlug: string, username: string, removedBy: string) => void;
   onChannelListChanged?: () => void;
 
-  // Agent-run callbacks (user channel, `--remote` mode)
+  // Agent-run callbacks (user channel)
   onAgentRun?: (run: AgentRunRequest) => void;
   onAgentSteer?: (steer: AgentSteerRequest) => void;
 
