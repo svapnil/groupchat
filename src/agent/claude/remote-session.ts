@@ -20,11 +20,18 @@
  * system/init, we fall back to a fresh session and replay the pending
  * prompt(s), and `didFallbackToFreshThread()` reports the context loss.
  *
+ * Interrupt: a `control_request` with subtype `interrupt` ends the running
+ * turn and keeps the process alive (observed live on 2.1.285: a success
+ * control_response, a "[Request interrupted by user]" user echo, then a
+ * `result` with terminal_reason "aborted_streaming"; the next user message
+ * starts a normal turn in the same session).
+ *
  * Permissions are noninteractive: `--permission-mode acceptEdits` plus an
  * explicit `--allowedTools` pre-approval list. In --print mode anything not
  * pre-approved is denied without hanging (there is no prompt to answer), and
  * denials surface in the result. bypassPermissions is never used.
  */
+import { randomUUID } from "node:crypto"
 import { createClaudeTitleResolver } from "./session-title"
 import { getRuntimeCapabilities } from "../../lib/runtime-capabilities"
 import { debugLog } from "../../lib/debug"
@@ -65,6 +72,9 @@ const NOTIFIABLE_TYPES = new Set([
   "tool_progress",
   "tool_use_summary",
 ])
+
+/** How long an interrupt waits for Claude's control_response. */
+const CONTROL_TIMEOUT_MS = 5_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -172,6 +182,13 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
    */
   let turnActive = false
 
+  /** Outstanding control requests by request_id → resolves with success. */
+  const pendingControls = new Map<string, (ok: boolean) => void>()
+  const settleControls = () => {
+    for (const resolve of pendingControls.values()) resolve(false)
+    pendingControls.clear()
+  }
+
   const encoder = new TextEncoder()
 
   // Set per spawn: Bun gives a FileSink for stdin: "pipe", but tests (and
@@ -267,6 +284,15 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
       turnActive = false
     }
 
+    if (type === "control_response" && isRecord(event.response)) {
+      const requestId = event.response.request_id
+      const resolve = typeof requestId === "string" ? pendingControls.get(requestId) : undefined
+      if (resolve) {
+        pendingControls.delete(requestId as string)
+        resolve(event.response.subtype === "success")
+      }
+    }
+
     if (!NOTIFIABLE_TYPES.has(type)) {
       // keep_alive, control_request/control_response, and future chatter are
       // consumed locally; unknown types are diagnostics, not fatal errors.
@@ -335,6 +361,7 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
 
     active = false
     turnActive = false
+    settleControls()
     const detail = lastNonEmptyLine(stderrTail)
     const message = detail
       ? `Claude process exited (code ${exitCode}). ${detail}`
@@ -362,6 +389,7 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
     stderrTail = ""
     sentThisProcess = []
     turnActive = false
+    settleControls()
 
     const args = [
       capabilities.claudePath,
@@ -480,10 +508,33 @@ export function createClaudeSession(options: RemoteSessionOptions): RemoteHarnes
       }
     },
 
+    interrupt: async () => {
+      if (!active || !turnActive) return false
+      const requestId = randomUUID()
+      const accepted = new Promise<boolean>((resolve) => {
+        pendingControls.set(requestId, resolve)
+        setTimeout(() => {
+          if (pendingControls.delete(requestId)) resolve(false)
+        }, CONTROL_TIMEOUT_MS).unref?.()
+      })
+      try {
+        await writeLine({
+          type: "control_request",
+          request_id: requestId,
+          request: { subtype: "interrupt" },
+        })
+      } catch {
+        pendingControls.delete(requestId)
+        return false
+      }
+      return accepted
+    },
+
     stop: () => {
       tearingDown = true
       active = false
       turnActive = false
+      settleControls()
       const current = proc
       proc = null
       try {

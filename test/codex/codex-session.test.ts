@@ -13,6 +13,7 @@ type CodexSessionHandle = {
   getActiveModel: () => string | null
   getTitle: () => Promise<string | null>
   steer: (content: string) => Promise<boolean>
+  interruptTurn: () => Promise<boolean>
   isActive: () => boolean
 }
 
@@ -38,6 +39,7 @@ class MockCodexTransport {
   holdTitle = false
   turnStartCount = 0
   turnStartParams: Record<string, unknown> | null = null
+  interruptParams: Array<Record<string, unknown>> = []
   completeBeforeResponse = false
   threadStartParams: Record<string, unknown> | null = null
   threadResumeParams: Record<string, unknown> | null = null
@@ -159,6 +161,7 @@ class MockCodexTransport {
         this.pushServerMessage({ id: payload.id, result: { turn: { id: `turn-${this.turnStartCount}` } } })
         break
       case "turn/interrupt":
+        this.interruptParams.push(payload.params ?? {})
         this.pushServerMessage({ id: payload.id, result: {} })
         break
       case "thread/name/set":
@@ -316,6 +319,37 @@ describe("createCodexSession", () => {
     await session.sendMessage("second", "remote")
     expect(await session.steer("also too late")).toBe(false)
     expect(transport.turnStartCount).toBe(2)
+  })
+
+  test("headless interrupts target the running turn and refuse when idle", async () => {
+    const { session, transport } = await createStartedSession({ headless: true })
+    expect(await session.interruptTurn()).toBe(false)
+    await session.sendMessage("first", "remote")
+    expect(await session.interruptTurn()).toBe(true)
+    expect(transport.interruptParams).toEqual([{ threadId: "thread-1", turnId: "turn-1" }])
+    transport.emitNotification("turn/completed", { threadId: "thread-1", turn: { id: "turn-1", status: "interrupted" } })
+    await waitForQueue()
+    expect(await session.interruptTurn()).toBe(false)
+    expect(session.isActive()).toBe(true)
+  })
+
+  test("an interrupt sent before the turn id is known waits for it", async () => {
+    const { session, transport } = await createStartedSession({ headless: true })
+    const sending = session.sendMessage("first", "remote")
+    const interrupting = session.interruptTurn()
+    await sending
+    expect(await interrupting).toBe(true)
+    expect(transport.interruptParams).toEqual([{ threadId: "thread-1", turnId: "turn-1" }])
+  })
+
+  test("a pending interrupt is refused when the turn completes before its id arrives", async () => {
+    const { session, transport } = await createStartedSession({ headless: true })
+    transport.completeBeforeResponse = true
+    const sending = session.sendMessage("first", "remote")
+    const interrupting = session.interruptTurn()
+    await sending
+    expect(await interrupting).toBe(false)
+    expect(transport.interruptParams).toEqual([])
   })
 
   test("a broken output stream reports a fatal error and deactivates the session", async () => {

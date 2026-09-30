@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { Socket, Channel as PhoenixChannel } from "phoenix";
 import type {
+  AgentInterruptRequest,
   AgentRunEventPayload,
   AgentRunRequest,
   AgentSteerRequest,
@@ -325,6 +326,16 @@ export class ChannelManager {
         runId: steer.run_id,
       });
       this.callbacks.onAgentSteer?.(steer);
+    });
+
+    // Handle agent:interrupt pushes (the requester pressed Stop on a run).
+    this.userChannel.on("agent:interrupt", (payload: unknown) => {
+      const interrupt = payload as AgentInterruptRequest;
+      debugLog("agent-run", {
+        source: "agent:interrupt",
+        runId: interrupt.run_id,
+      });
+      this.callbacks.onAgentInterrupt?.(interrupt);
     });
 
     // Handle channel_added (user subscribed to a new channel via web/invite)

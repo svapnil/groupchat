@@ -116,13 +116,24 @@ export interface AgentSteerRequest {
 }
 
 /**
+ * `agent:interrupt` push from the backend on the `user:{id}` topic — the
+ * requester pressed Stop on run `run_id`. The TUI interrupts the harness turn
+ * natively (codex turn/interrupt, claude's interrupt control request), keeping
+ * the session warm; if that doesn't land it kills the session and reports the
+ * control event `run/stopped` itself.
+ */
+export interface AgentInterruptRequest {
+  run_id: string;
+}
+
+/**
  * `agent:event` push from the TUI to the backend on the `user:{id}` topic — a
  * native harness app-server notification forwarded true-to-source (`{method,
  * params}`), correlated by `run_id`. The backend validates+bounds it per-harness
  * (Chat.Harness): the method is whitelisted and `params` is size/length/depth-
  * capped, then persisted (durable methods) and broadcast verbatim. The
- * harness-agnostic control method `run/failed` (`params: { message }`)
- * terminates the run.
+ * harness-agnostic control methods `run/failed` (`params: { message }`) and
+ * `run/stopped` (`params: {}`) terminate the run.
  */
 export interface AgentRunEventPayload {
   event_id?: string;
@@ -358,6 +369,7 @@ export interface ChannelManagerCallbacks {
   // Agent-run callbacks (user channel)
   onAgentRun?: (run: AgentRunRequest) => void;
   onAgentSteer?: (steer: AgentSteerRequest) => void;
+  onAgentInterrupt?: (interrupt: AgentInterruptRequest) => void;
 
   // DM callbacks
   onDmMessage?: (message: DmMessage) => void;

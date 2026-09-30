@@ -14,7 +14,8 @@
  *
  * Multi-turn conversations chain runs: a "continue" run cold-resumes the
  * conversation's harness thread/session on a cache miss. Cached sessions receive
- * another input directly. `agent:steer` injects a prompt into a RUNNING turn.
+ * another input directly. `agent:steer` injects a prompt into a RUNNING turn;
+ * `agent:interrupt` stops it (native interrupt, falling back to a kill).
  */
 import { isDurableAgentEvent } from "../../lib/agent-event-delivery"
 import { pollThreadTitle } from "./thread-title"
@@ -30,10 +31,17 @@ import { debugLog } from "../../lib/debug"
 import type { HarnessAdapter } from "./harness-session"
 import { RemoteSessionPool, type PooledSession, type SessionPoolOptions } from "./remote-session-pool"
 import type { ChannelManager } from "../../lib/channel-manager"
-import type { AgentRunRequest, AgentSteerRequest } from "../../lib/types"
+import type { AgentInterruptRequest, AgentRunRequest, AgentSteerRequest } from "../../lib/types"
 
 /** Safety net: if the harness never completes a turn, fail the run. */
 const RUN_TIMEOUT_MS = 30 * 60 * 1000
+
+/**
+ * How long an accepted interrupt may take to produce its terminal event
+ * before the run is hard-stopped (session killed). Shorter than the backend's
+ * own stop deadline so a live TUI always reports the stop itself.
+ */
+const STOP_GRACE_MS = 10 * 1000
 
 /**
  * Concurrent runs per agent (agent id -> set of active run ids). Concurrent
@@ -79,6 +87,7 @@ export function createRemoteAgentRunner(
   const activeRunsByAgentId = new Map<string, Set<string>>()
   const activeSessionsByRunId = new Map<string, PooledSession>()
   const pendingDeliveriesByRunId = new Map<string, () => Promise<void>>()
+  const stopRequestsByRunId = new Map<string, () => void>()
   const resolveAdapter = options.getAdapter ?? getHarnessAdapter
   const titlePolls = new Map<PooledSession, () => void>()
   let closed = false
@@ -179,6 +188,8 @@ export function createRemoteAgentRunner(
     let owned: PooledSession | null = null
     let reused = false
     let cancelSafetyTimer: (() => void) | null = null
+    let cancelStopGrace: (() => void) | null = null
+    let stopRequested = false
     let finished = false
     let threadReported = false
     let terminalReceived = false
@@ -202,6 +213,9 @@ export function createRemoteAgentRunner(
       finished = true
       cancelSafetyTimer?.()
       cancelSafetyTimer = null
+      cancelStopGrace?.()
+      cancelStopGrace = null
+      stopRequestsByRunId.delete(run.run_id)
       // Release only this run's slot; sibling runs for the same agent keep theirs.
       const runsForAgent = activeRunsByAgentId.get(agentId)
       if (runsForAgent) {
@@ -225,6 +239,42 @@ export function createRemoteAgentRunner(
       }
       cleanup()
     }
+
+    /**
+     * Stop without the harness's cooperation: report `run/stopped` and tear
+     * the session down (killing the process). Trailing output is dropped —
+     * the run is no longer in progress. No-op once a terminal event arrived.
+     */
+    const hardStop = () => {
+      if (finished || terminalReceived) return
+      terminalReceived = true
+      trackRunFinished(run.run_id, "stopped")
+      try {
+        manager.sendAgentRunEvent({ run_id: run.run_id, method: "run/stopped", params: {} })
+      } catch {
+        // best-effort; the backend's stop deadline settles the run regardless
+      }
+      cleanup()
+    }
+
+    // Stop button: interrupt the turn natively so the session stays warm for
+    // the next reply; its terminal event (turnOutcome → stopped) ends the run.
+    // Falls back to hardStop when the harness refuses or never finishes.
+    const requestStop = () => {
+      if (finished || terminalReceived || stopRequested) return
+      stopRequested = true
+      const session = owned?.handle.session
+      if (!session) {
+        hardStop()
+        return
+      }
+      cancelStopGrace = schedule(hardStop, STOP_GRACE_MS)
+      void session.interrupt().then(
+        (accepted) => { if (!accepted) hardStop() },
+        () => hardStop(),
+      )
+    }
+    stopRequestsByRunId.set(run.run_id, requestStop)
 
     // The session's conversation handle (codex thread id / claude session id) —
     // the run row's conversation pointer for follow-up turns. Codex reports it
@@ -283,11 +333,18 @@ export function createRemoteAgentRunner(
     // turn/completed, claude result) and whether it failed.
     const forwardNotification = (method: string, params: Record<string, unknown>) => {
       if (finished || terminalReceived) return
-      const outcome = adapter.turnOutcome(method, params)
+      let outcome = adapter.turnOutcome(method, params)
+      // After Stop, any failed turn end is the interrupt landing in a shape
+      // the adapter doesn't recognize; the backend completes the run too.
+      if (outcome?.failed && stopRequested) outcome = { failed: false, stopped: true }
       if (outcome) terminalReceived = true
       if (adapter.forwardedMethods.has(method)) {
         enqueueEvent(method, params, outcome ? () => {
-          trackRunFinished(run.run_id, outcome.failed ? "failed" : "completed", outcome.error)
+          trackRunFinished(
+            run.run_id,
+            outcome.failed ? "failed" : outcome.stopped ? "stopped" : "completed",
+            outcome.error,
+          )
           cleanup(!outcome.failed)
         } : undefined)
       }
@@ -415,6 +472,27 @@ export function createRemoteAgentRunner(
     })()
   }
 
+  /**
+   * Handle an inbound `agent:interrupt` push (the requester pressed Stop).
+   * An active run interrupts its turn natively (see requestStop). An unknown
+   * run — already finished, or started before this process — just reports
+   * `run/stopped` so the backend settles it now rather than at its deadline;
+   * a run that already ended rejects it harmlessly. Never throws.
+   */
+  function handleAgentInterrupt(interrupt: AgentInterruptRequest): void {
+    const requestStop = stopRequestsByRunId.get(interrupt.run_id)
+    if (requestStop) {
+      requestStop()
+      return
+    }
+    debugLog("remote-agent-runner", "Interrupt target not active", { runId: interrupt.run_id })
+    try {
+      manager.sendAgentRunEvent({ run_id: interrupt.run_id, method: "run/stopped", params: {} })
+    } catch {
+      // best-effort
+    }
+  }
+
   const shutdown = () => {
     if (closed) return
     closed = true
@@ -425,7 +503,7 @@ export function createRemoteAgentRunner(
   }
   // Includes the TUI's explicit process.exit() path after Ctrl+C.
   process.once("exit", shutdown)
-  return { handleAgentMention, handleAgentSteer, shutdown }
+  return { handleAgentMention, handleAgentSteer, handleAgentInterrupt, shutdown }
 }
 
 const runners = new WeakMap<ChannelManager, ReturnType<typeof createRemoteAgentRunner>>()
@@ -444,6 +522,10 @@ export function handleAgentMention(run: AgentRunRequest, manager: ChannelManager
 
 export function handleAgentSteer(steer: AgentSteerRequest, manager: ChannelManager) {
   runnerFor(manager).handleAgentSteer(steer)
+}
+
+export function handleAgentInterrupt(interrupt: AgentInterruptRequest, manager: ChannelManager) {
+  runnerFor(manager).handleAgentInterrupt(interrupt)
 }
 
 export function shutdownRemoteAgentRunner(manager: ChannelManager) {

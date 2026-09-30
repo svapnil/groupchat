@@ -210,8 +210,12 @@ export function RemoteControlView(props: RemoteControlViewProps) {
           <For each={remoteRecentRuns()}>
             {(run: RemoteRunInfo) => (
               <text>
-                <span style={{ fg: run.status === "completed" ? PRESENCE.online : ERROR_COLOR }}>
-                  {run.status === "completed" ? "✓" : "✗"}
+                <span
+                  style={{
+                    fg: run.status === "completed" ? PRESENCE.online : run.status === "stopped" ? DIM : ERROR_COLOR,
+                  }}
+                >
+                  {run.status === "completed" ? "✓" : run.status === "stopped" ? "■" : "✗"}
                 </span>{" "}
                 @{run.agentName} in {prettyRoom(run.room)}
                 <span style={{ fg: FAINT }}>

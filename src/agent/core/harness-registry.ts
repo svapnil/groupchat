@@ -43,6 +43,8 @@ const codexAdapter: HarnessAdapter = {
   turnOutcome: (method, params) => {
     if (method !== "turn/completed") return null
     const turn = (params.turn ?? {}) as { status?: string; error?: { message?: string } }
+    // Only our turn/interrupt produces "interrupted".
+    if (turn.status === "interrupted") return { failed: false, stopped: true }
     const failed = typeof turn.status === "string" && turn.status !== "completed"
     return { failed, error: turn.error?.message }
   },
@@ -75,6 +77,7 @@ const codexAdapter: HarnessAdapter = {
         // The username arg only labels the local (unrendered) message record.
         sendMessage: (prompt) => codexSession.sendMessage(prompt, "remote"),
         steer: (prompt) => codexSession.steer(prompt),
+        interrupt: () => codexSession.interruptTurn(),
         stop: () => codexSession.stop(),
         isActive: () => codexSession.isActive(),
         lastError: () => codexSession.lastError(),
@@ -108,6 +111,12 @@ const claudeAdapter: HarnessAdapter = {
 
   turnOutcome: (method, params) => {
     if (method !== "result") return null
+    // An interrupt control request ends the turn as error_during_execution
+    // with an aborted_* terminal_reason (observed: aborted_streaming mid-
+    // response, aborted_tools mid-tool); it is a stop, not a failure.
+    if (typeof params.terminal_reason === "string" && params.terminal_reason.startsWith("aborted_")) {
+      return { failed: false, stopped: true }
+    }
     const failed = params.subtype !== "success" || params.is_error === true
     if (!failed) return { failed: false }
     const resultText = typeof params.result === "string" && params.result ? params.result : null

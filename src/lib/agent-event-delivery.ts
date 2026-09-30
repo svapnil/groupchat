@@ -7,7 +7,7 @@ const MAX_EVENT_BYTES = 8_388_608
 const encoder = new TextEncoder()
 const DURABLE = new Set([
   "item/started", "item/completed", "assistant", "user", "result",
-  "turn/started", "turn/completed", "system/status", "run/thread_started", "run/failed",
+  "turn/started", "turn/completed", "system/status", "run/thread_started", "run/failed", "run/stopped",
 ])
 export function isDurableAgentEvent(method: string): boolean { return DURABLE.has(method) }
 

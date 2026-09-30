@@ -20,6 +20,7 @@ function fixture(harness: string, maxIdle = 10, readTitle?: () => Promise<string
     session: RemoteHarnessSession
     starts: number
     stops: number
+    interrupts: number
     disposals: number
     prompts: string[]
     threadId: string
@@ -44,11 +45,12 @@ function fixture(harness: string, maxIdle = 10, readTitle?: () => Promise<string
           if (!reported) { reported = true; options.onThreadStarted(threadId) }
         }
         const proc = {
-          options, threadId, starts: 0, stops: 0, disposals: 0, prompts: [] as string[],
+          options, threadId, starts: 0, stops: 0, disposals: 0, interrupts: 0, prompts: [] as string[],
           session: {
             start: async () => { proc.starts++; active = true; if (harness === "codex") report() },
             sendMessage: async (prompt: string) => { proc.prompts.push(prompt); report() },
             steer: async () => true,
+            interrupt: async () => { proc.interrupts++; return true },
             stop: () => { proc.stops++; active = false },
             isActive: () => active,
             lastError: () => null,
@@ -74,8 +76,14 @@ function fixture(harness: string, maxIdle = 10, readTitle?: () => Promise<string
       ? { threadId: processes[index].threadId, turn: { id: `turn-${events.length}`, status: failed ? "failed" : "completed" } }
       : { subtype: failed ? "error_during_execution" : "success", is_error: failed })
   }
+  // The terminal notification each harness emits after a native interrupt.
+  const interrupted = (index = 0) => {
+    processes[index].options.onNotification(terminal, harness === "codex"
+      ? { threadId: processes[index].threadId, turn: { id: `turn-${events.length}`, status: "interrupted" } }
+      : { subtype: "error_during_execution", is_error: true, terminal_reason: "aborted_streaming" })
+  }
   const follow = (id: string, index = 0) => run(id, { mode: "continue", resume_thread_id: processes[index].threadId })
-  return { runner, manager, events, timers, processes, run, complete, follow, terminal }
+  return { runner, manager, events, timers, processes, run, complete, interrupted, follow, terminal }
 }
 
 for (const harness of ["codex", "claude"]) {
@@ -277,6 +285,74 @@ for (const harness of ["codex", "claude"]) {
       expect(f.events.some(e => e.method === "run/steer_rejected")).toBe(true)
       f.runner.handleAgentMention(f.follow("second")); await flush()
       expect(f.processes).toHaveLength(2)
+    })
+    test("a native interrupt stops the run and keeps the session warm", async () => {
+      const f = fixture(harness)
+      f.runner.handleAgentMention(f.run("first")); await flush()
+      f.runner.handleAgentInterrupt({ run_id: "first" }); await flush()
+      f.runner.handleAgentInterrupt({ run_id: "first" }); await flush() // double-click
+      expect(f.processes[0].interrupts).toBe(1)
+      f.interrupted(); await flush()
+      expect(f.events.filter(e => e.method === f.terminal).map(e => e.run_id)).toEqual(["first"])
+      expect(f.events.some(e => e.method === "run/stopped" || e.method === "run/failed")).toBe(false)
+      expect(f.processes[0].stops).toBe(0)
+      expect(f.timers.find(t => t.ms === 10_000)!.cancelled).toBe(true)
+      f.runner.handleAgentMention(f.follow("second")); await flush()
+      expect(f.processes).toHaveLength(1)
+      expect(f.processes[0].prompts).toEqual(["first", "second"])
+    })
+
+    test("after Stop, a failed turn end counts as stopped and keeps the session", async () => {
+      const f = fixture(harness)
+      f.runner.handleAgentMention(f.run("first")); await flush()
+      f.runner.handleAgentInterrupt({ run_id: "first" }); await flush()
+      f.complete(0, true); await flush()
+      expect(f.events.filter(e => e.method === f.terminal)).toHaveLength(1)
+      expect(f.processes[0].stops).toBe(0)
+      expect(f.timers.some(t => t.ms === 300_000 && !t.cancelled)).toBe(true)
+    })
+
+    test("a refused interrupt hard-stops the run", async () => {
+      const f = fixture(harness)
+      f.runner.handleAgentMention(f.run("first")); await flush()
+      f.processes[0].session.interrupt = async () => false
+      f.runner.handleAgentInterrupt({ run_id: "first" }); await flush()
+      expect(f.events.filter(e => e.method === "run/stopped").map(e => e.run_id)).toEqual(["first"])
+      expect(f.processes[0].stops).toBe(1)
+      f.complete(); await flush() // late output from the dying turn is dropped
+      expect(f.events.some(e => e.method === f.terminal)).toBe(false)
+    })
+
+    test("an accepted interrupt that never ends the turn hard-stops after the grace period", async () => {
+      const f = fixture(harness)
+      f.runner.handleAgentMention(f.run("first")); await flush()
+      f.runner.handleAgentInterrupt({ run_id: "first" }); await flush()
+      expect(f.events.some(e => e.method === "run/stopped")).toBe(false)
+      f.timers.find(t => t.ms === 10_000)!.callback(); await flush()
+      expect(f.events.filter(e => e.method === "run/stopped")).toHaveLength(1)
+      expect(f.processes[0].stops).toBe(1)
+    })
+
+    test("an interrupt after the turn finished changes nothing", async () => {
+      const f = fixture(harness)
+      f.runner.handleAgentMention(f.run("first")); await flush()
+      let acknowledge!: () => void
+      f.manager.sendAgentRunEventAcknowledged = async event => {
+        f.events.push(event)
+        if (event.method === f.terminal) await new Promise<void>(resolve => { acknowledge = resolve })
+      }
+      f.complete(); await flush()
+      f.runner.handleAgentInterrupt({ run_id: "first" }); await flush()
+      acknowledge(); await flush()
+      expect(f.processes[0].interrupts).toBe(0)
+      expect(f.events.some(e => e.method === "run/stopped")).toBe(false)
+      expect(f.processes[0].stops).toBe(0)
+    })
+
+    test("an interrupt for an unknown run reports it stopped", async () => {
+      const f = fixture(harness)
+      f.runner.handleAgentInterrupt({ run_id: "gone" }); await flush()
+      expect(f.events).toEqual([{ run_id: "gone", method: "run/stopped", params: {} }])
     })
   })
 }

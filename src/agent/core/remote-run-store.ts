@@ -9,7 +9,7 @@
  */
 import { createSignal } from "solid-js"
 
-export type RemoteRunStatus = "running" | "completed" | "failed"
+export type RemoteRunStatus = "running" | "completed" | "failed" | "stopped"
 
 export type RemoteRunEventInfo = {
   /** Native harness notification method (e.g. "item/completed"). */
@@ -69,7 +69,7 @@ export function trackRunEvent(
 
 export function trackRunFinished(
   runId: string,
-  status: "completed" | "failed",
+  status: "completed" | "failed" | "stopped",
   error?: string
 ): void {
   setActiveRuns((prev) => {

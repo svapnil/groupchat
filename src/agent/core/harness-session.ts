@@ -47,6 +47,15 @@ export interface RemoteHarnessSession {
    * callers then fall back to a continuation run.
    */
   steer(prompt: string): Promise<boolean>
+  /**
+   * Interrupt the RUNNING turn natively, keeping the process and conversation
+   * alive (codex turn/interrupt; claude's interrupt control request). Resolves
+   * true once the harness accepted it — its terminal notification follows,
+   * and `turnOutcome` reports it as `stopped`. False when no turn is active or
+   * the harness refused; callers then fall back to `stop()`.
+   */
+  interrupt(): Promise<boolean>
+  /** Tear the session down (kills the harness process). */
   stop(): void
   isActive(): boolean
   lastError(): string | null
@@ -84,11 +93,13 @@ export type HarnessAdapter = {
   forwardedMethods: Set<string>
   /**
    * The terminal run outcome a notification implies (codex turn/completed,
-   * claude result), or null when the notification isn't terminal.
+   * claude result), or null when the notification isn't terminal. `stopped`
+   * marks a turn ended by `interrupt()` — not a failure, so the session stays
+   * warm for the next turn.
    */
   turnOutcome(
     method: string,
     params: Record<string, unknown>,
-  ): { failed: boolean; error?: string } | null
+  ): { failed: boolean; stopped?: boolean; error?: string } | null
   createSession(options: RemoteSessionOptions): RemoteSessionHandle
 }

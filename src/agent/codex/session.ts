@@ -455,6 +455,17 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
   let fellBackToFreshThread = false
   let currentTurnId: string | null = null
   let currentRpcTurnId: string | null = null
+  /**
+   * Interrupts that arrived between turn/start and learning the turn id. Resolved
+   * with the id once known, or null when the turn ends (or the session stops)
+   * first.
+   */
+  let rpcTurnIdWaiters: Array<(turnId: string | null) => void> = []
+  const settleRpcTurnIdWaiters = (turnId: string | null) => {
+    const waiters = rpcTurnIdWaiters
+    rpcTurnIdWaiters = []
+    for (const resolve of waiters) resolve(turnId)
+  }
   const completedRpcTurnIds = new Set<string>()
   let streamingMessageId: string | null = null
   let thinkingMessageId: string | null = null
@@ -1356,6 +1367,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
         if (!mainThread || !currentTurnId) return
         if (method === "turn/started" && typeof rpcTurnId === "string") {
           currentRpcTurnId = rpcTurnId
+          settleRpcTurnIdWaiters(rpcTurnId)
         } else if (method === "turn/completed") {
           if (typeof rpcTurnId === "string") {
             completedRpcTurnIds.add(rpcTurnId)
@@ -1365,6 +1377,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
           }
           currentTurnId = null
           currentRpcTurnId = null
+          settleRpcTurnIdWaiters(null)
         }
       }
       options.onNotification?.(method, params)
@@ -1625,6 +1638,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     activeModel = null
     currentTurnId = null
     currentRpcTurnId = null
+    settleRpcTurnIdWaiters(null)
     latestOutputTokens = undefined
     latestStopReason = null
     liveThinkingText = ""
@@ -1686,6 +1700,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
       // Completion can arrive before the RPC response. Never resurrect that turn.
       if (currentTurnId === sendingTurnId) {
         currentRpcTurnId = typeof result?.turn?.id === "string" ? result.turn.id : null
+        if (currentRpcTurnId) settleRpcTurnIdWaiters(currentRpcTurnId)
       }
     } catch (error) {
       if (currentTurnId !== sendingTurnId) return
@@ -1695,6 +1710,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
       if (!options?.headless) appendSystemMessage(`Failed to send message to Codex: ${message}`)
       currentTurnId = null
       currentRpcTurnId = null
+      settleRpcTurnIdWaiters(null)
     }
   }
 
@@ -1741,6 +1757,28 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     })
   }
 
+  /**
+   * Headless counterpart of `interrupt`: turn/interrupt the RUNNING turn
+   * without touching local UI state. The turn then ends with
+   * turn/completed status "interrupted" and the thread stays usable (verified
+   * live, including with a collab subagent mid-command). A stop that lands
+   * before the turn id is known waits for it. Resolves false when no turn is
+   * running or Codex rejects the request (e.g. the turn just completed).
+   */
+  const interruptTurn = async (): Promise<boolean> => {
+    if (!transport || !threadId || !currentTurnId || !isActive()) return false
+    const turnId = currentRpcTurnId
+      ?? await new Promise<string | null>((resolve) => { rpcTurnIdWaiters.push(resolve) })
+    const target = threadId
+    if (!turnId || !transport || !target) return false
+    try {
+      await transport.call("turn/interrupt", { threadId: target, turnId })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const appendError = (message: string) => {
     appendSystemMessage(message)
   }
@@ -1763,6 +1801,7 @@ export const createCodexSession = (options?: CreateCodexSessionOptions) => {
     sendMessage,
     steer,
     interrupt,
+    interruptTurn,
     appendError,
     onCxEvent,
     /** The live thread id (null before start / after stop). */

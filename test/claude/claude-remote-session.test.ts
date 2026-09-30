@@ -346,6 +346,41 @@ describe("createClaudeSession", () => {
     expect(lines).toHaveLength(2)
   })
 
+  test("interrupts the running turn with a control request", async () => {
+    const { session, spawner } = await createStartedSession()
+    expect(await session.interrupt()).toBe(false)
+
+    await session.sendMessage("Do a thing")
+    const interrupting = session.interrupt()
+    await waitForQueue()
+    const request = spawner.procs[0].writtenLines()[1]
+    expect(request).toMatchObject({ type: "control_request", request: { subtype: "interrupt" } })
+    spawner.procs[0].emit({
+      type: "control_response",
+      response: { subtype: "success", request_id: request.request_id, response: { still_queued: [] } },
+    })
+    expect(await interrupting).toBe(true)
+    expect(session.isActive()).toBe(true)
+  })
+
+  test("an interrupt is refused when Claude answers with an error or the process dies", async () => {
+    const { session, spawner } = await createStartedSession()
+    await session.sendMessage("Do a thing")
+    const refused = session.interrupt()
+    await waitForQueue()
+    const request = spawner.procs[0].writtenLines()[1]
+    spawner.procs[0].emit({
+      type: "control_response",
+      response: { subtype: "error", request_id: request.request_id, error: "no turn" },
+    })
+    expect(await refused).toBe(false)
+
+    const orphaned = session.interrupt()
+    await waitForQueue()
+    spawner.procs[0].exit(1)
+    expect(await orphaned).toBe(false)
+  })
+
   test("falls back to a fresh session when a resumed process dies before init", async () => {
     const { session, spawner, threadIds } = await createStartedSession({
       resumeThreadId: "sess-gone",

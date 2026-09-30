@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Svapnil Ankolkar
 import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
-import { handleAgentMention, handleAgentSteer, shutdownRemoteAgentRunner } from "../agent/core/remote-agent-runner"
+import { handleAgentInterrupt, handleAgentMention, handleAgentSteer, shutdownRemoteAgentRunner } from "../agent/core/remote-agent-runner"
 import { ChannelManager } from "../lib/channel-manager"
 import { fetchChannels } from "../lib/chat-client"
 import { getConfig } from "../lib/config"
@@ -219,7 +219,7 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
           options.onChannelListChanged()
         }
       },
-      // agent:run/agent:steer only arrive on the user channel (joined lazily
+      // agent:run/agent:steer/agent:interrupt only arrive on the user channel (joined lazily
       // after the first presence_state containing our own meta). The backend
       // dispatches runs when the user has a connected TUI.
       onAgentRun: (run) => {
@@ -227,6 +227,9 @@ export const createMultiChannelChat = (options: MultiChannelChatOptions): MultiC
       },
       onAgentSteer: (steer) => {
         handleAgentSteer(steer, manager)
+      },
+      onAgentInterrupt: (interrupt) => {
+        handleAgentInterrupt(interrupt, manager)
       },
     })
 
