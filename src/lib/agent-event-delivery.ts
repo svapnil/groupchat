@@ -4,6 +4,8 @@ import type { AgentRunEventPayload } from "./types"
 
 const MAX_STRING_BYTES = 1_048_576
 const MAX_EVENT_BYTES = 8_388_608
+// Mirrors the backend: the byte cap bounds arrays; depth only stops pathological nesting.
+const MAX_DEPTH = 64
 const encoder = new TextEncoder()
 const DURABLE = new Set([
   "item/started", "item/completed", "assistant", "user", "result",
@@ -16,8 +18,8 @@ export function validateAgentEvent(params: Record<string, unknown>): void {
     if (typeof value === "string" && encoder.encode(value).byteLength > MAX_STRING_BYTES)
       throw new Error("Agent event exceeds 1 MiB UTF-8 string limit; output was not saved.")
     if (value && typeof value === "object") {
-      if (depth > 8 || (Array.isArray(value) && value.length > 256))
-        throw new Error("Agent event exceeds nesting or array limits; output was not saved.")
+      if (depth > MAX_DEPTH)
+        throw new Error("Agent event exceeds nesting limit; output was not saved.")
       for (const [key, child] of Object.entries(value)) {
         visit(key, depth + 1)
         visit(child, depth + 1)

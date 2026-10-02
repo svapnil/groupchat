@@ -35,6 +35,16 @@ describe("agent event delivery", () => {
     expect(() => validateAgentEvent({ text: "\u0000".repeat(1_048_576) })).not.toThrow()
     expect(() => validateAgentEvent({ a: "\u0000".repeat(1_048_576), b: "\u0000".repeat(1_048_576) })).toThrow("8 MiB")
   })
+  test("accepts long arrays and moderate nesting, rejects pathological nesting", () => {
+    const nest = (levels: number, leaf: unknown) => {
+      let value = leaf
+      for (let i = 0; i < levels; i++) value = { n: value }
+      return value as Record<string, unknown>
+    }
+    const lines = Array.from({ length: 1_000 }, (_, i) => `line ${i}`)
+    expect(() => validateAgentEvent(nest(40, { lines }))).not.toThrow()
+    expect(() => validateAgentEvent(nest(70, {}))).toThrow("nesting limit")
+  })
   test("retries a lost acknowledgment with the same event ID and unchanged body", async () => {
     const f = transport([{ status: "timeout" }, { status: "ok" }])
     await deliverAgentEvent(() => f.channel, payload(), async () => {})
