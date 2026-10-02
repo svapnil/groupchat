@@ -27,11 +27,11 @@
     "prepublishOnly": "bun run typecheck && bun run build"
   },
   "optionalDependencies": {
-    "@groupchat-cli/darwin-arm64": "1.4.0",
-    "@groupchat-cli/darwin-x64": "1.4.0",
-    "@groupchat-cli/linux-arm64": "1.4.0",
-    "@groupchat-cli/linux-x64": "1.4.0",
-    "@groupchat-cli/win32-x64": "1.4.0"
+    "@groupchat-cli/darwin-arm64": "1.4.3",
+    "@groupchat-cli/darwin-x64": "1.4.3",
+    "@groupchat-cli/linux-arm64": "1.4.3",
+    "@groupchat-cli/linux-x64": "1.4.3",
+    "@groupchat-cli/win32-x64": "1.4.3"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.270",
